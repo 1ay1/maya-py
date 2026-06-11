@@ -188,6 +188,21 @@ PYBIND11_MODULE(_maya, m) {
         .value("F9", SpecialKey::F9).value("F10", SpecialKey::F10)
         .value("F11", SpecialKey::F11).value("F12", SpecialKey::F12);
 
+    py::enum_<MouseButton>(m, "MouseButton")
+        .value("Left", MouseButton::Left)
+        .value("Right", MouseButton::Right)
+        .value("Middle", MouseButton::Middle)
+        .value("ScrollUp", MouseButton::ScrollUp)
+        .value("ScrollDown", MouseButton::ScrollDown)
+        .value("ScrollLeft", MouseButton::ScrollLeft)
+        .value("ScrollRight", MouseButton::ScrollRight)
+        .value("None_", MouseButton::None);
+
+    py::enum_<MouseEventKind>(m, "MouseEventKind")
+        .value("Press", MouseEventKind::Press)
+        .value("Release", MouseEventKind::Release)
+        .value("Move", MouseEventKind::Move);
+
     // ── Color ─────────────────────────────────────────────────────────────
     py::class_<Color>(m, "Color")
         .def_static("rgb", &color_rgb, py::arg("r"), py::arg("g"), py::arg("b"))
@@ -516,6 +531,41 @@ PYBIND11_MODULE(_maya, m) {
     });
     m.def("any_key", [](const PyEvent& ev) { return maya::any_key(ev.ev); });
     m.def("resized", [](const PyEvent& ev) { return maya::resized(ev.ev); });
+
+    // ── Mouse predicates ──────────────────────────────────────────────────
+    // Mouse events only arrive when run(mouse=True) / App(mouse=True).
+    m.def("mouse_clicked",
+          [](const PyEvent& ev, MouseButton btn) { return maya::mouse_clicked(ev.ev, btn); },
+          py::arg("ev"), py::arg("button") = MouseButton::Left);
+    m.def("mouse_released",
+          [](const PyEvent& ev, MouseButton btn) { return maya::mouse_released(ev.ev, btn); },
+          py::arg("ev"), py::arg("button") = MouseButton::Left);
+    m.def("mouse_moved", [](const PyEvent& ev) { return maya::mouse_moved(ev.ev); });
+    m.def("scrolled_up", [](const PyEvent& ev) { return maya::scrolled_up(ev.ev); });
+    m.def("scrolled_down", [](const PyEvent& ev) { return maya::scrolled_down(ev.ev); });
+    m.def("is_mouse", [](const PyEvent& ev) { return maya::as_mouse(ev.ev) != nullptr; });
+
+    // mouse_pos(ev) -> (col, row) | None   (1-based terminal cell, as the
+    // SGR mouse protocol reports it; top-left is (1, 1))
+    m.def("mouse_pos", [](const PyEvent& ev) -> py::object {
+        auto p = maya::mouse_pos(ev.ev);
+        if (!p) return py::none();
+        return py::make_tuple(p->col, p->row);
+    });
+
+    // mouse_button(ev) -> MouseButton | None
+    m.def("mouse_button", [](const PyEvent& ev) -> py::object {
+        const MouseEvent* me = maya::as_mouse(ev.ev);
+        if (!me) return py::none();
+        return py::cast(me->button);
+    });
+
+    // mouse_kind(ev) -> MouseEventKind | None
+    m.def("mouse_kind", [](const PyEvent& ev) -> py::object {
+        const MouseEvent* me = maya::as_mouse(ev.ev);
+        if (!me) return py::none();
+        return py::cast(me->kind);
+    });
 
     // ── run() — simple event loop (Fullscreen / Inline) ──────────────────
     // event_fn: (Event) -> bool   (False => quit)

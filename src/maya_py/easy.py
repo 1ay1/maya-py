@@ -480,6 +480,13 @@ _SPECIAL = {
     "pageup": SpecialKey.PageUp, "pagedown": SpecialKey.PageDown,
 }
 
+# friendly mouse-button names → MouseButton enum
+_MOUSE_BTN = {
+    "left": _maya.MouseButton.Left,
+    "right": _maya.MouseButton.Right,
+    "middle": _maya.MouseButton.Middle,
+}
+
 
 class App:
     """An interactive maya app with zero event-loop boilerplate.
@@ -514,6 +521,9 @@ class App:
         self._bindings: list[tuple[Callable[[Any], bool], Callable]] = []
         self._view: Callable[[Any], Any] | None = None
         self._any: list[Callable] = []
+        self._clicks: list[tuple[Any, Callable]] = []   # (button|None, fn)
+        self._scrolls: list[Callable] = []
+        self._mouse_any: list[Callable] = []
         self._running = True
         self._ctrl_c_bound = False  # set if the user binds ctrl+c themselves
 
@@ -545,6 +555,41 @@ class App:
     def on_key(self, fn):
         """Decorator: call ``fn(state, event)`` for every key event."""
         self._any.append(fn)
+        return fn
+
+    # -- mouse bindings ------------------------------------------------------
+    def on_click(self, button: str = "left"):
+        """Decorator: bind a mouse-button PRESS to ``fn(state, col, row)``.
+
+        ``button`` is "left" / "right" / "middle" (or "any"). Registering any
+        mouse handler auto-enables mouse reporting.
+
+        Example::
+
+            @app.on_click()
+            def click(s, col, row): s.last = (col, row)
+        """
+        self.mouse = True
+        btn = None if button.lower() in ("any", "") else _MOUSE_BTN[button.lower()]
+
+        def deco(fn):
+            self._clicks.append((btn, fn))
+            return fn
+        return deco
+
+    def on_scroll(self, fn):
+        """Decorator: call ``fn(state, direction)`` on wheel scroll, where
+        ``direction`` is -1 (up) or +1 (down). Auto-enables mouse reporting."""
+        self.mouse = True
+        self._scrolls.append(fn)
+        return fn
+
+    def on_mouse(self, fn):
+        """Decorator: call ``fn(state, event)`` for EVERY mouse event (press,
+        release, move, scroll). Use the ``maya.mouse_*`` predicates on the
+        event. Auto-enables mouse reporting."""
+        self.mouse = True
+        self._mouse_any.append(fn)
         return fn
 
     def view(self, fn):
@@ -580,6 +625,25 @@ class App:
         if self.quit_on_ctrl_c and not self._ctrl_c_bound and _maya.ctrl(ev, "c"):
             self._running = False
             return False
+
+        # Mouse events route to mouse handlers only (never key bindings).
+        if _maya.is_mouse(ev):
+            for fn in self._mouse_any:
+                fn(self._state, ev)
+            if _maya.scrolled_up(ev):
+                for fn in self._scrolls:
+                    fn(self._state, -1)
+            elif _maya.scrolled_down(ev):
+                for fn in self._scrolls:
+                    fn(self._state, +1)
+            else:
+                pos = _maya.mouse_pos(ev)
+                for btn, fn in self._clicks:
+                    if _maya.mouse_clicked(ev) if btn is None else _maya.mouse_clicked(ev, btn):
+                        col, row = pos if pos else (0, 0)
+                        fn(self._state, col, row)
+            return self._running
+
         for fn in self._any:
             fn(self._state, ev)
         for match, fn in self._bindings:

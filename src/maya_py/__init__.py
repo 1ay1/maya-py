@@ -41,6 +41,8 @@ from ._maya import (
     Overflow,
     TextWrap,
     SpecialKey,
+    MouseButton,
+    MouseEventKind,
     # element factories
     text,
     box,
@@ -61,6 +63,16 @@ from ._maya import (
     alt,
     any_key,
     resized,
+    # mouse predicates
+    mouse_clicked,
+    mouse_released,
+    mouse_moved,
+    scrolled_up,
+    scrolled_down,
+    mouse_pos,
+    mouse_button,
+    mouse_kind,
+    is_mouse,
 )
 
 # ── Border style shortcuts (BorderStyle.* without the prefix) ───────────
@@ -84,9 +96,12 @@ __all__ = [
     "Element", "Style", "Color", "Event", "Dimension", "BorderSides",
     "FlexDirection", "FlexWrap", "Align", "Justify", "BorderStyle",
     "BorderTextPos", "BorderTextAlign", "Overflow", "TextWrap", "SpecialKey",
+    "MouseButton", "MouseEventKind",
     "text", "box", "vstack", "hstack", "zstack", "blank", "nothing",
     "print", "render_to_string", "live", "run", "quit",
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
+    "mouse_clicked", "mouse_released", "mouse_moved", "scrolled_up",
+    "scrolled_down", "mouse_pos", "mouse_button", "mouse_kind", "is_mouse",
     "Round", "Single", "Double", "BoldBorder", "Classic", "Dashed",
     "SingleDouble", "DoubleSingle", "Arrow",
     "Row", "Column", "RowReverse", "ColumnReverse",

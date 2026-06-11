@@ -158,6 +158,46 @@ Key names: single chars (`"q"`, `"+"`), `"up"/"down"/"left"/"right"`,
 `"enter"`, `"esc"`, `"space"`, `"tab"`, `"ctrl+c"`, `"alt+x"`, etc. Handlers
 get the state object; the view re-renders every frame.
 
+### Mouse: clicks, scroll, drag
+
+Decorate handlers for mouse input — registering any of them auto-enables
+mouse reporting (no `mouse=True` needed):
+
+```python
+from maya_py import App, card
+
+app = App("clicker")
+app.state(hits=0, pos=(0, 0))
+
+@app.on_click("left")          # "left" / "right" / "middle" / "any"
+def click(s, col, row):        # col, row are 1-based screen cells
+    s.hits += 1
+    s.pos = (col, row)
+
+@app.on_scroll
+def scroll(s, direction):      # -1 up, +1 down
+    s.hits += direction
+
+@app.on_mouse
+def any_mouse(s, ev):          # every mouse event (press/release/move/scroll)
+    ...
+
+@app.on("q", "esc")
+def quit(s): app.stop()
+
+@app.view
+def view(s):
+    return card(f"clicks {s.hits}  at {s.pos}", title="clicker")
+
+app.run()
+```
+
+Low-level predicates work on any event too: `mouse_clicked(ev, button)`,
+`mouse_released(ev)`, `mouse_moved(ev)`, `scrolled_up/down(ev)`,
+`mouse_pos(ev) -> (col, row) | None`, `mouse_button(ev)`, `mouse_kind(ev)`,
+`is_mouse(ev)`. Mouse needs a terminal that reports it (xterm, kitty,
+iTerm2, Windows Terminal, or tmux with `set -g mouse on`).
+
 ### Animation
 
 ```python
@@ -182,6 +222,7 @@ animate(render, fps=30)   # maya.quit() to stop
 - `examples/sysmon.py` — a live system monitor: rolling sparklines, gauges,
   bar charts and a log feed, animated at 10fps.
 - `examples/snake.py` — a playable Snake game (arrow keys, `App` runtime).
+- `examples/paint.py` — a mouse-driven pixel painter (click/scroll/right-click).
 - `examples/stopwatch.py` — live stopwatch with lap splits.
 - `examples/mandelbrot.py` — a colored ASCII Mandelbrot that zooms (`component`).
 - `examples/matrix.py` — falling "digital rain" animation.
