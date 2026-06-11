@@ -7,9 +7,10 @@ color, right-click to erase. Demonstrates maya-py mouse support.
     PYTHONPATH=src python examples/paint.py
 
 Requires a terminal with mouse reporting (xterm, kitty, iTerm2, Windows
-Terminal, tmux with `set -g mouse on`). The canvas is wrapped in a maya
-viewport so its painted position is reported back each frame — clicks
-hit-test against the REAL on-screen rect, never a hardcoded offset.
+Terminal, tmux with `set -g mouse on`). Runs FULLSCREEN so mouse clicks map
+to an exact, fixed coordinate origin; the canvas is wrapped in a maya viewport
+whose painted rect is reported back each frame, so clicks hit-test against the
+REAL on-screen position — never a hardcoded offset.
 """
 
 import sys
@@ -26,7 +27,7 @@ from maya_py import (
 GRID_W, GRID_H = 60, 18
 PALETTE = ["red", "orange", "gold", "lime", "sky", "magenta", "white"]
 
-app = App("paint", inline=True, mouse=True)
+app = App("paint", inline=False, mouse=True)   # fullscreen: clean coord origin
 vp = scroll_state()          # records the canvas's painted bounds each frame
 app.state(cells={}, brush=0, last=None, vp=vp)
 
