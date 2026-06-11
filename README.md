@@ -123,13 +123,21 @@ PYTHONPATH=src python examples/todo.py
 
 ## Install
 
-> **Not on PyPI yet** — `pip install maya-py` (by bare name) does **not** work
-> until the package is published to PyPI. Install from the GitHub Releases
-> instead, using one of the commands below.
-
 **The wheels are standalone — no compiler needed.** maya-py ships precompiled
-binary wheels for CPython 3.9–3.14 (Linux x86_64). The easiest path lets pip
-pick the right wheel for your Python from the release's asset list:
+binary wheels for CPython 3.9–3.14 (Linux x86_64), so on a normal machine you
+just:
+
+```bash
+pip install maya-py
+```
+
+That's it — the wheel already contains the compiled extension.
+
+<details>
+<summary>Installing straight from a GitHub Release (no PyPI)</summary>
+
+If you'd rather not use PyPI (or want a specific build), install from the
+release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
@@ -137,15 +145,17 @@ pip install --find-links \
   maya-py
 ```
 
-Or install a specific `.whl` by direct URL (no `--find-links` needed):
+Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
 pip install https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
-The wheel already contains the compiled extension. It works even on machines
-with a **very old C++ toolchain** (or none at all), because:
+</details>
+
+The wheel works even on machines with a **very old C++ toolchain** (or none at
+all), because:
 
 - the wheel is built inside a `manylinux_2_28` container, so it targets
   glibc 2.28 (2019) and runs on that-or-newer distros;

@@ -68,3 +68,26 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+
+  publish_pypi:
+    name: publish to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    environment:
+      name: pypi
+      url: https://pypi.org/project/maya-py/
+    permissions:
+      id-token: write   # OIDC token for PyPI Trusted Publishing (no secret)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          # Don't fail the whole release if a re-run hits an already-uploaded
+          # file (e.g. re-tagging the same version).
+          skip-existing: true
