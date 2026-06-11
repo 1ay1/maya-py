@@ -224,7 +224,7 @@ def _box(children, *, direction, border=None, pad=None, gap=0, title=None,
          width=None, height=None, grow=None) -> Element:
     opts: dict[str, Any] = {"direction": direction, "gap": gap}
     if border is not None:
-        opts["border"] = border if not isinstance(border, str) else _BORDERS[border.lower()]
+        opts["border"] = border if not isinstance(border, str) else _lookup(_BORDERS, border, "border")
     if pad is not None:
         opts["padding"] = pad
     if title is not None:
@@ -235,9 +235,9 @@ def _box(children, *, direction, border=None, pad=None, gap=0, title=None,
     if bg is not None:
         opts["bg"] = color(bg)
     if align is not None:
-        opts["align"] = align if not isinstance(align, str) else _ALIGN[align.lower()]
+        opts["align"] = align if not isinstance(align, str) else _lookup(_ALIGN, align, "align")
     if justify is not None:
-        opts["justify"] = justify if not isinstance(justify, str) else _JUSTIFY[justify.lower()]
+        opts["justify"] = justify if not isinstance(justify, str) else _lookup(_JUSTIFY, justify, "justify")
     if width is not None:
         opts["width"] = width
     if height is not None:
@@ -245,6 +245,15 @@ def _box(children, *, direction, border=None, pad=None, gap=0, title=None,
     if grow is not None:
         opts["grow"] = grow
     return _maya.box(*_children(children), **opts)
+
+
+def _lookup(table: dict, key: str, what: str):
+    """Case-insensitive enum-name lookup with a helpful error."""
+    hit = table.get(key.lower())
+    if hit is None:
+        opts = ", ".join(sorted(table))
+        raise ValueError(f"unknown {what} {key!r}; valid: {opts}")
+    return hit
 
 
 _BORDERS = {
@@ -386,16 +395,18 @@ class App:
     """
 
     def __init__(self, title: str = "", *, inline: bool = True,
-                 mouse: bool = False, fps: int = 0):
+                 mouse: bool = False, fps: int = 0, quit_on_ctrl_c: bool = True):
         self.title = title
         self.inline = inline
         self.mouse = mouse
         self.fps = fps
+        self.quit_on_ctrl_c = quit_on_ctrl_c
         self._state = _State()
         self._bindings: list[tuple[Callable[[Any], bool], Callable]] = []
         self._view: Callable[[Any], Any] | None = None
         self._any: list[Callable] = []
         self._running = True
+        self._ctrl_c_bound = False  # set if the user binds ctrl+c themselves
 
     # -- state ---------------------------------------------------------------
     def state(self, **kw) -> _State:
@@ -413,6 +424,8 @@ class App:
 
         Keys are chars ("q", "+") or names ("up", "esc", "enter", "space").
         """
+        if any(k.lower().replace(" ", "") in ("ctrl+c", "^c") for k in keys):
+            self._ctrl_c_bound = True
         matchers = [self._matcher(k) for k in keys]
 
         def deco(fn):
@@ -453,6 +466,11 @@ class App:
         return lambda ev: _maya.key(ev, ch)
 
     def _event(self, ev) -> bool:
+        # Ctrl-C arrives as a key event (raw mode disables tty signals), so a
+        # frozen app can always be killed unless the user took over ctrl+c.
+        if self.quit_on_ctrl_c and not self._ctrl_c_bound and _maya.ctrl(ev, "c"):
+            self._running = False
+            return False
         for fn in self._any:
             fn(self._state, ev)
         for match, fn in self._bindings:
@@ -467,11 +485,18 @@ class App:
         return _el(self._view(self._state))
 
     def run(self) -> None:
-        """Start the event loop. Blocks until a handler calls ``stop()``."""
+        """Start the event loop. Blocks until a handler calls ``stop()``
+        (or the user presses Ctrl-C, unless ``quit_on_ctrl_c=False``)."""
+        if getattr(self, "_in_run", False):
+            raise RuntimeError("App.run() is already running (cannot nest)")
+        self._in_run = True
         self._running = True
-        _maya.run(self._event, self._render,
-                  title=self.title, inline_mode=self.inline,
-                  mouse=self.mouse, fps=self.fps)
+        try:
+            _maya.run(self._event, self._render,
+                      title=self.title, inline_mode=self.inline,
+                      mouse=self.mouse, fps=self.fps)
+        finally:
+            self._in_run = False
 
 
 # ── live animation (kept simple) ─────────────────────────────────────────────

@@ -216,26 +216,32 @@ PYBIND11_MODULE(_maya, m) {
                   b.gap(opts["gap"].cast<int>());
               if (opts.contains("padding")) {
                   auto p = opts["padding"];
-                  if (py::isinstance<py::tuple>(p)) {
-                      auto tup = p.cast<py::tuple>();
-                      if (tup.size() == 2)
-                          b.padding(tup[0].cast<int>(), tup[1].cast<int>());
-                      else if (tup.size() == 4)
-                          b.padding(tup[0].cast<int>(), tup[1].cast<int>(),
-                                    tup[2].cast<int>(), tup[3].cast<int>());
+                  if (py::isinstance<py::tuple>(p) || py::isinstance<py::list>(p)) {
+                      auto tup = p.cast<py::sequence>();
+                      const auto n = tup.size();
+                      if (n == 1)      b.padding(tup[0].cast<int>());
+                      else if (n == 2) b.padding(tup[0].cast<int>(), tup[1].cast<int>());
+                      else if (n == 4) b.padding(tup[0].cast<int>(), tup[1].cast<int>(),
+                                                 tup[2].cast<int>(), tup[3].cast<int>());
+                      else throw py::value_error(
+                          "padding tuple must have 1, 2, or 4 ints (got "
+                          + std::to_string(n) + ")");
                   } else {
                       b.padding(p.cast<int>());
                   }
               }
               if (opts.contains("margin")) {
                   auto p = opts["margin"];
-                  if (py::isinstance<py::tuple>(p)) {
-                      auto tup = p.cast<py::tuple>();
-                      if (tup.size() == 2)
-                          b.margin(tup[0].cast<int>(), tup[1].cast<int>());
-                      else if (tup.size() == 4)
-                          b.margin(tup[0].cast<int>(), tup[1].cast<int>(),
-                                   tup[2].cast<int>(), tup[3].cast<int>());
+                  if (py::isinstance<py::tuple>(p) || py::isinstance<py::list>(p)) {
+                      auto tup = p.cast<py::sequence>();
+                      const auto n = tup.size();
+                      if (n == 1)      b.margin(tup[0].cast<int>());
+                      else if (n == 2) b.margin(tup[0].cast<int>(), tup[1].cast<int>());
+                      else if (n == 4) b.margin(tup[0].cast<int>(), tup[1].cast<int>(),
+                                                tup[2].cast<int>(), tup[3].cast<int>());
+                      else throw py::value_error(
+                          "margin tuple must have 1, 2, or 4 ints (got "
+                          + std::to_string(n) + ")");
                   } else {
                       b.margin(p.cast<int>());
                   }
@@ -294,9 +300,23 @@ PYBIND11_MODULE(_maya, m) {
     m.def("live",
           [](py::function render_fn, int fps, int max_width, bool cursor) {
               LiveConfig cfg{.fps = fps, .max_width = max_width, .cursor = cursor};
+              // Release the GIL for the blocking loop so Python signal handlers
+              // (Ctrl-C → KeyboardInterrupt) can run; the render callback below
+              // re-acquires it. Without this the interpreter is frozen for the
+              // whole loop and Ctrl-C is dead.
+              py::gil_scoped_release nogil;
               maya::live(cfg, [&render_fn](float dt) -> Element {
                   py::gil_scoped_acquire gil;
-                  return render_fn(dt).cast<Element>();
+                  // Let a pending KeyboardInterrupt (or other async signal)
+                  // surface as a C++ exception that unwinds the loop and
+                  // restores the terminal via maya's RAII cleanup.
+                  if (PyErr_CheckSignals() != 0) throw py::error_already_set();
+                  py::object r = render_fn(dt);
+                  if (!py::isinstance<Element>(r))
+                      throw py::type_error(
+                          "live render_fn must return a maya Element, got "
+                          + std::string(py::str(r.get_type().attr("__name__"))));
+                  return r.cast<Element>();
               });
           },
           py::arg("render_fn"), py::arg("fps") = 30,
@@ -338,15 +358,27 @@ PYBIND11_MODULE(_maya, m) {
               cfg.fps = fps;
               cfg.mode = inline_mode ? Mode::Inline : Mode::Fullscreen;
 
+              // Release the GIL for the blocking loop (Ctrl-C stays live); the
+              // callbacks re-acquire it. maya's RAII restores the terminal if
+              // a callback throws (incl. KeyboardInterrupt), so the user's
+              // shell is never left in raw mode / alt-screen.
+              py::gil_scoped_release nogil;
               maya::run(cfg,
                   [&event_fn](const Event& ev) -> bool {
                       py::gil_scoped_acquire gil;
+                      if (PyErr_CheckSignals() != 0) throw py::error_already_set();
                       py::object r = event_fn(PyEvent{ev});
                       return r.is_none() ? true : r.cast<bool>();
                   },
                   [&render_fn]() -> Element {
                       py::gil_scoped_acquire gil;
-                      return render_fn().cast<Element>();
+                      if (PyErr_CheckSignals() != 0) throw py::error_already_set();
+                      py::object r = render_fn();
+                      if (!py::isinstance<Element>(r))
+                          throw py::type_error(
+                              "App view must return a maya Element, got "
+                              + std::string(py::str(r.get_type().attr("__name__"))));
+                      return r.cast<Element>();
                   });
           },
           py::arg("event_fn"), py::arg("render_fn"),
