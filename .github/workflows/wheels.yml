@@ -27,10 +27,12 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21
         env:
-          # maya is GCC-15 / C++26. The manylinux image tops out at
-          # gcc-toolset-14, so build GCC 15 from source inside the container.
-          # Slow but cached by the runner's layer cache across re-runs.
-          CIBW_ENVIRONMENT_LINUX: "MAYA_PY_GCC_BUILD=1 MAYA_PY_GCC_VERSION=15.1.0 PATH=/opt/gcc-15.1.0/bin:$PATH CC=/opt/gcc-15.1.0/bin/gcc CXX=/opt/gcc-15.1.0/bin/g++"
+          # maya uses C++23 features (views::enumerate, std::expected,
+          # std::format, deducing-this) — all present in GCC 14. The
+          # manylinux_2_28 image ships gcc-toolset-14, so use it directly
+          # (fast, reliable) instead of building a newer GCC from source.
+          # before_all symlinks the toolset's gcc/g++ into /usr/local/bin.
+          CIBW_ENVIRONMENT_LINUX: "MAYA_PY_GCC_BUILD=0 CC=/usr/local/bin/gcc CXX=/usr/local/bin/g++"
           # Only the modern CPythons; expand as needed.
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
 

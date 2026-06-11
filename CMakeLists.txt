@@ -5,22 +5,23 @@ set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ── Compiler preflight ───────────────────────────────────────────────
-# maya is C++26 and needs GCC 15+ (or an equally modern Clang). If we got
-# here we're COMPILING FROM SOURCE — which means no prebuilt wheel matched
-# this platform. On an old toolchain the compile will fail deep inside maya
-# with inscrutable template errors, so fail FAST with an actionable message.
+# maya compiles at C++26 but the features it actually uses (views::enumerate,
+# std::expected, std::format, deducing-this) all landed in GCC 14 / Clang 18.
+# If we got here we're COMPILING FROM SOURCE — no prebuilt wheel matched this
+# platform. On an old toolchain the compile fails deep inside maya with
+# inscrutable template errors, so fail FAST with an actionable message.
 #
 # The intended install path on old machines is a PREBUILT WHEEL (no compiler
 # needed at all). If you're seeing this, a wheel for your Python/platform
 # wasn't available and pip fell back to building the source distribution.
-set(_maya_min_gcc 15)
+set(_maya_min_gcc 14)
 set(_maya_ok TRUE)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS ${_maya_min_gcc})
         set(_maya_ok FALSE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
         set(_maya_ok FALSE)
     endif()
 endif()
@@ -32,7 +33,7 @@ if(NOT _maya_ok)
         " maya-py: your C++ compiler is too old to BUILD from source.\n"
         "\n"
         "   found:    ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\n"
-        "   required: GCC >= ${_maya_min_gcc} (or Clang >= 19) for C++26\n"
+        "   required: GCC >= ${_maya_min_gcc} (or Clang >= 18)\n"
         "\n"
         " You should NOT need to compile maya-py at all — it ships\n"
         " PRECOMPILED standalone wheels that install with no compiler.\n"
@@ -45,8 +46,8 @@ if(NOT _maya_ok)
         "   2. Install the prebuilt wheel directly from a GitHub release:\n"
         "        pip install <url-to-the-.whl-for-your-platform>\n"
         "   3. If you truly must build from source, install a modern GCC:\n"
-        "        # Ubuntu:  sudo apt install g++-15\n"
-        "        # then:    pip install . -C cmake.define.CMAKE_CXX_COMPILER=g++-15\n"
+        "        # Ubuntu:  sudo apt install g++-14\n"
+        "        # then:    pip install . -C cmake.define.CMAKE_CXX_COMPILER=g++-14\n"
         "==============================================================\n")
 endif()
 
