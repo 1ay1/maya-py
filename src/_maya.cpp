@@ -14,6 +14,8 @@
 
 #include <maya/maya.hpp>
 
+#include "_pyevent.hpp"
+
 #include <optional>
 #include <array>
 #include <unistd.h>
@@ -25,16 +27,15 @@ using namespace maya;
 
 // Defined in _widgets.cpp — registers maya's widget renderers as a submodule.
 void init_widgets(py::module_& m);
+void init_program(py::module_& m);
 
 // ── Event wrapper ──────────────────────────────────────────────────────────
 //
 // maya::Event is a std::variant; passed bare to Python, pybind's variant
-// caster tries (and fails) to convert the active member. This opaque wrapper
-// keeps the event on the C++ side — Python only ever feeds it back through the
-// key()/ctrl()/alt()/... predicates.
-struct PyEvent {
-    Event ev;
-};
+// caster tries (and fails) to convert the active member. The opaque wrapper
+// PyEvent (in _pyevent.hpp) keeps the event on the C++ side — Python only ever
+// feeds it back through the key()/ctrl()/alt()/... predicates. It's shared
+// with _program.cpp so Sub filters hand back the SAME registered type.
 
 // ── Color ──────────────────────────────────────────────────────────────────
 //
@@ -639,4 +640,5 @@ PYBIND11_MODULE(_maya, m) {
     // Widget renderers (registered last so the core types they reference in
     // default args — Style, Color, BorderStyle — already exist).
     init_widgets(m);
+    init_program(m);
 }

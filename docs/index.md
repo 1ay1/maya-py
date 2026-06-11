@@ -21,12 +21,13 @@ freely.
 2. [Text & Style](text-and-style.md) — `T`, markup helpers, colors.
 3. [Layout](layout.md) — `col`, `row`, `card`, `field`, `hr`, `spacer`, and all box options.
 4. [Apps](apps.md) — the `App` class, key bindings, state, the view function.
-5. [Widgets](widgets.md) — 44 native renderers: charts, controls, tables, agent UI, scrolling.
-6. [Rendering](rendering.md) — `show`, `to_string`, `animate`, `live`, `run`.
-7. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
-8. [API Reference](api-reference.md) — every public symbol, one table.
-9. [Low-Level API](low-level.md) — primitives, enums, the native binding.
-10. [Distribution & Standalone Wheels](distribution.md) — how it installs without a compiler.
+5. [The Program model (MVU)](program.md) — pure `init`/`update`/`view`/`subscribe`, `Cmd` effects, `Sub` sources — the same model as C++ `run<P>`.
+6. [Widgets](widgets.md) — 44 native renderers: charts, controls, tables, agent UI, scrolling.
+7. [Rendering](rendering.md) — `show`, `to_string`, `animate`, `live`, `run`.
+8. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
+9. [API Reference](api-reference.md) — every public symbol, one table.
+10. [Low-Level API](low-level.md) — primitives, enums, the native binding.
+11. [Distribution & Standalone Wheels](distribution.md) — how it installs without a compiler.
 
 ## A complete example
 
