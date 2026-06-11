@@ -25,7 +25,7 @@ jobs:
           submodules: recursive
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21
+        uses: pypa/cibuildwheel@v3.1
         env:
           # maya uses C++23 features (views::enumerate, std::expected,
           # std::format, deducing-this) — all present in GCC 14. The
@@ -33,8 +33,8 @@ jobs:
           # (fast, reliable) instead of building a newer GCC from source.
           # before_all symlinks the toolset's gcc/g++ into /usr/local/bin.
           CIBW_ENVIRONMENT_LINUX: "MAYA_PY_GCC_BUILD=0 CC=/usr/local/bin/gcc CXX=/usr/local/bin/g++"
-          # Only the modern CPythons; expand as needed.
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+          # CPython 3.9 → 3.14 (cibuildwheel 3.x builds cp314 by default).
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
 
       - uses: actions/upload-artifact@v4
         with:

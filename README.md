@@ -123,11 +123,26 @@ PYTHONPATH=src python examples/todo.py
 
 ## Install
 
-**The wheel is standalone — no compiler needed.** maya-py ships precompiled
-binary wheels, so on a normal machine you just:
+> **Not on PyPI yet** — `pip install maya-py` (by bare name) does **not** work
+> until the package is published to PyPI. Install from the GitHub Releases
+> instead, using one of the commands below.
+
+**The wheels are standalone — no compiler needed.** maya-py ships precompiled
+binary wheels for CPython 3.9–3.14 (Linux x86_64). The fastest path is to let
+pip pick the right wheel straight from the latest release:
 
 ```bash
-pip install maya-py
+pip install --find-links \
+  https://github.com/1ay1/maya-py/releases/latest/download/ \
+  maya-py
+```
+
+Or grab the exact `.whl` for your Python from the
+[Releases](https://github.com/1ay1/maya-py/releases) page and install the file:
+
+```bash
+# e.g. CPython 3.13 on x86_64 Linux
+pip install ./maya_py-0.1.0-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 The wheel already contains the compiled extension. It works even on machines
@@ -141,24 +156,25 @@ with a **very old C++ toolchain** (or none at all), because:
 Nothing on your machine is compiled at install time, so your system GCC
 version is irrelevant.
 
-> If `pip` can't find a matching wheel (unusual platform / Python), it falls
-> back to building from source — and *that* needs a C++26 compiler (GCC 15+).
-> The build prints a clear message telling you so. First try
-> `python -m pip install --upgrade pip` (newer pip matches more wheels), or
-> grab the `.whl` for your platform from the
-> [Releases](https://github.com/1ay1/maya-py/releases) page and
-> `pip install ./that-file.whl`.
+### No matching wheel? Build from the sdist
 
-### Building from source (only if you want to)
-
-Requires GCC 15+ and CMake ≥ 3.28. maya is pulled in via CMake `FetchContent`
-(or a sibling `../maya-src` checkout):
+If no prebuilt wheel matches your platform/Python, install the source
+distribution — this compiles the extension locally and needs **GCC 14+** (or
+Clang 18+) and CMake ≥ 3.28:
 
 ```bash
-pip install .
+pip install \
+  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.0.tar.gz
 ```
 
-For development, build the extension in place:
+The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes
+(it builds maya from source). If your compiler is too old, the build aborts
+early with a clear, actionable message rather than a wall of template errors.
+
+### Development build
+
+To hack on maya-py, build the extension in place (uses a sibling `../maya-src`
+checkout if present, else clones maya):
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -168,8 +184,8 @@ PYTHONPATH=src python examples/hello.py
 ```
 
 Wheels are produced by [cibuildwheel](https://cibuildwheel.pypa.io) via
-`.github/workflows/wheels.yml` — push a `vX.Y.Z` tag to build and attach them
-to a release.
+`.github/workflows/wheels.yml` — push a `vX.Y.Z` tag to build them and attach
+them to a GitHub Release automatically.
 
 ## Low-level API
 
