@@ -139,7 +139,8 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
 - **structure & nav**: `table`, `tree`, `list_view`, `menu`, `disclosure`,
   `key_help`, `calendar`, `timeline`, `picker` (bordered command palette)
 - **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`
-- **graphics**: `image` (1-bit braille), `canvas` (color half-block)
+- **graphics**: `image` (1-bit braille), `canvas` (color half-block grid),
+  `Canvas` (imperative drawing surface: `set_pixel`/`line`/`rect`/`fill`)
 
 ```python
 from maya_py import col, row, checkbox, slider, todo_list, timeline, tree
@@ -310,6 +311,7 @@ each (CI-friendly, no TTY needed).
 - `raymarch.py` — a real-time raymarched SDF scene (sphere + plane).
 - `fps.py` — a Wolfenstein-style textured raycaster with a minimap.
 - `mandelbrot.py` — a zooming coloured Mandelbrot. `matrix.py` — digital rain.
+- `canvas.py` — the `Canvas` drawing surface: lines, rects, a live plot.
 
 **Dashboards & data:**
 

@@ -246,6 +246,21 @@ def test_image_and_canvas():
     check("canvas_nonempty", len(cv.strip()) > 0)
 
 
+def test_canvas_drawing_class():
+    c = m.Canvas(20, 6)
+    check("canvas_dims", c.width == 20 and c.height == 6 and c.pixel_height == 12)
+    # the drawing methods chain and accept friendly colors
+    ret = c.fill("black").line(0, 0, 19, 11, "sky").rect(2, 2, 10, 6, "lime")
+    check("canvas_chains", ret is c)
+    c.set_pixel(5, 5, (255, 0, 0))
+    out = render(c.element())
+    check("canvas_draws", "▀" in out)
+    # a Canvas drops straight into a layout (auto .element())
+    check("canvas_in_layout", len(render(m.col("art:", c)).strip()) > 0)
+    c.clear()
+    check("canvas_clear_ok", True)
+
+
 # ── command palette ──────────────────────────────────────────────
 def test_picker():
     out = render(m.picker(

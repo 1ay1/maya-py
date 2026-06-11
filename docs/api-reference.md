@@ -120,7 +120,7 @@ tuple / `Color` everywhere.
 
 **Agent UI:** `thinking` `todo_list` `toast` `inline_diff`
 
-**Graphics:** `image` `canvas`
+**Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
 `ToastLevel` `TodoItemStatus` `TodoListStatus`

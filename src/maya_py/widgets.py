@@ -418,10 +418,77 @@ def image(pixels: Sequence[Sequence[Any]], *, color: Any = None) -> Element:
 
 
 def canvas(pixels: Sequence[Sequence[Any]]) -> Element:
-    """A color half-block canvas. ``pixels`` is a 2-D grid of colors (name,
-    (r,g,b), "#rrggbb", maya Color) or ``None`` for a blank cell."""
+    """A color half-block canvas from a static grid. ``pixels`` is a 2-D grid
+    of colors (name, (r,g,b), "#rrggbb", maya Color) or ``None`` for a blank
+    cell. For an imperative drawing surface (set_pixel/line/rect), use the
+    :class:`Canvas` class instead."""
     grid = [[_col(v) for v in row] for row in pixels]
     return _W.canvas(grid)
+
+
+class Canvas:
+    """A stateful half-block drawing surface (maya's ``PixelCanvas``).
+
+    Resolution is ``width × (height*2)`` pixels — each terminal cell holds two
+    vertical pixels, so a 40×10 canvas is 40×20 pixels. Draw imperatively, then
+    drop ``.element()`` (or the Canvas itself) into a layout:
+
+        c = Canvas(40, 10)
+        c.fill("black")
+        c.line(0, 0, 39, 19, "sky")
+        c.rect(5, 4, 12, 8, "lime")
+        c.set_pixel(20, 10, "red")
+        col("drawing:", c.element())
+
+    All colours accept name / (r,g,b) / "#rrggbb" / Color, same as everywhere.
+    """
+
+    __slots__ = ("_c",)
+
+    def __init__(self, width: int, height: int):
+        self._c = _W.PixelCanvas(int(width), int(height))
+
+    @property
+    def width(self) -> int:
+        return self._c.width
+
+    @property
+    def height(self) -> int:
+        return self._c.height
+
+    @property
+    def pixel_height(self) -> int:
+        """Pixel height (= ``height * 2``)."""
+        return self._c.pixel_height
+
+    def set_pixel(self, x: int, y: int, color: Any) -> "Canvas":
+        """Set the pixel at ``(x, y)`` where ``y`` is in ``[0, height*2)``."""
+        self._c.set_pixel(int(x), int(y), _color(color))
+        return self
+
+    def line(self, x1: int, y1: int, x2: int, y2: int, color: Any) -> "Canvas":
+        """Draw a Bresenham line from ``(x1, y1)`` to ``(x2, y2)``."""
+        self._c.line(int(x1), int(y1), int(x2), int(y2), _color(color))
+        return self
+
+    def rect(self, x: int, y: int, w: int, h: int, color: Any) -> "Canvas":
+        """Draw an outline rectangle at ``(x, y)`` of size ``w×h`` pixels."""
+        self._c.rect(int(x), int(y), int(w), int(h), _color(color))
+        return self
+
+    def fill(self, color: Any) -> "Canvas":
+        """Flood the whole canvas with ``color``."""
+        self._c.fill(_color(color))
+        return self
+
+    def clear(self) -> "Canvas":
+        """Reset every pixel to the clear colour (black)."""
+        self._c.clear()
+        return self
+
+    def element(self) -> Element:
+        """Build the current drawing into an Element."""
+        return self._c.element()
 
 
 def picker(rows: Sequence[Any] = (), *, title: str = "", accent: Any = None,
@@ -568,6 +635,6 @@ __all__ = [
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
     "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
-    "markdown", "image", "canvas", "picker",
+    "markdown", "image", "canvas", "Canvas", "picker",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]

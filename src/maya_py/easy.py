@@ -202,7 +202,7 @@ def c(s: Any, col: Any) -> T: return T(s).fg(col)
 
 # ── element coercion ─────────────────────────────────────────────────────────
 def _el(x: Any) -> Element:
-    """Turn str / T / Element into an Element."""
+    """Turn str / T / Element (or anything with .element()) into an Element."""
     if isinstance(x, Element):
         return x
     if isinstance(x, T):
@@ -211,6 +211,11 @@ def _el(x: Any) -> Element:
         return _maya.text(x)
     if x is None:
         return _maya.blank()
+    el = getattr(x, "element", None)
+    if callable(el):
+        built = el()
+        if isinstance(built, Element):
+            return built
     raise TypeError(f"not a renderable child: {x!r}")
 
 

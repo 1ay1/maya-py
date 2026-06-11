@@ -221,7 +221,7 @@ are `"info"`/`"success"`/`"warning"`/`"error"`. Strings or the exported enums
 | Function | Signature | Renders |
 |----------|-----------|---------|
 | `image` | `image(pixels, *, color=None)` | A 1-bit braille image; `pixels` is a 2-D grid of truthy/falsy values. |
-| `canvas` | `canvas(pixels)` | A colour half-block canvas; `pixels` is a 2-D grid of colours or `None`. |
+| `canvas` | `canvas(pixels)` | A colour half-block canvas from a static grid; `pixels` is a 2-D grid of colours or `None`. |
 
 ```python
 from maya_py import image, canvas
@@ -229,6 +229,38 @@ from maya_py import image, canvas
 image([[1, 0, 1], [0, 1, 0]], color="magenta")
 canvas([["red", "blue", None], [None, "green", "yellow"]])
 ```
+
+### `Canvas` — an imperative drawing surface
+
+For freeform drawing, use the **`Canvas`** class (maya's `PixelCanvas`). It's a
+half-block surface of `width × height*2` pixels — each terminal cell holds two
+vertical pixels, so a `Canvas(40, 10)` is 40×20 pixels. Draw imperatively, then
+drop it (or `.element()`) into a layout:
+
+```python
+from maya_py import Canvas, col
+
+c = Canvas(40, 10)            # 40 × 20 px
+c.fill("black")
+c.line(0, 0, 39, 19, "sky")        # Bresenham line
+c.rect(5, 4, 14, 10, "lime")       # outline rectangle (px coords)
+c.set_pixel(20, 10, "red")         # y is 0..height*2
+col("drawing:", c)                 # a Canvas is renderable directly
+```
+
+| Method | Description |
+|--------|-------------|
+| `Canvas(width, height)` | A `width × height*2`-pixel surface. |
+| `set_pixel(x, y, color)` | Set one pixel (`y` in `0..height*2`). |
+| `line(x1, y1, x2, y2, color)` | A Bresenham line. |
+| `rect(x, y, w, h, color)` | An outline rectangle. |
+| `fill(color)` / `clear()` | Flood / reset to black. |
+| `element()` | Build the current drawing into an `Element`. |
+| `width` / `height` / `pixel_height` | Dimensions (read-only). |
+
+Drawing methods chain (each returns the canvas), and colours accept the usual
+name / `(r,g,b)` / `"#rrggbb"` / `Color`. See `examples/canvas.py` for a static
+logo plus a live animated plot.
 
 For full-screen pixel effects driven by a render loop, see the half-block
 helper in `examples/_halfblock.py` and the `doom_fire` / `life` / `fluid` /

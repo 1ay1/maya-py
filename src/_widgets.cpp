@@ -759,6 +759,32 @@ void init_widgets(py::module_& m) {
           },
           py::arg("pixels"));
 
+    // ── PixelCanvas — a stateful half-block drawing surface ──────────────
+    // Resolution is width × (height*2) pixels. Draw imperatively with
+    // set_pixel/line/rect/fill, then drop element() into a layout. This is
+    // the maya PixelCanvas drawing API (vs. the canvas() grid factory above).
+    py::class_<PixelCanvas>(w, "PixelCanvas")
+        .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
+        .def_property_readonly("width", &PixelCanvas::width)
+        .def_property_readonly("height", &PixelCanvas::height)
+        .def_property_readonly("pixel_height", &PixelCanvas::pixel_height)
+        .def("set_pixel",
+             [](PixelCanvas& c, int x, int y, Color color) { c.set_pixel(x, y, color); },
+             py::arg("x"), py::arg("y"), py::arg("color"))
+        .def("line",
+             [](PixelCanvas& c, int x1, int y1, int x2, int y2, Color color) {
+                 c.line(x1, y1, x2, y2, color);
+             },
+             py::arg("x1"), py::arg("y1"), py::arg("x2"), py::arg("y2"), py::arg("color"))
+        .def("rect",
+             [](PixelCanvas& c, int x, int y, int wd, int ht, Color color) {
+                 c.rect(x, y, wd, ht, color);
+             },
+             py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"), py::arg("color"))
+        .def("fill", [](PixelCanvas& c, Color color) { c.fill(color); }, py::arg("color"))
+        .def("clear", &PixelCanvas::clear)
+        .def("element", [](const PixelCanvas& c) { return static_cast<Element>(c); });
+
     // ── picker(rows, title, accent, selected, header, footer, ...) ──────
     // A bordered command-palette / fuzzy-picker panel. `rows` are structured
     // (leading, trailing, selected, active) entries the widget styles itself
