@@ -2,7 +2,8 @@
 
 The fire-propagation algorithm: a hot row of "embers" along the bottom, each
 pixel cooled and nudged sideways as it rises. Three palettes, adjustable wind
-and intensity.
+and intensity. The field resizes to fill the whole terminal — grow the window
+and the fire grows with it.
 
   space pause · ←/→ wind · +/- intensity · 1/2/3 palette · q/esc quit
 
@@ -17,10 +18,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
-from maya_py import App, col, row, card, b, dim_text, T, component
+from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
-PW, PH = 80, 44          # pixel field (PH even → PH/2 cell rows)
 LEVELS = 37              # fire heat levels (0 = cold)
 
 
@@ -48,31 +48,38 @@ def _toxic(h):
 PALETTES = [("classic", _classic), ("inferno", _inferno), ("toxic", _toxic)]
 
 app = App("doom_fire", inline=True, fps=30)
-app.state(fire=[0] * (PW * PH), paused=False, wind=0, intensity=LEVELS, pal=0)
+# fire/pw/ph are (re)allocated on first paint and on any resize.
+app.state(fire=[], pw=0, ph=0, paused=False, wind=0, intensity=LEVELS, pal=0)
+
+
+def _ensure(s, w, h):
+    if w != s.pw or h != s.ph:
+        s.pw, s.ph = w, h
+        s.fire = [0] * (w * h)
+        _seed(s)
 
 
 def _seed(s):
-    base = (PH - 1) * PW
-    for x in range(PW):
+    if not s.fire:
+        return
+    base = (s.ph - 1) * s.pw
+    for x in range(s.pw):
         s.fire[base + x] = s.intensity
 
 
-_seed(app.s)
-
-
 def step(s):
-    f = s.fire
-    for x in range(PW):
-        for y in range(1, PH):
-            src = y * PW + x
-            heat = f[src]
+    if not s.fire:
+        return
+    pw, ph, f = s.pw, s.ph, s.fire
+    for x in range(pw):
+        for y in range(1, ph):
+            heat = f[y * pw + x]
             decay = random.randint(0, 2)
             nx = x + s.wind + (random.randint(0, 2) - 1)
-            nx = max(0, min(PW - 1, nx))
-            dst = (y - 1) * PW + nx
-            f[dst] = max(0, heat - decay)
-    base = (PH - 1) * PW
-    for x in range(PW):
+            nx = 0 if nx < 0 else pw - 1 if nx >= pw else nx
+            f[(y - 1) * pw + nx] = heat - decay if heat > decay else 0
+    base = (ph - 1) * pw
+    for x in range(pw):
         f[base + x] = s.intensity
 
 
@@ -114,26 +121,35 @@ def _quit(s): app.stop()
 
 def flame(s):
     def draw(w, h):
-        name, fn = PALETTES[s.pal]
+        # w cells wide, h cells tall → w pixels × 2h pixel rows.
+        # Guard against an unbounded height (headless render_to_string with
+        # no fixed height hands a huge number); the live App passes the real
+        # terminal height.
+        h = max(1, min(h, 60))
+        ph = h * 2
+        _ensure(s, w, ph)
+        if not s.paused:
+            step(s)
+        fn = PALETTES[s.pal][1]
         grid = []
-        for y in range(PH):
+        for y in range(s.ph):
             crow = []
-            for x in range(PW):
-                hv = s.fire[y * PW + x]
+            base = y * s.pw
+            for x in range(s.pw):
+                hv = s.fire[base + x]
                 crow.append(fn(hv) if hv > 0 else None)
             grid.append(crow)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        step(s)
     name = PALETTES[s.pal][0]
     return card(
         row(b("🔥 doom fire").fg((255, 140, 40)),
-            dim_text(f"{name} · wind {s.wind:+d} · {'paused' if s.paused else 'burning'}"),
+            dim_text(f"{name} · wind {s.wind:+d} · "
+                     f"{'paused' if s.paused else 'burning'}"),
             justify="between"),
         flame(s),
         dim_text("space pause · ←→ wind · +/- intensity · 1/2/3 palette · q quit"),

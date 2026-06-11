@@ -42,6 +42,8 @@ ICO_E = [(0, 11), (0, 5), (0, 1), (0, 7), (0, 10), (1, 5), (5, 11), (11, 10),
 
 SHAPES = [("cube", CUBE_V, CUBE_E), ("icosahedron", ICO_V, ICO_E)]
 
+PW, PH = 80, 64          # mutated per-frame to the real terminal size
+
 app = App("space3d", inline=True, fps=30)
 app.state(ax=0.0, ay=0.0, az=0.0, yaw=0.012, pitch=0.009,
           shape=0, paused=False)
@@ -119,6 +121,9 @@ def _line(grid, x0, y0, x1, y1, c):
 
 def render(s):
     def draw(w, h):
+        global PW, PH
+        h = max(1, min(h, 60))
+        PW, PH = w, h * 2
         name, verts, edges = SHAPES[s.shape]
         grid = [[None] * PW for _ in range(PH)]
         pv = [_project(_rot(v, s.ax, s.ay, s.az)) for v in verts]
@@ -131,7 +136,7 @@ def render(s):
             c = (int(80 + 175 * (1 - t)), int(120 + 100 * (1 - t)), 255)
             _line(grid, pv[a][0], pv[a][1], pv[bb][0], pv[bb][1], c)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view

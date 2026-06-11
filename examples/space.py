@@ -21,8 +21,7 @@ import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
-PW, PH = 96, 56
-NSTARS = 220
+NSTARS = 320
 
 
 def _newstar():
@@ -31,7 +30,8 @@ def _newstar():
 
 
 app = App("space", inline=True, fps=30)
-app.state(stars=[_newstar() for _ in range(NSTARS)], warp=0.04, paused=False)
+app.state(stars=[_newstar() for _ in range(NSTARS)], warp=0.04, paused=False,
+          pw=96, ph=56)
 
 
 def step(s):
@@ -61,16 +61,20 @@ def _quit(s): app.stop()
 
 def field(s):
     def draw(w, h):
-        grid = [[None] * PW for _ in range(PH)]
-        cx, cy = PW / 2, PH / 2
+        h = max(1, min(h, 60))
+        s.pw, s.ph = w, h * 2
+        if not s.paused:
+            step(s)
+        pw, ph = s.pw, s.ph
+        grid = [[None] * pw for _ in range(ph)]
+        cx, cy = pw / 2, ph / 2
         for st in s.stars:
             z = st[2]
             sx = cx + st[0] / z * cx
             sy = cy + st[1] / z * cy
             ix, iy = int(sx), int(sy)
-            if 0 <= ix < PW and 0 <= iy < PH:
-                bright = int(255 * (1 - z))
-                bright = max(40, bright)
+            if 0 <= ix < pw and 0 <= iy < ph:
+                bright = max(40, int(255 * (1 - z)))
                 c = (bright, bright, min(255, bright + 30))
                 grid[iy][ix] = c
                 # streak for near stars
@@ -78,17 +82,14 @@ def field(s):
                     px = cx + st[0] / (z + s.warp) * cx
                     py = cy + st[1] / (z + s.warp) * cy
                     jx, jy = int(px), int(py)
-                    if 0 <= jx < PW and 0 <= jy < PH:
-                        dim = (bright // 2, bright // 2, bright // 2)
-                        grid[jy][jx] = dim
+                    if 0 <= jx < pw and 0 <= jy < ph:
+                        grid[jy][jx] = (bright // 2, bright // 2, bright // 2)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        step(s)
     return card(
         row(b("✦ warp speed").fg((180, 200, 255)),
             dim_text(f"warp {s.warp:.2f} · {NSTARS} stars · "

@@ -21,9 +21,8 @@ import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
-PW, PH = 90, 48
 GRAV = 0.06
-MAX_P = 600
+MAX_P = 1200
 
 PALETTES = [
     ("fire", [(255, 240, 180), (255, 180, 60), (255, 90, 30), (150, 40, 20)]),
@@ -43,7 +42,7 @@ def _grad(pal, t):
 
 app = App("particles", inline=True, fps=30, mouse=True)
 # particle: [x, y, vx, vy, life, maxlife]
-app.state(parts=[], paused=False, rate=6, pal=0, frame=0, bounds=None)
+app.state(parts=[], pw=80, ph=48, paused=False, rate=6, pal=0, frame=0)
 
 
 def _spawn(s, x, y, vx0=0.0, vy0=-1.0, spread=0.5, n=1):
@@ -78,22 +77,11 @@ def _cycle(s): s.pal = (s.pal + 1) % len(PALETTES)
 def _quit(s): app.stop()
 
 
-@app.on_click("left")
-def _burst(s, col_, row_):
-    b = s.bounds
-    if not b:
-        return
-    bx, by, bw, bh = b
-    # map screen cell → pixel coords
-    px = int((col_ - bx) / max(1, bw) * PW)
-    py = int((row_ - by) / max(1, bh) * PH)
-    _spawn(s, px, py, vy0=0.0, spread=math.pi, n=40)
-
-
 def step(s):
+    pw, ph = s.pw, s.ph
     s.frame += 1
-    # continuous fountain
-    _spawn(s, PW / 2, PH - 1, vy0=1.6, spread=0.45, n=s.rate)
+    # continuous fountain along the bottom
+    _spawn(s, pw / 2, ph - 1, vy0=1.6, spread=0.45, n=s.rate)
     alive = []
     for p in s.parts:
         p[2] *= 0.99
@@ -101,29 +89,31 @@ def step(s):
         p[0] += p[2]
         p[1] += p[3]
         p[4] -= 1
-        if p[4] > 0 and 0 <= p[1] < PH and -2 <= p[0] < PW + 2:
+        if p[4] > 0 and 0 <= p[1] < ph and -2 <= p[0] < pw + 2:
             alive.append(p)
     s.parts = alive
 
 
 def field(s):
     def draw(w, h):
-        s.bounds = None  # set after first layout below
-        grid = [[None] * PW for _ in range(PH)]
+        h = max(1, min(h, 60))
+        s.pw, s.ph = w, h * 2
+        if not s.paused:
+            step(s)
+        pw, ph = s.pw, s.ph
+        grid = [[None] * pw for _ in range(ph)]
         pal = PALETTES[s.pal][1]
         for p in s.parts:
             x, y = int(p[0]), int(p[1])
-            if 0 <= x < PW and 0 <= y < PH:
+            if 0 <= x < pw and 0 <= y < ph:
                 age_t = 1.0 - p[4] / p[5]
                 grid[y][x] = _grad(pal, age_t)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        step(s)
     name = PALETTES[s.pal][0]
     return card(
         row(b("✦ particles").fg((255, 200, 120)),
@@ -131,7 +121,7 @@ def view(s):
                      f"{'paused' if s.paused else 'flowing'}"),
             justify="between"),
         field(s),
-        dim_text("space pause · +/- rate · c color · click burst · q quit"),
+        dim_text("space pause · +/- rate · c color · q quit"),
         title="fountain", gap=0, pad=0,
     )
 

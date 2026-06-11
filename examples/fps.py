@@ -38,8 +38,9 @@ MAP = [
 MH = len(MAP)
 MW = len(MAP[0])
 
-PW, PH = 96, 56
+PW, PH = 96, 56          # mutated per-frame to the real terminal size
 FOV = math.pi / 3
+MAX_PW = 140             # column ceiling so the cast loop stays smooth
 
 app = App("fps", inline=True, fps=24)
 app.state(px=2.5, py=2.5, ang=0.4, show_map=True)
@@ -113,6 +114,10 @@ def _cast(s, col_frac):
 
 def world(s):
     def draw(w, h):
+        global PW, PH
+        h = max(1, min(h, 60))
+        PW = min(w, MAX_PW)
+        PH = h * 2
         grid = [[None] * PW for _ in range(PH)]
         for sx in range(PW):
             d, side, hu = _cast(s, sx / PW)
@@ -137,7 +142,7 @@ def world(s):
                     g = int(50 * (1 - f) + 15)
                     grid[sy][sx] = (g, g, int(g * 0.8))
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 def minimap(s):

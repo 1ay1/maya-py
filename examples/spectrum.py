@@ -24,14 +24,23 @@ HEIGHT = 18                # rows tall
 BLOCKS = "▁▂▃▄▅▆▇█"
 
 app = App("spectrum", inline=True, fps=30)
-app.state(t=0.0, levels=[0.0] * BARS, peaks=[0.0] * BARS, paused=False)
+app.state(t=0.0, levels=[], peaks=[], bars_n=48, height=18, paused=False)
+
+
+def _ensure(s, n, h):
+    if n != s.bars_n or not s.levels:
+        s.bars_n = n
+        s.levels = [0.0] * n
+        s.peaks = [0.0] * n
+    s.height = h
 
 
 def step(s):
     s.t += 0.12
     t = s.t
-    for i in range(BARS):
-        f = i / BARS
+    n = s.bars_n
+    for i in range(n):
+        f = i / n
         # layered envelopes → spectrum-ish shape, louder in bass
         v = (0.5 * (1 - f) * (0.6 + 0.4 * math.sin(t * 2 + i * 0.4))
              + 0.3 * math.sin(t * 5 + i * 0.9) ** 2
@@ -62,15 +71,19 @@ def _bar_color(frac):
 
 def bars(s):
     def draw(w, h):
+        n = max(8, w // 2)
+        hh = max(6, min(h, 30))
+        _ensure(s, n, hh)
+        if not s.paused:
+            step(s)
         lines = []
-        for rowi in range(HEIGHT):
-            level = 1.0 - rowi / HEIGHT          # top row = high level
+        for rowi in range(hh):
             segs = []
-            for i in range(BARS):
+            for i in range(n):
                 lv = s.levels[i]
                 pk = s.peaks[i]
-                cell_lo = (HEIGHT - 1 - rowi) / HEIGHT
-                cell_hi = (HEIGHT - rowi) / HEIGHT
+                cell_lo = (hh - 1 - rowi) / hh
+                cell_hi = (hh - rowi) / hh
                 if lv >= cell_hi:
                     segs.append(T("██").fg(maya.rgb(*_bar_color(cell_hi))))
                 elif lv > cell_lo:
@@ -83,17 +96,15 @@ def bars(s):
                     segs.append(T("  "))
             lines.append(row(*segs, gap=0))
         return col(*lines, gap=0)
-    return component(draw, height=HEIGHT, width=BARS * 2)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        step(s)
-    avg = sum(s.levels) / BARS
+    avg = sum(s.levels) / max(1, len(s.levels))
     return card(
         row(b("♫ spectrum").fg((80, 220, 255)),
-            dim_text(f"{BARS} bands · level {avg*100:3.0f}% · "
+            dim_text(f"{s.bars_n} bands · level {avg*100:3.0f}% · "
                      f"{'paused' if s.paused else 'live'}"),
             justify="between"),
         bars(s),

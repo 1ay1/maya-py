@@ -20,8 +20,6 @@ import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
-PW, PH = 72, 40
-
 PALETTES = [
     ("aurora", [(10, 20, 40), (20, 120, 160), (60, 220, 180), (200, 255, 220)]),
     ("ember", [(20, 5, 5), (160, 40, 20), (255, 140, 30), (255, 240, 180)]),
@@ -39,11 +37,17 @@ def _grad(pal, t):
 
 
 app = App("fluid", inline=True, fps=30, mouse=True)
-app.state(dye=[0.0] * (PW * PH), t=0.0, paused=False, pal=0)
+app.state(dye=[], pw=0, ph=0, t=0.0, paused=False, pal=0)
+
+
+def _ensure(s, w, h):
+    if w != s.pw or h != s.ph:
+        s.pw, s.ph = w, h
+        s.dye = [0.0] * (w * h)
 
 
 def reset(s):
-    s.dye = [0.0] * (PW * PH)
+    s.dye = [0.0] * (s.pw * s.ph)
     s.t = 0.0
 
 
@@ -55,25 +59,26 @@ def _vel(x, y, t):
 
 
 def step(s):
+    if not s.dye:
+        return
     s.t += 0.08
+    pw, ph = s.pw, s.ph
     dye = s.dye
-    nxt = [0.0] * (PW * PH)
+    nxt = [0.0] * (pw * ph)
     t = s.t
-    for y in range(PH):
-        for x in range(PW):
+    for y in range(ph):
+        for x in range(pw):
             vx, vy = _vel(x, y, t)
-            sx = x - vx
-            sy = y - vy
-            ix, iy = int(sx) % PW, int(sy) % PH
-            nxt[y * PW + x] = dye[iy * PW + ix] * 0.965
+            ix, iy = int(x - vx) % pw, int(y - vy) % ph
+            nxt[y * pw + x] = dye[iy * pw + ix] * 0.965
     # emitters
     for i in range(3):
-        ex = int(PW * (0.3 + 0.2 * i) + 6 * math.sin(t * 0.6 + i))
-        ey = int(PH * 0.5 + 8 * math.cos(t * 0.5 + i * 2))
+        ex = int(pw * (0.3 + 0.2 * i) + 6 * math.sin(t * 0.6 + i))
+        ey = int(ph * 0.5 + 8 * math.cos(t * 0.5 + i * 2))
         for dy in range(-2, 3):
             for dx in range(-2, 3):
-                xx, yy = (ex + dx) % PW, (ey + dy) % PH
-                nxt[yy * PW + xx] = min(1.0, nxt[yy * PW + xx] + 0.5)
+                xx, yy = (ex + dx) % pw, (ey + dy) % ph
+                nxt[yy * pw + xx] = min(1.0, nxt[yy * pw + xx] + 0.5)
     s.dye = nxt
 
 
@@ -95,22 +100,25 @@ def _quit(s): app.stop()
 
 def field(s):
     def draw(w, h):
+        h = max(1, min(h, 60))
+        _ensure(s, w, h * 2)
+        if not s.paused:
+            step(s)
         pal = PALETTES[s.pal][1]
         grid = []
-        for y in range(PH):
+        for y in range(s.ph):
+            base = y * s.pw
             crow = []
-            for x in range(PW):
-                d = s.dye[y * PW + x]
+            for x in range(s.pw):
+                d = s.dye[base + x]
                 crow.append(_grad(pal, d) if d > 0.02 else _grad(pal, 0.0))
             grid.append(crow)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        step(s)
     return card(
         row(b("≈ fluid").fg((60, 220, 180)),
             dim_text(f"{PALETTES[s.pal][0]} · t {s.t:5.1f} · "

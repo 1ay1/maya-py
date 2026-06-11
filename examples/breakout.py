@@ -27,6 +27,8 @@ BH = 3
 TOP = 4                                # bricks start row
 TRAIL = 7
 
+_sized = False                         # become True after first layout
+
 ROW_CLR = [
     (255, 60, 60), (255, 140, 30), (255, 220, 40), (50, 220, 80),
     (40, 210, 230), (70, 100, 255), (160, 80, 220),
@@ -171,6 +173,16 @@ def step(s):
 
 def field(s):
     def draw(w, h):
+        global PW, PH, BW, _sized
+        h = max(8, min(h, 60))
+        nw, nh = w, h * 2
+        if nw != PW or nh != PH:
+            PW, PH = nw, nh
+            BW = PW // BCOLS
+            if not _sized:
+                _sized = True
+            new_game(s)
+        step(s)
         grid = [[None] * PW for _ in range(PH)]
         # bricks
         for r in range(BROWS):
@@ -207,12 +219,11 @@ def field(s):
             if 0 <= x < PW and 0 <= y < PH:
                 grid[y][x] = p[5]
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    step(s)
     hearts = "♥ " * s.lives
     if s.over:
         status = T("GAME OVER — space to restart").fg("red").bold

@@ -21,10 +21,11 @@ import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
-PW, PH = 64, 40
+PW, PH = 64, 40          # mutated per-frame; capped so the SDF stays smooth
 MAX_STEPS = 40
 MAX_DIST = 12.0
 EPS = 0.02
+MAX_PW = 96              # resolution ceiling (per-pixel raymarch is heavy)
 
 
 def _sd_sphere(p, c, r):
@@ -82,6 +83,10 @@ def _quit(s): app.stop()
 
 def render(s):
     def draw(w, h):
+        global PW, PH
+        h = max(1, min(h, 44))
+        PW = min(w, MAX_PW)
+        PH = h * 2
         t = s.t
         ro = (0.0, 0.6, -4.0)          # ray origin (camera)
         light = (s.lx, s.ly, -1.5)
@@ -121,7 +126,7 @@ def render(s):
                     sh = 0.25 + 0.75 * diff
                     grid[py][px] = tuple(min(255, int(c * sh)) for c in base)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view

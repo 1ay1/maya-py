@@ -1,7 +1,8 @@
 """life.py — Conway's Game of Life with half-block rendering + heat aging.
 
 Each terminal row holds two pixel rows (▀). Live cells age through a colour
-gradient (green → cyan → blue → purple). Toroidal grid, pre-built patterns.
+gradient (green → cyan → blue → purple). Toroidal grid that resizes to fill the
+whole terminal — grow the window and the world grows with it.
 
   space pause · enter step · +/- speed · c clear · r random · g glider gun
   p pulsar · q/esc quit
@@ -19,8 +20,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, T, component
 from _halfblock import halfblock
-
-PW, PH = 80, 48          # pixel grid (PH even)
 
 GRADIENT = [
     (100, 255, 120), (0, 220, 220), (40, 120, 255),
@@ -41,24 +40,32 @@ def _age_color(age):
 
 
 app = App("life", inline=True, fps=30)
-app.state(cur=[False] * (PW * PH), age=[0] * (PW * PH),
-          gen=0, pop=0, paused=False, interval=4, accum=0, name="random")
+app.state(cur=[], age=[], pw=0, ph=0, gen=0, pop=0, paused=False,
+          interval=4, accum=0, name="random")
 
 
-def _idx(x, y):
-    return (y % PH) * PW + (x % PW)
+def _ensure(s, w, h):
+    if w != s.pw or h != s.ph:
+        s.pw, s.ph = w, h
+        randomize(s)
+
+
+def _idx(s, x, y):
+    return (y % s.ph) * s.pw + (x % s.pw)
 
 
 def randomize(s):
-    s.cur = [random.random() < 0.28 for _ in range(PW * PH)]
+    n = s.pw * s.ph
+    s.cur = [random.random() < 0.28 for _ in range(n)]
     s.age = [1 if c else 0 for c in s.cur]
     s.gen = 0
     s.name = "random"
 
 
 def clear(s):
-    s.cur = [False] * (PW * PH)
-    s.age = [0] * (PW * PH)
+    n = s.pw * s.ph
+    s.cur = [False] * n
+    s.age = [0] * n
     s.gen = 0
     s.name = "empty"
 
@@ -66,8 +73,9 @@ def clear(s):
 def _place(s, pattern, ox, oy, name):
     clear(s)
     for (dx, dy) in pattern:
-        s.cur[_idx(ox + dx, oy + dy)] = True
-        s.age[_idx(ox + dx, oy + dy)] = 1
+        i = _idx(s, ox + dx, oy + dy)
+        s.cur[i] = True
+        s.age[i] = 1
     s.name = name
 
 
@@ -79,31 +87,31 @@ GLIDER_GUN = [
     (24, 0), (24, 1), (24, 5), (24, 6), (34, 2), (34, 3), (35, 2), (35, 3),
 ]
 
-PULSAR = [(x, y) for (x, y) in [
+PULSAR = [
     (2, 0), (3, 0), (4, 0), (8, 0), (9, 0), (10, 0),
     (0, 2), (5, 2), (7, 2), (12, 2), (0, 3), (5, 3), (7, 3), (12, 3),
     (0, 4), (5, 4), (7, 4), (12, 4), (2, 5), (3, 5), (4, 5), (8, 5), (9, 5), (10, 5),
-]]
-
-
-randomize(app.s)
+]
 
 
 def step(s):
+    pw, ph = s.pw, s.ph
     cur, age = s.cur, s.age
-    nxt = [False] * (PW * PH)
-    nage = [0] * (PW * PH)
+    nxt = [False] * (pw * ph)
+    nage = [0] * (pw * ph)
     pop = 0
-    for y in range(PH):
-        for x in range(PW):
+    for y in range(ph):
+        for x in range(pw):
             n = 0
             for dy in (-1, 0, 1):
+                yy = (y + dy) % ph
+                base = yy * pw
                 for dx in (-1, 0, 1):
                     if dx == 0 and dy == 0:
                         continue
-                    if cur[_idx(x + dx, y + dy)]:
+                    if cur[base + (x + dx) % pw]:
                         n += 1
-            i = y * PW + x
+            i = y * pw + x
             alive = cur[i]
             if (alive and n in (2, 3)) or (not alive and n == 3):
                 nxt[i] = True
@@ -142,7 +150,7 @@ def _gun(s): _place(s, GLIDER_GUN, 6, 8, "glider gun")
 
 
 @app.on("p")
-def _pulsar(s): _place(s, PULSAR, 34, 20, "pulsar")
+def _pulsar(s): _place(s, PULSAR, s.pw // 2 - 6, s.ph // 2 - 3, "pulsar")
 
 
 @app.on("q", "esc")
@@ -151,24 +159,27 @@ def _quit(s): app.stop()
 
 def board(s):
     def draw(w, h):
+        h = max(1, min(h, 60))
+        _ensure(s, w, h * 2)
+        if not s.paused:
+            s.accum += 1
+            if s.accum >= s.interval:
+                s.accum = 0
+                step(s)
         grid = []
-        for y in range(PH):
+        for y in range(s.ph):
+            base = y * s.pw
             crow = []
-            for x in range(PW):
-                i = y * PW + x
+            for x in range(s.pw):
+                i = base + x
                 crow.append(_age_color(s.age[i]) if s.cur[i] else None)
             grid.append(crow)
         return halfblock(grid)
-    return component(draw, height=PH // 2, width=PW)
+    return component(draw, grow=1)
 
 
 @app.view
 def view(s):
-    if not s.paused:
-        s.accum += 1
-        if s.accum >= s.interval:
-            s.accum = 0
-            step(s)
     return card(
         row(b("life").fg((100, 255, 120)),
             dim_text(f"{s.name} · gen {s.gen} · pop {s.pop} · "
