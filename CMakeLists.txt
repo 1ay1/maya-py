@@ -90,8 +90,19 @@ endif()
 # maya builds a static lib; linking it into a shared Python module needs PIC.
 set_property(TARGET maya PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+# maya's CMakeLists forces cxx_std_26 via target_compile_features(PUBLIC),
+# which propagates through the link interface and raises the EXTENSION to
+# -std=c++26 too. The features maya actually uses are all C++23, and GCC 14
+# only offers C++26 as experimental -std=c++2c. Strip the propagated feature
+# requirement and pin both targets to C++23 so the build is stable on
+# gcc-toolset-14. Harmless on newer compilers.
+set_property(TARGET maya PROPERTY INTERFACE_COMPILE_FEATURES "")
+set_property(TARGET maya PROPERTY COMPILE_FEATURES "")
+set_target_properties(maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
+
 # ── the extension ─────────────────────────────────────────────────────────
 pybind11_add_module(_maya src/_maya.cpp)
+set_target_properties(_maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(_maya PRIVATE maya::maya)
 
 # ── Self-contained runtime (works on machines with an OLD toolchain) ───────
