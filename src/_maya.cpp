@@ -169,6 +169,30 @@ PYBIND11_MODULE(_maya, m) {
 
     m.def("blank", [] { return Element{TextElement{.content = " "}}; });
 
+    // styled_text(content, fg, bg, attrs, wrap) -> Element  [FAST PATH]
+    //
+    // Builds Style + Element in ONE boundary crossing from raw scalars, so a
+    // fully-styled text costs a single pybind call instead of N with_*()
+    // round-trips. fg / bg are packed 0xRRGGBB ints, or -1 for "unset".
+    // attrs is a bitmask: 1=bold 2=dim 4=italic 8=underline 16=strike 32=inverse.
+    m.def("styled_text",
+          [](const std::string& content, long fg, long bg, int attrs, TextWrap wrap) {
+              Style s{};
+              if (fg >= 0)
+                  s = s.with_fg(Color::rgb((fg >> 16) & 0xFF, (fg >> 8) & 0xFF, fg & 0xFF));
+              if (bg >= 0)
+                  s = s.with_bg(Color::rgb((bg >> 16) & 0xFF, (bg >> 8) & 0xFF, bg & 0xFF));
+              if (attrs & 1)  s = s.with_bold();
+              if (attrs & 2)  s = s.with_dim();
+              if (attrs & 4)  s = s.with_italic();
+              if (attrs & 8)  s = s.with_underline();
+              if (attrs & 16) s = s.with_strikethrough();
+              if (attrs & 32) s = s.with_inverse();
+              return Element{TextElement{.content = content, .style = s, .wrap = wrap}};
+          },
+          py::arg("content"), py::arg("fg") = -1, py::arg("bg") = -1,
+          py::arg("attrs") = 0, py::arg("wrap") = TextWrap::Wrap);
+
     // box(*children, **opts) -> Element
     // opts: direction, gap, padding, border, border_color, border_text,
     //       bg, fg, grow, align, justify, width, height, margin

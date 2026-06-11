@@ -154,6 +154,65 @@ maya's compile-time DSL (`t<"...">`, type-state pipes) can't cross the Python
 boundary, so `maya-py` routes everything through maya's equivalent runtime
 builders. The element trees produced are identical.
 
+## Performance
+
+Honest numbers from `examples/bench.py` and `examples/bench_live.py`
+(30-row dashboard, this machine — yours will differ):
+
+**Rendering to a string (one-shot output).** Here a tuned pure-Python
+renderer *wins* — building the element tree in Python and crossing pybind11
+costs more than maya's native render saves:
+
+| path | per render |
+|------|-----------|
+| maya-py (build + render) | ~340 µs |
+| pure-Python equivalent | ~68 µs |
+
+~65% of maya-py's time is the Python tree construction + boundary crossing,
+not maya. So **if you only render static output, a pure-Python lib like Rich
+will likely be faster.**
+
+**Live redraw to a terminal (what maya is built for).** When you redraw a
+frame and only part changed, maya's SIMD cell-diff emits *only the changed
+cells*. A string renderer must re-emit the whole frame:
+
+| path | bytes written / frame |
+|------|----------------------|
+| maya-py (diff) | ~112 B |
+| re-emit whole frame | ~1238 B |
+
+**maya writes ~11× fewer bytes to the terminal.** On a real tty — especially
+over SSH or a slow connection — bytes-on-wire is the bottleneck, and this is a
+decisive win. This is the scenario maya was designed for.
+
+### Making it fast
+
+Two levers close most of the Python-side gap:
+
+1. **Fluent styling is free.** `T("x").bold.fg("sky")` accumulates state in
+   pure Python and makes a *single* boundary crossing when the element is
+   built (4.8× faster than the naive one-call-per-`.bold` approach).
+
+2. **`memo` caches unchanged sub-trees.** In a live app, wrap builders whose
+   inputs rarely change — the hot frame then does *no* Python tree
+   construction, just maya's native diff:
+
+   ```python
+   from maya_py import memo, card, col, b
+
+   @memo
+   def header(title, count):     # rebuilt only when title/count change
+       return card(b(title), f"{count} items")
+
+   def view(s):
+       return col(header(s.title, len(s.items)), body(s))
+   ```
+
+**Bottom line:** you won't get "pure C++ speed" for *building* a UI in Python
+— every `card(...)` is a Python call. But for the thing that actually matters
+in a terminal (incremental redraws, bytes on the wire), maya-py is genuinely
+fast, and `memo` lets the steady-state frame skip Python almost entirely.
+
 ## License
 
 MIT (same as maya).

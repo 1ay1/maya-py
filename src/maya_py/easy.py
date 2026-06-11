@@ -40,41 +40,58 @@ from . import _maya
 from ._maya import Element, Style, Color, SpecialKey
 
 # ── Named color palette ─────────────────────────────────────────────────────
-# Friendly names → (r, g, b). Covers ANSI names plus a few nice extras.
-_PALETTE: dict[str, tuple[int, int, int]] = {
-    "black": (0, 0, 0), "white": (235, 235, 235),
-    "red": (220, 80, 80), "green": (80, 220, 120), "blue": (90, 150, 250),
-    "yellow": (230, 210, 90), "magenta": (210, 110, 210), "cyan": (90, 210, 220),
-    "gray": (150, 150, 150), "grey": (150, 150, 150),
-    "orange": (245, 160, 60), "purple": (170, 120, 230), "pink": (240, 130, 180),
-    "teal": (60, 200, 190), "lime": (160, 230, 90), "sky": (100, 180, 255),
-    "gold": (255, 200, 60), "slate": (120, 135, 160),
+# Friendly names → packed 0xRRGGBB int. Keeping these as ints (not Color
+# objects) means resolving a color name is pure Python — no boundary crossing
+# until the single styled_text() call that builds the element.
+def _pack(r: int, g: int, b: int) -> int:
+    return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
+
+
+_PALETTE: dict[str, int] = {
+    "black": _pack(0, 0, 0), "white": _pack(235, 235, 235),
+    "red": _pack(220, 80, 80), "green": _pack(80, 220, 120), "blue": _pack(90, 150, 250),
+    "yellow": _pack(230, 210, 90), "magenta": _pack(210, 110, 210), "cyan": _pack(90, 210, 220),
+    "gray": _pack(150, 150, 150), "grey": _pack(150, 150, 150),
+    "orange": _pack(245, 160, 60), "purple": _pack(170, 120, 230), "pink": _pack(240, 130, 180),
+    "teal": _pack(60, 200, 190), "lime": _pack(160, 230, 90), "sky": _pack(100, 180, 255),
+    "gold": _pack(255, 200, 60), "slate": _pack(120, 135, 160),
 }
 
 
-def color(value: Any) -> Color:
-    """Coerce almost anything into a maya Color.
-
-    Accepts: a ``Color``, a palette name ("red", "sky"), a "#RRGGBB" / "#RGB"
-    string, an (r, g, b) tuple, or an ``0xRRGGBB`` int.
-    """
-    if isinstance(value, Color):
-        return value
+def _rgb_int(value: Any) -> int:
+    """Resolve a color-ish value to a packed 0xRRGGBB int. Pure Python."""
+    if isinstance(value, int):
+        return value & 0xFFFFFF
     if isinstance(value, str):
         v = value.strip().lower()
-        if v in _PALETTE:
-            return Color.rgb(*_PALETTE[v])
+        hit = _PALETTE.get(v)
+        if hit is not None:
+            return hit
         if v.startswith("#"):
             h = v[1:]
             if len(h) == 3:
-                h = "".join(ch * 2 for ch in h)
-            return Color.rgb(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+                h = h[0] * 2 + h[1] * 2 + h[2] * 2
+            return int(h, 16) & 0xFFFFFF
         raise ValueError(f"unknown color: {value!r}")
     if isinstance(value, (tuple, list)):
-        return Color.rgb(int(value[0]), int(value[1]), int(value[2]))
-    if isinstance(value, int):
-        return Color.rgb((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+        return _pack(int(value[0]), int(value[1]), int(value[2]))
+    if isinstance(value, Color):
+        # A real Color object — we can't unpack it cheaply, so fall back to
+        # the slow path by stashing it; element() will use with_fg.
+        return -2  # sentinel: "use the Color object"
     raise TypeError(f"cannot make a color from {value!r}")
+
+
+def color(value: Any) -> Color:
+    """Coerce almost anything into a maya Color (for the low-level API)."""
+    if isinstance(value, Color):
+        return value
+    packed = _rgb_int(value)
+    return Color.rgb((packed >> 16) & 0xFF, (packed >> 8) & 0xFF, packed & 0xFF)
+
+
+# attribute bitmask (mirrors styled_text in the C++ binding)
+_BOLD, _DIM, _ITALIC, _UNDERLINE, _STRIKE, _INVERSE = 1, 2, 4, 8, 16, 32
 
 
 # ── T — a fluent styled string ──────────────────────────────────────────────
@@ -85,45 +102,59 @@ class T:
         T("warn").fg("orange").italic
         T("x").bg("red").fg("white")
 
-    Chaining returns a NEW T (immutable), so it's safe to reuse a base style.
-    Concatenate with ``+`` (strings or other T's) to build inline runs — note
-    the result keeps the LEFT operand's style for the appended plain text.
+    Chaining mutates THIS object and returns it (no per-step allocation, no
+    per-step boundary crossing). The styled Element is built lazily in a
+    SINGLE pybind call at .element() time, then cached. This is what makes
+    the fluent API cost ~one C++ crossing per element instead of five.
+
+    Concatenate with ``+`` to append plain text (keeps the left style).
     """
 
-    __slots__ = ("_s", "_style")
+    __slots__ = ("_s", "_fg", "_bg", "_attrs", "_cache")
 
-    def __init__(self, s: Any = "", style: Style | None = None):
-        self._s = str(s)
-        self._style = style or Style()
+    def __init__(self, s: Any = ""):
+        self._s = s if type(s) is str else str(s)
+        self._fg = -1
+        self._bg = -1
+        self._attrs = 0
+        self._cache = None  # built Element, invalidated on any mutation
 
-    # -- attribute toggles (properties, so no parens needed) ------------------
-    def _with(self, st: Style) -> "T":
-        return T(self._s, st)
+    # -- attribute toggles (return self; no allocation, no pybind) ------------
+    @property
+    def bold(self) -> "T": self._attrs |= _BOLD; self._cache = None; return self
+    @property
+    def dim(self) -> "T": self._attrs |= _DIM; self._cache = None; return self
+    @property
+    def italic(self) -> "T": self._attrs |= _ITALIC; self._cache = None; return self
+    @property
+    def underline(self) -> "T": self._attrs |= _UNDERLINE; self._cache = None; return self
+    @property
+    def strike(self) -> "T": self._attrs |= _STRIKE; self._cache = None; return self
+    @property
+    def inverse(self) -> "T": self._attrs |= _INVERSE; self._cache = None; return self
 
-    @property
-    def bold(self) -> "T": return self._with(self._style.with_bold())
-    @property
-    def dim(self) -> "T": return self._with(self._style.with_dim())
-    @property
-    def italic(self) -> "T": return self._with(self._style.with_italic())
-    @property
-    def underline(self) -> "T": return self._with(self._style.with_underline())
-    @property
-    def strike(self) -> "T": return self._with(self._style.with_strikethrough())
-    @property
-    def inverse(self) -> "T": return self._with(self._style.with_inverse())
+    # -- colors (resolve to packed int in pure Python) ------------------------
+    def fg(self, c: Any) -> "T":
+        self._fg = c if isinstance(c, Color) else _rgb_int(c)
+        self._cache = None
+        return self
 
-    # -- colors (methods, take an argument) -----------------------------------
-    def fg(self, c: Any) -> "T": return self._with(self._style.with_fg(color(c)))
-    def bg(self, c: Any) -> "T": return self._with(self._style.with_bg(color(c)))
+    def bg(self, c: Any) -> "T":
+        self._bg = c if isinstance(c, Color) else _rgb_int(c)
+        self._cache = None
+        return self
 
     # -- composition ----------------------------------------------------------
     def __add__(self, other: Any) -> "T":
         text = other._s if isinstance(other, T) else str(other)
-        return T(self._s + text, self._style)
+        t = T(self._s + text)
+        t._fg, t._bg, t._attrs = self._fg, self._bg, self._attrs
+        return t
 
     def __radd__(self, other: Any) -> "T":
-        return T(str(other) + self._s, self._style)
+        t = T(str(other) + self._s)
+        t._fg, t._bg, t._attrs = self._fg, self._bg, self._attrs
+        return t
 
     def __str__(self) -> str:
         return self._s
@@ -131,9 +162,34 @@ class T:
     def __repr__(self) -> str:
         return f"T({self._s!r})"
 
-    # -- render ---------------------------------------------------------------
+    # -- render (single boundary crossing, cached) ----------------------------
     def element(self) -> Element:
-        return _maya.text(self._s, self._style)
+        e = self._cache
+        if e is None:
+            fg, bg = self._fg, self._bg
+            if isinstance(fg, Color) or isinstance(bg, Color):
+                # Rare: a raw Color object was passed. Build a Style explicitly.
+                st = Style()
+                if isinstance(fg, Color):
+                    st = st.with_fg(fg)
+                elif fg >= 0:
+                    st = st.with_fg(color(fg))
+                if isinstance(bg, Color):
+                    st = st.with_bg(bg)
+                elif bg >= 0:
+                    st = st.with_bg(color(bg))
+                a = self._attrs
+                if a & _BOLD: st = st.with_bold()
+                if a & _DIM: st = st.with_dim()
+                if a & _ITALIC: st = st.with_italic()
+                if a & _UNDERLINE: st = st.with_underline()
+                if a & _STRIKE: st = st.with_strikethrough()
+                if a & _INVERSE: st = st.with_inverse()
+                e = _maya.text(self._s, st)
+            else:
+                e = _maya.styled_text(self._s, fg, bg, self._attrs)
+            self._cache = e
+        return e
 
 
 # ── markup-style shortcuts ───────────────────────────────────────────────────
@@ -237,6 +293,43 @@ def hr(width: int = 40, char: str = "─", col: str = "slate") -> Element:
 def spacer() -> Element:
     """A one-row blank gap."""
     return _maya.blank()
+
+
+# ── memo — cache a built sub-tree across frames ─────────────────────────────
+# The single biggest speed lever for live apps: if a sub-UI's inputs didn't
+# change, DON'T rebuild it in Python — hand maya the same cached Element. The
+# hot frame then does no Python tree construction at all, just maya's native
+# layout + diff.
+#
+#   @memo
+#   def header(title, count):          # rebuilt only when args change
+#       return card(b(title), f"{count} items")
+#
+#   def view(s):
+#       return col(header(s.title, len(s.items)), body(s))
+class _Memo:
+    __slots__ = ("_fn", "_key", "_val")
+
+    def __init__(self, fn):
+        self._fn = fn
+        self._key = _MISSING
+        self._val = None
+
+    def __call__(self, *args):
+        if args != self._key:
+            self._key = args
+            self._val = _el(self._fn(*args))
+        return self._val
+
+
+_MISSING = object()
+
+
+def memo(fn):
+    """Decorator: cache a builder by its positional args (must be hashable/
+    comparable). Returns the same Element until the args change — so unchanged
+    sub-trees skip Python rebuild entirely."""
+    return _Memo(fn)
 
 
 # ── rendering ────────────────────────────────────────────────────────────────
@@ -392,6 +485,6 @@ def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
 
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
-    "col", "row", "card", "field", "hr", "spacer",
+    "col", "row", "card", "field", "hr", "spacer", "memo",
     "show", "to_string", "App", "animate",
 ]

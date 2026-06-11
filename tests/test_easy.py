@@ -81,6 +81,38 @@ def test_app_view_renders():
     assert "hello" in out
 
 
+def test_memo_caches_until_args_change():
+    from maya_py import memo
+    calls = []
+
+    @memo
+    def build(label):
+        calls.append(label)
+        return card(label)
+
+    a1 = build("x")
+    a2 = build("x")          # same args -> cached, builder NOT called again
+    assert a1 is a2
+    assert calls == ["x"]
+    build("y")               # new args -> rebuild
+    assert calls == ["x", "y"]
+
+
+def test_T_fast_path_renders_colors():
+    # the styled_text fast path must still produce correct SGR output
+    out = maya.to_string(T("hi").bold.fg("sky").bg("red"), 20)
+    assert "hi" in out
+    # element is cached on the T after first build
+    t = T("z").fg("green")
+    assert t.element() is t.element()
+
+
+def test_T_color_object_still_works():
+    # passing a raw Color (low-level) routes through the slow path correctly
+    out = maya.to_string(T("c").fg(maya.Color.cyan()), 20)
+    assert "c" in out
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
