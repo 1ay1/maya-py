@@ -28,11 +28,17 @@ from ._maya import (
     Style,
     Color,
     Event,
+    Dimension,
+    BorderSides,
     # enums
     FlexDirection,
+    FlexWrap,
     Align,
     Justify,
     BorderStyle,
+    BorderTextPos,
+    BorderTextAlign,
+    Overflow,
     TextWrap,
     SpecialKey,
     # element factories
@@ -40,7 +46,9 @@ from ._maya import (
     box,
     vstack,
     hstack,
+    zstack,
     blank,
+    nothing,
     # rendering
     render_to_string,
     live,
@@ -55,26 +63,33 @@ from ._maya import (
     resized,
 )
 
-# ── Border style shortcuts (BorderStyle.* without the prefix) ───────────────
+# ── Border style shortcuts (BorderStyle.* without the prefix) ───────────
 Round = BorderStyle.Round
 Single = BorderStyle.Single
 Double = BorderStyle.Double
 BoldBorder = BorderStyle.Bold
 Classic = BorderStyle.Classic
 Dashed = BorderStyle.Dashed
+SingleDouble = BorderStyle.SingleDouble
+DoubleSingle = BorderStyle.DoubleSingle
+Arrow = BorderStyle.Arrow
 
-# ── Direction / align / justify shortcuts ───────────────────────────────────
+# ── Direction / align / justify shortcuts ──────────────────────────
 Row = FlexDirection.Row
 Column = FlexDirection.Column
+RowReverse = FlexDirection.RowReverse
+ColumnReverse = FlexDirection.ColumnReverse
 
 __all__ = [
-    "Element", "Style", "Color", "Event",
-    "FlexDirection", "Align", "Justify", "BorderStyle", "TextWrap", "SpecialKey",
-    "text", "box", "vstack", "hstack", "blank",
+    "Element", "Style", "Color", "Event", "Dimension", "BorderSides",
+    "FlexDirection", "FlexWrap", "Align", "Justify", "BorderStyle",
+    "BorderTextPos", "BorderTextAlign", "Overflow", "TextWrap", "SpecialKey",
+    "text", "box", "vstack", "hstack", "zstack", "blank", "nothing",
     "print", "render_to_string", "live", "run", "quit",
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
     "Round", "Single", "Double", "BoldBorder", "Classic", "Dashed",
-    "Row", "Column",
+    "SingleDouble", "DoubleSingle", "Arrow",
+    "Row", "Column", "RowReverse", "ColumnReverse",
     # style helpers
     "fg", "bg", "rgb", "hex", "bold", "dim", "italic", "underline",
     "strikethrough", "inverse", "style",
@@ -179,6 +194,8 @@ def print(element, *args, width: int | None = None, **kwargs):  # noqa: A001
 from .easy import (  # noqa: E402
     T, b, i, u, dim as _dim_markup, c, color,
     col, row, card, field, hr, spacer, memo,
+    center, stack, component, nothing as _nothing_easy, grow,
+    pct, cells, auto, sides,
     show, to_string, App, animate,
 )
 
@@ -190,6 +207,8 @@ dim_text = _dim_markup
 __all__ += [
     "T", "b", "i", "u", "dim_text", "c", "color",
     "col", "row", "card", "field", "hr", "spacer", "memo",
+    "center", "stack", "component", "grow",
+    "pct", "cells", "auto", "sides",
     "show", "to_string", "App", "animate",
 ]
 

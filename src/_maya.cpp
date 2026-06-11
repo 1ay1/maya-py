@@ -15,6 +15,7 @@
 #include <maya/maya.hpp>
 
 #include <optional>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,31 @@ static std::vector<Element> coerce_children(const py::args& args) {
     return out;
 }
 
+// ── Dimension coercion ──────────────────────────────────────────────────────
+//
+// A Python size value may be:
+//   int            -> fixed cells
+//   float in (0,1] -> percent (0.5 -> 50%)  [convenience]
+//   "50%"          -> percent
+//   "auto"         -> auto
+//   Dimension      -> as-is
+static Dimension coerce_dim(const py::handle& h) {
+    if (py::isinstance<Dimension>(h)) return h.cast<Dimension>();
+    if (py::isinstance<py::str>(h)) {
+        std::string s = h.cast<std::string>();
+        if (s == "auto") return Dimension::auto_();
+        if (!s.empty() && s.back() == '%')
+            return Dimension::percent(std::stof(s.substr(0, s.size() - 1)));
+        throw py::value_error("bad dimension string: '" + s + "' (want 'auto' or 'N%')");
+    }
+    if (py::isinstance<py::float_>(h)) {
+        double v = h.cast<double>();
+        if (v > 0.0 && v <= 1.0) return Dimension::percent(static_cast<float>(v * 100.0));
+        return Dimension::fixed(static_cast<int>(v));
+    }
+    return Dimension::fixed(h.cast<int>());
+}
+
 PYBIND11_MODULE(_maya, m) {
     m.doc() = "Python bindings for the maya C++26 TUI framework";
 
@@ -108,6 +134,40 @@ PYBIND11_MODULE(_maya, m) {
         .value("TruncateMiddle", TextWrap::TruncateMiddle)
         .value("TruncateStart", TextWrap::TruncateStart)
         .value("NoWrap", TextWrap::NoWrap);
+
+    py::enum_<FlexWrap>(m, "FlexWrap")
+        .value("NoWrap", FlexWrap::NoWrap)
+        .value("Wrap", FlexWrap::Wrap)
+        .value("WrapReverse", FlexWrap::WrapReverse);
+
+    py::enum_<Overflow>(m, "Overflow")
+        .value("Visible", Overflow::Visible)
+        .value("Hidden", Overflow::Hidden)
+        .value("Scroll", Overflow::Scroll);
+
+    py::enum_<BorderTextPos>(m, "BorderTextPos")
+        .value("Top", BorderTextPos::Top)
+        .value("Bottom", BorderTextPos::Bottom);
+
+    py::enum_<BorderTextAlign>(m, "BorderTextAlign")
+        .value("Start", BorderTextAlign::Start)
+        .value("Center", BorderTextAlign::Center)
+        .value("End", BorderTextAlign::End);
+
+    py::class_<BorderSides>(m, "BorderSides")
+        .def(py::init([](bool t, bool r, bool b, bool l) {
+                 return BorderSides{t, r, b, l};
+             }),
+             py::arg("top") = true, py::arg("right") = true,
+             py::arg("bottom") = true, py::arg("left") = true)
+        .def_static("all", &BorderSides::all)
+        .def_static("none", &BorderSides::none)
+        .def_static("horizontal", &BorderSides::horizontal)
+        .def_static("vertical", &BorderSides::vertical)
+        .def_readwrite("top", &BorderSides::top)
+        .def_readwrite("right", &BorderSides::right)
+        .def_readwrite("bottom", &BorderSides::bottom)
+        .def_readwrite("left", &BorderSides::left);
 
     py::enum_<SpecialKey>(m, "SpecialKey")
         .value("Up", SpecialKey::Up).value("Down", SpecialKey::Down)
@@ -161,6 +221,15 @@ PYBIND11_MODULE(_maya, m) {
         .def("empty", &Style::empty)
         .def("__or__", [](const Style& a, const Style& b) { return a.merge(b); });
 
+    // ── Dimension ──────────────────────────────────────────────────────
+    py::class_<Dimension>(m, "Dimension")
+        .def_static("fixed", &Dimension::fixed, py::arg("cells"))
+        .def_static("percent", &Dimension::percent, py::arg("pct"))
+        .def_static("auto", &Dimension::auto_)
+        .def("is_auto", &Dimension::is_auto)
+        .def("is_fixed", &Dimension::is_fixed)
+        .def("is_percent", &Dimension::is_percent);
+
     // ── Element ───────────────────────────────────────────────────────────
     // Opaque to Python; built only through the factories below.
     py::class_<Element>(m, "Element");
@@ -204,68 +273,108 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("attrs") = 0, py::arg("wrap") = TextWrap::Wrap);
 
     // box(*children, **opts) -> Element
-    // opts: direction, gap, padding, border, border_color, border_text,
-    //       bg, fg, grow, align, justify, width, height, margin
+    //
+    // Full mirror of maya's BoxBuilder. Recognised opts:
+    //   direction, wrap, gap, padding, margin
+    //   border, border_color, border_text, border_sides
+    //   bg, fg, style, overflow
+    //   grow, shrink, basis, align, align_self, justify
+    //   width, height, min_width, min_height, max_width, max_height
+    // padding/margin accept int or 1/2/4-tuple; size opts accept
+    // int / float / "N%" / "auto" / Dimension. border_text accepts a
+    // str, or a (str, pos) / (str, pos, align) tuple. style accepts a Style.
     m.def("box",
           [](py::args children, const py::kwargs& opts) {
               auto b = maya::box();
 
+              auto edges = [](BoxBuilder& bb, const py::handle& p, bool is_pad) {
+                  std::array<int, 4> e{};
+                  int n = 1;
+                  if (py::isinstance<py::tuple>(p) || py::isinstance<py::list>(p)) {
+                      auto tup = p.cast<py::sequence>();
+                      n = static_cast<int>(tup.size());
+                      if (n == 1) e = {tup[0].cast<int>(), tup[0].cast<int>(),
+                                       tup[0].cast<int>(), tup[0].cast<int>()};
+                      else if (n == 2) { int v = tup[0].cast<int>(), h = tup[1].cast<int>();
+                                         e = {v, h, v, h}; }
+                      else if (n == 4) e = {tup[0].cast<int>(), tup[1].cast<int>(),
+                                            tup[2].cast<int>(), tup[3].cast<int>()};
+                      else throw py::value_error("padding/margin tuple must have 1, 2, or 4 ints");
+                  } else {
+                      int v = p.cast<int>();
+                      e = {v, v, v, v};
+                  }
+                  if (is_pad) bb.padding(e[0], e[1], e[2], e[3]);
+                  else        bb.margin(e[0], e[1], e[2], e[3]);
+              };
+
               if (opts.contains("direction"))
                   b.direction(opts["direction"].cast<FlexDirection>());
+              if (opts.contains("wrap"))
+                  b.wrap(opts["wrap"].cast<FlexWrap>());
               if (opts.contains("gap"))
                   b.gap(opts["gap"].cast<int>());
-              if (opts.contains("padding")) {
-                  auto p = opts["padding"];
-                  if (py::isinstance<py::tuple>(p) || py::isinstance<py::list>(p)) {
-                      auto tup = p.cast<py::sequence>();
-                      const auto n = tup.size();
-                      if (n == 1)      b.padding(tup[0].cast<int>());
-                      else if (n == 2) b.padding(tup[0].cast<int>(), tup[1].cast<int>());
-                      else if (n == 4) b.padding(tup[0].cast<int>(), tup[1].cast<int>(),
-                                                 tup[2].cast<int>(), tup[3].cast<int>());
-                      else throw py::value_error(
-                          "padding tuple must have 1, 2, or 4 ints (got "
-                          + std::to_string(n) + ")");
-                  } else {
-                      b.padding(p.cast<int>());
-                  }
-              }
-              if (opts.contains("margin")) {
-                  auto p = opts["margin"];
-                  if (py::isinstance<py::tuple>(p) || py::isinstance<py::list>(p)) {
-                      auto tup = p.cast<py::sequence>();
-                      const auto n = tup.size();
-                      if (n == 1)      b.margin(tup[0].cast<int>());
-                      else if (n == 2) b.margin(tup[0].cast<int>(), tup[1].cast<int>());
-                      else if (n == 4) b.margin(tup[0].cast<int>(), tup[1].cast<int>(),
-                                                tup[2].cast<int>(), tup[3].cast<int>());
-                      else throw py::value_error(
-                          "margin tuple must have 1, 2, or 4 ints (got "
-                          + std::to_string(n) + ")");
-                  } else {
-                      b.margin(p.cast<int>());
-                  }
-              }
+              if (opts.contains("padding")) edges(b, opts["padding"], true);
+              if (opts.contains("margin"))  edges(b, opts["margin"], false);
+
               if (opts.contains("border"))
                   b.border(opts["border"].cast<BorderStyle>());
               if (opts.contains("border_color"))
                   b.border_color(opts["border_color"].cast<Color>());
-              if (opts.contains("border_text"))
-                  b.border_text(opts["border_text"].cast<std::string>());
-              if (opts.contains("bg"))
-                  b.bg(opts["bg"].cast<Color>());
-              if (opts.contains("fg"))
-                  b.fg(opts["fg"].cast<Color>());
-              if (opts.contains("grow"))
-                  b.grow(opts["grow"].cast<float>());
+              if (opts.contains("border_sides"))
+                  b.border_sides(opts["border_sides"].cast<BorderSides>());
+              if (opts.contains("border_text")) {
+                  auto t = opts["border_text"];
+                  if (py::isinstance<py::tuple>(t) || py::isinstance<py::list>(t)) {
+                      auto tup = t.cast<py::sequence>();
+                      auto txt = tup[0].cast<std::string>();
+                      auto pos = tup.size() > 1 ? tup[1].cast<BorderTextPos>()
+                                                : BorderTextPos::Top;
+                      if (tup.size() > 2)
+                          b.border_text(txt, pos, tup[2].cast<BorderTextAlign>());
+                      else
+                          b.border_text(txt, pos);
+                  } else {
+                      b.border_text(t.cast<std::string>());
+                  }
+              }
+              if (opts.contains("border_text_end")) {
+                  auto t = opts["border_text_end"];
+                  if (py::isinstance<py::tuple>(t) || py::isinstance<py::list>(t)) {
+                      auto tup = t.cast<py::sequence>();
+                      auto txt = tup[0].cast<std::string>();
+                      auto pos = tup.size() > 1 ? tup[1].cast<BorderTextPos>()
+                                                : BorderTextPos::Top;
+                      auto al  = tup.size() > 2 ? tup[2].cast<BorderTextAlign>()
+                                                : BorderTextAlign::End;
+                      b.border_text_end(txt, pos, al);
+                  } else {
+                      b.border_text_end(t.cast<std::string>());
+                  }
+              }
+
+              if (opts.contains("bg"))    b.bg(opts["bg"].cast<Color>());
+              if (opts.contains("fg"))    b.fg(opts["fg"].cast<Color>());
+              if (opts.contains("style")) b.style(opts["style"].cast<Style>());
+              if (opts.contains("overflow"))
+                  b.overflow(opts["overflow"].cast<Overflow>());
+
+              if (opts.contains("grow"))   b.grow(opts["grow"].cast<float>());
+              if (opts.contains("shrink")) b.shrink(opts["shrink"].cast<float>());
+              if (opts.contains("basis"))  b.basis(coerce_dim(opts["basis"]));
               if (opts.contains("align"))
                   b.align_items(opts["align"].cast<Align>());
+              if (opts.contains("align_self"))
+                  b.align_self(opts["align_self"].cast<Align>());
               if (opts.contains("justify"))
                   b.justify(opts["justify"].cast<Justify>());
-              if (opts.contains("width"))
-                  b.width(Dimension::fixed(opts["width"].cast<int>()));
-              if (opts.contains("height"))
-                  b.height(Dimension::fixed(opts["height"].cast<int>()));
+
+              if (opts.contains("width"))      b.width(coerce_dim(opts["width"]));
+              if (opts.contains("height"))     b.height(coerce_dim(opts["height"]));
+              if (opts.contains("min_width"))  b.min_width(coerce_dim(opts["min_width"]));
+              if (opts.contains("min_height")) b.min_height(coerce_dim(opts["min_height"]));
+              if (opts.contains("max_width"))  b.max_width(coerce_dim(opts["max_width"]));
+              if (opts.contains("max_height")) b.max_height(coerce_dim(opts["max_height"]));
 
               auto kids = coerce_children(children);
               return b(kids);
@@ -282,6 +391,50 @@ PYBIND11_MODULE(_maya, m) {
         opts["direction"] = FlexDirection::Row;
         return box_obj(*children, **opts).cast<Element>();
     });
+
+    // center(*children, **opts) -> Element
+    // A box that centers its children on both axes (align+justify Center).
+    m.def("center", [box_obj](py::args children, py::kwargs opts) {
+        opts["align"] = Align::Center;
+        opts["justify"] = Justify::Center;
+        return box_obj(*children, **opts).cast<Element>();
+    });
+
+    // zstack(*layers) -> Element
+    // Layer children on top of each other; first child sets the size.
+    m.def("zstack", [](py::args layers) {
+        return maya::detail::zstack(coerce_children(layers));
+    });
+
+    // nothing() -> Element  (zero-row transparent fragment)
+    m.def("nothing", [] { return maya::detail::nothing(); });
+
+    // component(render_fn) -> Element
+    // Lazy element: render_fn(width, height) -> Element, called once the
+    // layout allocates a size. Lets Python size-aware widgets (charts,
+    // gauges) fill whatever the flexbox gives them.
+    m.def("component",
+          [](py::function render_fn, std::optional<float> grow,
+             std::optional<py::object> width, std::optional<py::object> height) {
+              auto cb = maya::detail::component(
+                  [render_fn](int w, int h) -> Element {
+                      py::gil_scoped_acquire gil;
+                      py::object r = render_fn(w, h);
+                      if (py::isinstance<py::str>(r))
+                          return Element{TextElement{.content = r.cast<std::string>()}};
+                      if (!py::isinstance<Element>(r))
+                          throw py::type_error(
+                              "component render_fn must return a maya Element or str, got "
+                              + std::string(py::str(r.get_type().attr("__name__"))));
+                      return r.cast<Element>();
+                  });
+              if (grow)   cb.grow(*grow);
+              if (width)  cb.width(coerce_dim(*width));
+              if (height) cb.height(coerce_dim(*height));
+              return static_cast<Element>(cb);
+          },
+          py::arg("render_fn"), py::arg("grow") = std::nullopt,
+          py::arg("width") = std::nullopt, py::arg("height") = std::nullopt);
 
     // ── Renderers ─────────────────────────────────────────────────────────
     m.def("print_element",

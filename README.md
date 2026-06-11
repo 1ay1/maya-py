@@ -62,9 +62,48 @@ field("Name", "Ada")                     # "Name: Ada"
 hr(40)                                   # horizontal rule
 ```
 
-`col` / `row` / `card` keywords: `border` (`"round"`/`"double"`/...), `pad`,
-`gap`, `title`, `border_color`, `bg`, `align`, `justify`, `width`, `height`,
-`grow`.
+`col` / `row` / `card` accept the **full maya flexbox surface** as keywords:
+
+- **box model**: `pad`, `margin`, `gap` (int or 1/2/4-tuples)
+- **border**: `border` (`"round"`/`"double"`/`"bold"`/`"dashed"`/...),
+  `border_color`, `border_sides=sides(top=..., left=...)`, `title`, and
+  positioned `border_text=("Title", Top, Center)` / `border_text_end`
+- **sizing**: `width`, `height`, `min_width`/`max_width`,
+  `min_height`/`max_height` — each takes an int (cells), `"50%"`, a float
+  like `0.5`, `"auto"`, or `pct(50)`/`cells(20)`/`auto()`
+- **flex**: `grow`, `shrink`, `basis`, `align`, `align_self`, `justify`,
+  `wrap` (`"wrap"`/`"nowrap"`/`"reverse"`), `overflow` (`"hidden"`/`"scroll"`)
+- **style**: `bg`, `fg`, `style=maya.style(...)`
+
+### Full layout power
+
+Everything maya C++ can express, the Python API can too:
+
+```python
+from maya_py import T, col, row, card, center, stack, grow, component, pct, cells, sides
+
+# percent widths + a flex child that fills the rest
+row(
+    card("nav", width=pct(30), title="sidebar"),
+    grow(card("main content", title="body")),   # expands to fill
+    gap=1,
+)
+
+# center anything in a region
+center("ready", width=cells(20), height=5, border="round")
+
+# z-stack: layers paint on top; the first sets the size
+stack(card("  panel  ", height=6), T("NEW").fg("red").bold)
+
+# partial borders
+card("footer", border_sides=sides(top=True, right=False, bottom=False, left=False))
+
+# a size-aware widget — render_fn(width, height) draws to fit its box
+def bar(w, h):
+    filled = int(w * 0.4)
+    return T("█" * filled + "░" * (w - filled)).fg("green")
+col("Loading", component(bar, height=1))
+```
 
 ### Apps: a class with decorators, no event loop
 
@@ -111,6 +150,8 @@ animate(render, fps=30)   # maya.quit() to stop
 ## Examples
 
 - `examples/hello.py` — static dashboard card.
+- `examples/dashboard.py` — full-power layout: sidebar + grow, z-stack badge,
+  size-aware bars, partial borders.
 - `examples/counter.py` — interactive counter (`App`).
 - `examples/todo.py` — arrow-key menu with toggles (`App`).
 - `examples/live_spinner.py` — inline animation (`animate`).
@@ -210,7 +251,16 @@ maya.box(
 ```
 
 - `text(content, style=None, wrap=...)`, `box(*children, **opts)`,
-  `vstack`/`hstack`, `blank()`.
+  `vstack`/`hstack`/`zstack`, `center`, `blank()`, `nothing()`.
+- `box` opts mirror maya's `BoxBuilder` 1:1: `direction`, `wrap`, `gap`,
+  `padding`, `margin`, `border`, `border_color`, `border_sides`,
+  `border_text`, `border_text_end`, `bg`, `fg`, `style`, `overflow`, `grow`,
+  `shrink`, `basis`, `align`, `align_self`, `justify`, and
+  `width`/`height`/`min_*`/`max_*` (each accepts an int, `"50%"`, `"auto"`,
+  or a `Dimension`).
+- `component(fn, grow=..., width=..., height=...)` — a lazy element whose
+  `fn(width, height)` runs once layout allocates a size and returns the tree
+  to fill it.
 - Styles compose with `|`: `maya.bold | maya.fg(255, 128, 0)`, or
   `maya.style(fg=(80,220,120), bold=True)`.
 - `render_to_string(element, width=80)`, `print(element)`,

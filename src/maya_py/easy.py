@@ -219,32 +219,52 @@ def _children(items) -> list[Element]:
 
 
 # ── layout ───────────────────────────────────────────────────────────────────
-def _box(children, *, direction, border=None, pad=None, gap=0, title=None,
-         border_color=None, bg=None, align=None, justify=None,
-         width=None, height=None, grow=None) -> Element:
-    opts: dict[str, Any] = {"direction": direction, "gap": gap}
-    if border is not None:
-        opts["border"] = border if not isinstance(border, str) else _lookup(_BORDERS, border, "border")
-    if pad is not None:
-        opts["padding"] = pad
+#
+# _box forwards the FULL maya BoxBuilder surface. Most opts pass straight
+# through to _maya.box; a handful accept friendly string aliases (border,
+# align, justify, wrap, overflow) or color-ish values (border_color, bg, fg)
+# which we resolve here. Sizes (width/height/min_*/max_*/basis) accept int,
+# float, "N%", "auto", or a Dimension — _maya.box coerces them.
+
+_ENUM_OPTS = {
+    "border": lambda v: v if not isinstance(v, str) else _lookup(_BORDERS, v, "border"),
+    "align": lambda v: v if not isinstance(v, str) else _lookup(_ALIGN, v, "align"),
+    "align_self": lambda v: v if not isinstance(v, str) else _lookup(_ALIGN, v, "align_self"),
+    "justify": lambda v: v if not isinstance(v, str) else _lookup(_JUSTIFY, v, "justify"),
+    "wrap": lambda v: v if not isinstance(v, str) else _lookup(_WRAP, v, "wrap"),
+    "overflow": lambda v: v if not isinstance(v, str) else _lookup(_OVERFLOW, v, "overflow"),
+}
+_COLOR_OPTS = ("border_color", "bg", "fg")
+# user-friendly aliases -> real maya.box kwarg
+_ALIASES = {"pad": "padding", "title": "_title"}
+
+
+def _box(children, *, direction, **opts) -> Element:
+    out: dict[str, Any] = {"direction": direction}
+
+    # title is sugar: a centered border_text + a default Round border.
+    title = opts.pop("title", None)
     if title is not None:
-        opts["border_text"] = f" {title} "
-        opts.setdefault("border", _maya.BorderStyle.Round)
-    if border_color is not None:
-        opts["border_color"] = color(border_color)
-    if bg is not None:
-        opts["bg"] = color(bg)
-    if align is not None:
-        opts["align"] = align if not isinstance(align, str) else _lookup(_ALIGN, align, "align")
-    if justify is not None:
-        opts["justify"] = justify if not isinstance(justify, str) else _lookup(_JUSTIFY, justify, "justify")
-    if width is not None:
-        opts["width"] = width
-    if height is not None:
-        opts["height"] = height
-    if grow is not None:
-        opts["grow"] = grow
-    return _maya.box(*_children(children), **opts)
+        out["border_text"] = f" {title} "
+        opts.setdefault("border", "round")
+
+    pad = opts.pop("pad", None)
+    if pad is not None:
+        out["padding"] = pad
+
+    for k, v in opts.items():
+        if v is None:
+            continue
+        if k in _ENUM_OPTS:
+            out[k] = _ENUM_OPTS[k](v)
+        elif k in _COLOR_OPTS:
+            out[k] = color(v)
+        elif k == "style" and not isinstance(v, Style):
+            raise TypeError("style= must be a maya Style")
+        else:
+            out[k] = v
+
+    return _maya.box(*_children(children), **out)
 
 
 def _lookup(table: dict, key: str, what: str):
@@ -260,13 +280,21 @@ _BORDERS = {
     "round": _maya.BorderStyle.Round, "single": _maya.BorderStyle.Single,
     "double": _maya.BorderStyle.Double, "bold": _maya.BorderStyle.Bold,
     "classic": _maya.BorderStyle.Classic, "dashed": _maya.BorderStyle.Dashed,
+    "singledouble": _maya.BorderStyle.SingleDouble,
+    "doublesingle": _maya.BorderStyle.DoubleSingle,
+    "arrow": _maya.BorderStyle.Arrow,
     "none": _maya.BorderStyle.None_,
 }
 _ALIGN = {"start": _maya.Align.Start, "center": _maya.Align.Center,
-          "end": _maya.Align.End, "stretch": _maya.Align.Stretch}
+          "end": _maya.Align.End, "stretch": _maya.Align.Stretch,
+          "baseline": _maya.Align.Baseline}
 _JUSTIFY = {"start": _maya.Justify.Start, "center": _maya.Justify.Center,
             "end": _maya.Justify.End, "between": _maya.Justify.SpaceBetween,
             "around": _maya.Justify.SpaceAround, "evenly": _maya.Justify.SpaceEvenly}
+_WRAP = {"nowrap": _maya.FlexWrap.NoWrap, "wrap": _maya.FlexWrap.Wrap,
+        "reverse": _maya.FlexWrap.WrapReverse, "wrapreverse": _maya.FlexWrap.WrapReverse}
+_OVERFLOW = {"visible": _maya.Overflow.Visible, "hidden": _maya.Overflow.Hidden,
+             "scroll": _maya.Overflow.Scroll}
 
 
 def col(*children, **opts) -> Element:
@@ -284,6 +312,87 @@ def card(*children, title=None, **opts) -> Element:
     opts.setdefault("pad", 1)
     opts.setdefault("border", _maya.BorderStyle.Round)
     return col(*children, title=title, **opts)
+
+
+def center(*children, **opts) -> Element:
+    """A box that centers its children on both axes.
+
+    By default a column; pass ``direction=maya.Row`` (or use ``row``-style
+    opts) for horizontal centering. Combine with ``grow=1`` / ``height``
+    to center within a region.
+    """
+    opts.setdefault("align", "center")
+    opts.setdefault("justify", "center")
+    opts.setdefault("direction", _maya.FlexDirection.Column)
+    return _box(children, **opts)
+
+
+def stack(*layers) -> Element:
+    """Z-stack: layers paint on top of each other; the FIRST layer sets the
+    size, later ones overlay (clipped to it). Great for badges/overlays.
+
+        stack(card(body, height=10), T("NEW").fg("red"))
+    """
+    return _maya.zstack(*_children(layers))
+
+
+def component(render_fn: Callable[[int, int], Any], *, grow: float | None = None,
+              width=None, height=None) -> Element:
+    """A size-aware element. ``render_fn(w, h)`` is called once layout has
+    allocated a width/height, and returns the node to fill that space.
+
+    Use it to draw things that need to know their box — bars, gauges, ASCII
+    charts, progress fills:
+
+        def bar(w, h):
+            filled = int(w * pct)
+            return T("█" * filled + "░" * (w - filled)).fg("green")
+        col("Loading", component(bar, height=1))
+    """
+    def cb(w: int, h: int):
+        return _el(render_fn(w, h))
+    return _maya.component(cb, grow=grow, width=width, height=height)
+
+
+def nothing() -> Element:
+    """A zero-row transparent fragment. Use for a view slot that should
+    consume NO space when its content is absent (vs ``spacer()`` = one row)."""
+    return _maya.nothing()
+
+
+def grow(child: Any, factor: float = 1.0, **opts) -> Element:
+    """Wrap a child so it expands to fill available space along the main axis.
+
+        row(sidebar, grow(main_content))
+    """
+    return _box([child], direction=_maya.FlexDirection.Column, grow=factor, **opts)
+
+
+# ── dimension sugar ─────────────────────────────────────────────────────────
+# width=/height=/etc already accept int, "N%", "auto", or a float in (0,1].
+# These build an explicit Dimension when you want to be unambiguous.
+def pct(value: float) -> "_maya.Dimension":
+    """A percentage size, e.g. ``width=pct(50)``."""
+    return _maya.Dimension.percent(float(value))
+
+
+def cells(value: int) -> "_maya.Dimension":
+    """A fixed cell size, e.g. ``width=cells(20)``."""
+    return _maya.Dimension.fixed(int(value))
+
+
+def auto() -> "_maya.Dimension":
+    """Auto size (content-driven / fill parent)."""
+    return _maya.Dimension.auto()
+
+
+# ── border helpers ──────────────────────────────────────────────────────────
+def sides(*, top=True, right=True, bottom=True, left=True):
+    """Per-side border toggle for ``border_sides=``.
+
+        card(body, border_sides=sides(top=False, bottom=False))
+    """
+    return _maya.BorderSides(top, right, bottom, left)
 
 
 def field(label: str, value: Any, *, label_color="slate", value_color=None) -> Element:
@@ -511,5 +620,7 @@ def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
     "col", "row", "card", "field", "hr", "spacer", "memo",
+    "center", "stack", "component", "nothing", "grow",
+    "pct", "cells", "auto", "sides",
     "show", "to_string", "App", "animate",
 ]
