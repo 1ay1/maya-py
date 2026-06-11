@@ -27,22 +27,23 @@ separately.
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/latest/download/ \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.1 \
   maya-py
 ```
 
 This lets pip pick the right wheel (CPython 3.9–3.14, Linux x86_64) from the
-latest release. The wheel contains the already-compiled extension. It runs on
-machines with a very old (or no) C++ toolchain because it's built against an
-old glibc (`manylinux_2_28`, 2019) and statically links the C++ runtime. Your
-system GCC version doesn't matter — nothing is compiled at install time.
+release's asset list. The wheel contains the already-compiled extension. It
+runs on machines with a very old (or no) C++ toolchain because it's built
+against an old glibc (`manylinux_2_28`, 2019) and statically links the C++
+runtime. Your system GCC version doesn't matter — nothing is compiled at
+install time.
 
 No matching wheel? Install the source distribution (compiles locally, needs
 GCC 14+ / Clang 18+ and CMake ≥ 3.28):
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.1.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1.tar.gz
 ```
 
 If your compiler is too old the build aborts early with a clear message.

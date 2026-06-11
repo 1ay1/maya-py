@@ -128,21 +128,20 @@ PYTHONPATH=src python examples/todo.py
 > instead, using one of the commands below.
 
 **The wheels are standalone — no compiler needed.** maya-py ships precompiled
-binary wheels for CPython 3.9–3.14 (Linux x86_64). The fastest path is to let
-pip pick the right wheel straight from the latest release:
+binary wheels for CPython 3.9–3.14 (Linux x86_64). The easiest path lets pip
+pick the right wheel for your Python from the release's asset list:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/latest/download/ \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.1 \
   maya-py
 ```
 
-Or grab the exact `.whl` for your Python from the
-[Releases](https://github.com/1ay1/maya-py/releases) page and install the file:
+Or install a specific `.whl` by direct URL (no `--find-links` needed):
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install ./maya_py-0.1.1-cp313-cp313-manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 The wheel already contains the compiled extension. It works even on machines
@@ -164,7 +163,7 @@ Clang 18+) and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.1.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes
