@@ -132,24 +132,18 @@ Available: `sparkline`, `gauge`, `progress`, `badge`, `divider`, `spinner`,
 
 ### Scrolling: viewport + scrollbar
 
-Clip tall/wide content to a window and pair it with a live scrollbar. Hold a
-`scroll_state()` in your app state, route events to it with `scroll_handle`,
-and the renderer writes the scroll bounds back each frame:
+Clip tall/wide content to a window and pair it with a live scrollbar.
+Scrolling **just works with no handler code** — exactly like maya, the run
+loop auto-forwards ↑↓ / PgUp / PgDn / Home / End and the mouse wheel + scrollbar
+drag to every on-screen scroll state:
 
 ```python
-from maya_py import App, col, row, card, T, scroll_state, viewport, scrollbar
-import maya_py as maya
+from maya_py import App, col, row, T, scroll_state, viewport, scrollbar
 
-app = App("log", mouse=True)
-s = scroll_state()                       # manual-dispatch by default
+app = App("log", mouse=True)            # mouse=True for wheel + thumb drag
+s = scroll_state()                      # auto-dispatch on (the maya default)
 app.state(s=s)
 content = col(*[T(f"line {i}") for i in range(200)])
-
-@app.on_key
-def keys(st, ev): maya.scroll_handle(st.s, ev)   # ↑↓ PgUp/PgDn Home/End
-
-@app.on_mouse
-def mouse(st, ev): maya.scroll_handle(st.s, ev)  # wheel + drag the thumb
 
 @app.on("q", "esc")
 def quit(st): app.stop()
@@ -157,7 +151,7 @@ def quit(st): app.stop()
 @app.view
 def view(st):
     return row(
-        viewport(content, st.s, height=14),         # 14-row window
+        viewport(content, st.s, height=14, grow=1),   # 14-row window, fills width
         scrollbar(st.s, 14, style="neon", thumb_color="sky"),
         gap=1,
     )
@@ -165,12 +159,19 @@ def view(st):
 app.run()
 ```
 
-`viewport(content, state, width=, height=)` clips + scrolls (0 = fill that
-axis). `scrollbar(state, size, axis="y"|"x", style=, thumb_color=, track_color=)`
-draws the bar; `style` is a preset name — `line`, `block`, `slim`, `heavy`,
-`double`, `dotted`, `dashed`, `braille`, `ascii`, `shadow`, `minimal`, `neon`,
-`retro`, `danger`, `pixel`. The `ScrollState` exposes `x`/`y`/`max_x`/`max_y`,
-`scroll_by`, `scroll_to`, `scroll_to_top/bottom`, `at_top()`/`at_bottom()`.
+That's the whole thing — no scroll handler. `viewport(content, state, width=,
+height=, grow=)` clips + scrolls (0 on an axis = fill; `grow=1` expands to fill
+its row/column so a sibling scrollbar pins to the edge).
+`scrollbar(state, size, axis="y"|"x", style=, thumb_color=, track_color=)` draws
+the bar; `style` is a preset name — `line`, `block`, `slim`, `heavy`, `double`,
+`dotted`, `dashed`, `braille`, `ascii`, `shadow`, `minimal`, `neon`, `retro`,
+`danger`, `pixel`. The `ScrollState` exposes `x`/`y`/`max_x`/`max_y`,
+`scroll_by`, `scroll_to`, `scroll_to_top/bottom`, `at_top()`/`at_bottom()`, and
+`viewport_bounds` (the painted rect, for click hit-testing).
+
+Need custom routing (several independent scroll regions)? Set
+`state.auto_dispatch = False` and call `scroll_handle(state, ev)` yourself
+inside `@app.on_key` / `@app.on_mouse`. Don't do both — that double-scrolls.
 
 ### Apps: a class with decorators, no event loop
 

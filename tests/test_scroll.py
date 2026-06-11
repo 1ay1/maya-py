@@ -140,27 +140,22 @@ def test_unknown_style_raises():
 
 
 # ── interactive event routing (pty) ──────────────────────────────────────────
+# Tests maya's NATIVE behavior: with scroll_state() (auto_dispatch on) the run
+# loop forwards arrows + wheel to the scroll state automatically — NO handler.
 def _drive(seqs):
     prog = (
         "import sys, os\n"
         'sys.path.insert(0, os.path.join(os.getcwd(), "src"))\n'
         "import maya_py as m\n"
         'app = m.App("t", inline=True, mouse=True)\n'
-        "s = m.scroll_state()\n"
+        "s = m.scroll_state()\n"          # auto_dispatch on (maya default)
         "app.state(s=s)\n"
         "content = m.col(*[m.T(f'r{i}') for i in range(40)])\n"
-        "@app.on_key\n"
-        "def k(st, ev):\n"
-        "    if m.scroll_handle(st.s, ev):\n"
-        '        sys.stderr.write(f"Y {st.s.y}\\n"); sys.stderr.flush()\n'
-        "@app.on_mouse\n"
-        "def mo(st, ev):\n"
-        "    if m.scroll_handle(st.s, ev):\n"
-        '        sys.stderr.write(f"Y {st.s.y}\\n"); sys.stderr.flush()\n'
         '@app.on("q", "esc")\n'
         "def q(st): app.stop()\n"
         "@app.view\n"
         "def v(st):\n"
+        '    sys.stderr.write(f"Y {st.s.y}\\n"); sys.stderr.flush()\n'
         "    return m.row(m.viewport(content, st.s, height=10), m.scrollbar(st.s, 10))\n"
         "app.run()\n"
     )
@@ -175,7 +170,7 @@ def _drive(seqs):
     time.sleep(0.7)
     for seq in seqs:
         os.write(fd, seq)
-        time.sleep(0.12)
+        time.sleep(0.15)
     os.write(fd, b"q")
     deadline = time.time() + 3
     while time.time() < deadline:
@@ -196,19 +191,29 @@ def _drive(seqs):
     except OSError:
         pass
     err.flush()
-    return open(err.name).read()
+    # collect the distinct y values the view observed, in order
+    ys = []
+    for line in open(err.name).read().splitlines():
+        if line.startswith("Y "):
+            try:
+                v = int(line[2:])
+            except ValueError:
+                continue
+            if not ys or ys[-1] != v:
+                ys.append(v)
+    return ys
 
 
-def test_arrow_keys_scroll():
-    out = _drive([b"\x1b[B", b"\x1b[B", b"\x1b[B"])  # Down x3
-    # scroll_state() defaults to manual dispatch, so each arrow steps by 1.
-    check("arrow_down_scrolls", "Y 1" in out and "Y 2" in out and "Y 3" in out)
+def test_arrow_keys_auto_scroll():
+    ys = _drive([b"\x1b[B", b"\x1b[B", b"\x1b[B"])  # Down x3
+    # auto-dispatch: no handler, the view sees y climb 0 → 3
+    check("arrow_auto_scrolls", max(ys) >= 3, )
 
 
-def test_wheel_scrolls():
-    # wheel-down inside the viewport (near top-left, col 3 / rows 3-4)
-    out = _drive([b"\x1b[<65;3;3M", b"\x1b[<65;3;4M"])  # wheel down x2
-    check("wheel_scrolls", "Y 1" in out or "Y 2" in out)
+def test_wheel_auto_scrolls():
+    # wheel-down inside the viewport (near top-left)
+    ys = _drive([b"\x1b[<65;3;3M", b"\x1b[<65;3;4M", b"\x1b[<65;3;4M"])
+    check("wheel_auto_scrolls", max(ys) >= 1)
 
 
 if __name__ == "__main__":

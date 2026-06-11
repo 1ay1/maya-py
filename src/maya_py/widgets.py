@@ -188,16 +188,16 @@ def _resolve_style(style, thumb_color, track_color):
 
 def scroll_state() -> "ScrollState":
     """A fresh scroll position (x/y offsets + max bounds). Hold one in your
-    app state; pass it to ``viewport`` and ``scrollbar``.
+    app state and drop it into ``viewport`` + ``scrollbar``.
 
-    ``auto_dispatch`` is off by default: in maya-py you route events yourself
-    via ``scroll_handle`` (inside ``@app.on_key`` / ``@app.on_mouse``). Set it
-    back to True only if you also want maya's run-loop auto-dispatch — doing
-    both double-scrolls.
+    Scrolling "just works" with NO handler code: like maya, ``auto_dispatch``
+    is on, so the run loop forwards arrow keys / PgUp / PgDn / Home / End and
+    the mouse wheel + scrollbar drag to every on-screen scroll state
+    automatically. Only set ``auto_dispatch = False`` and call
+    ``scroll_handle`` yourself if you need custom routing (e.g. several
+    independent scroll regions). Don't do both — that double-scrolls.
     """
-    s = ScrollState()
-    s.auto_dispatch = False
-    return s
+    return ScrollState()
 
 
 def viewport(content: Element, state: "ScrollState", *, width: int = 0,

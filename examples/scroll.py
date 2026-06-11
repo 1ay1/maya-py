@@ -15,7 +15,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import maya_py as maya
+import maya_py as maya  # noqa: F401  (kept for ad-hoc maya.* if you extend this)
 from maya_py import (
     App, col, row, card, b, dim_text, T,
     scroll_state, viewport, scrollbar,
@@ -62,27 +62,13 @@ LINES = [
 STYLES = ["line", "block", "slim", "neon", "braille", "shadow", "double"]
 
 app = App("scroll", inline=True, mouse=True)
-s = scroll_state()
+s = scroll_state()            # auto_dispatch on — wheel + arrows just work
 s.step_y = 1
 app.state(s=s, style=0, vh=14)
 
 
-def _route(st, ev):
-    if maya.scroll_handle(st.s, ev):
-        return True
-    return False
-
-
-@app.on_key
-def keys(st, ev):
-    _route(st, ev)
-
-
-@app.on_mouse
-def mouse(st, ev):
-    _route(st, ev)
-
-
+# No scroll handler needed: maya auto-dispatches ↑↓ PgUp/PgDn Home/End and the
+# mouse wheel to every on-screen scroll state. We only bind the EXTRA keys.
 @app.on("[")
 def prev_style(st):
     st.style = (st.style - 1) % len(STYLES)
