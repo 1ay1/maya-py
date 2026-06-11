@@ -1,0 +1,204 @@
+# API Reference
+
+[← Manual index](index.md)
+
+Every public symbol in `maya_py`, grouped by purpose. Items marked **easy**
+are the recommended high-level surface; **low** items are the thin native
+bindings. Both are importable from the top-level `maya_py` package.
+
+```python
+import maya_py as maya
+from maya_py import T, card, col, row, App, memo   # etc.
+```
+
+---
+
+## Text & styling
+
+### Easy
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `T` | `T(s="")` | Fluent styled string. Properties: `.bold .dim .italic .underline .strike .inverse`. Methods: `.fg(color) .bg(color) .element()`. Concat with `+`. |
+| `b` | `b(s) -> T` | Bold markup shortcut. |
+| `i` | `i(s) -> T` | Italic shortcut. |
+| `u` | `u(s) -> T` | Underline shortcut. |
+| `dim_text` | `dim_text(s) -> T` | Dim shortcut (named `dim` inside `maya_py.easy`). |
+| `c` | `c(s, color) -> T` | Colored shortcut. |
+| `color` | `color(value) -> Color` | Resolve name / hex / tuple / int / Color into a `Color`. |
+
+### Low
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `Style` | `Style()` | Immutable style; `with_*` builders, `merge`, `to_sgr`, `empty`. `|` composes. |
+| `Color` | classmethods | `rgb(r,g,b)`, `hex(int)`, `indexed(i)`, `default_color()`, named (`cyan()`, …). |
+| `bold` `dim` `italic` `underline` `strikethrough` `inverse` | `Style` values | Predefined style flags. |
+| `fg` | `fg(c, *rest) -> Style` | Foreground style from rgb/tuple/hex. |
+| `bg` | `bg(c, *rest) -> Style` | Background style. |
+| `rgb` | `rgb(r,g,b) -> Color` | Truecolor. |
+| `hex` | `hex(0xRRGGBB) -> Color` | Color from hex int. |
+| `style` | `style(*, fg, bg, bold, dim, italic, underline, strikethrough, inverse) -> Style` | Build a Style from kwargs. |
+
+---
+
+## Layout
+
+### Easy
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `col` | `col(*children, **opts) -> Element` | Vertical stack. |
+| `row` | `row(*children, **opts) -> Element` | Horizontal stack. |
+| `card` | `card(*children, title=None, **opts) -> Element` | Bordered padded box (defaults `pad=1`, round border). |
+| `field` | `field(label, value, *, label_color="slate", value_color=None) -> Element` | `Label: value` row. |
+| `hr` | `hr(width=40, char="─", col="slate") -> Element` | Horizontal rule. |
+| `spacer` | `spacer() -> Element` | One-row blank gap. |
+
+**Shared `opts`** for `col`/`row`/`card`: `gap`, `pad`, `border`,
+`border_color`, `title`, `bg`, `align`, `justify`, `width`, `height`, `grow`.
+See [Layout](layout.md#keyword-options).
+
+### Low
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `box` | `box(*children, **opts) -> Element` | Flex container (raw kwargs). |
+| `vstack` | `vstack(*children, **opts) -> Element` | `box` with `direction=Column`. |
+| `hstack` | `hstack(*children, **opts) -> Element` | `box` with `direction=Row`. |
+| `text` | `text(content, style=None, wrap=TextWrap.Wrap) -> Element` | Styled text leaf. |
+| `styled_text` | `styled_text(content, fg=-1, bg=-1, attrs=0, wrap=…) -> Element` | Fast styled text from raw scalars. |
+| `blank` | `blank() -> Element` | One-row spacer element. |
+
+---
+
+## Apps
+
+### Easy
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `App` | `App(title="", *, inline=True, mouse=False, fps=0)` | Interactive app. |
+| `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
+| `App.s` | property | The live state bag. |
+| `App.on` | `@app.on(*keys)` | Bind keys to `fn(state)`. |
+| `App.on_key` | `@app.on_key` | Catch-all `fn(state, event)`. |
+| `App.view` | `@app.view` | Register `fn(state) -> node`. |
+| `App.run` | `app.run()` | Start the loop (blocks). |
+| `App.stop` | `app.stop()` | Request exit. |
+
+**Key names** for `on`: chars (`"q"`, `"+"`); names (`"up"`, `"down"`,
+`"left"`, `"right"`, `"enter"`/`"return"`, `"esc"`/`"escape"`, `"tab"`,
+`"backtab"`, `"space"`, `"backspace"`, `"delete"`, `"home"`, `"end"`,
+`"pageup"`, `"pagedown"`); combos (`"ctrl+c"`, `"alt+x"`).
+
+### Low
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `run` | `run(event_fn, render_fn, *, title="", inline_mode=False, mouse=False, fps=0)` | Interactive loop. `event_fn(ev)->bool`. |
+
+---
+
+## Rendering
+
+### Easy
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `show` | `show(node, width=None)` | Render once to stdout. |
+| `to_string` | `to_string(node, width=80) -> str` | Render to a string. |
+| `animate` | `animate(render_fn, *, fps=30)` | Inline animation; `render_fn(dt)->node`. |
+
+### Low
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `print` | `print(element, *, width=None)` | Render Element; falls through to builtin print for non-Elements. |
+| `print_element` | `print_element(element, width=None)` | Raw render-to-stdout. |
+| `render_to_string` | `render_to_string(element, width=80) -> str` | Raw string render. |
+| `live` | `live(render_fn, fps=30, max_width=0, cursor=False)` | Raw animation loop; `render_fn(dt)->Element`. |
+| `quit` | `quit()` | Stop the current loop. |
+
+---
+
+## Events (low)
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `key` | `key(ev, "c") -> bool` | Printable char key. |
+| `key_special` | `key_special(ev, SpecialKey) -> bool` | Named special key. |
+| `ctrl` | `ctrl(ev, "c") -> bool` | Ctrl + letter. |
+| `alt` | `alt(ev, "x") -> bool` | Alt + char. |
+| `any_key` | `any_key(ev) -> bool` | Any key event. |
+| `resized` | `resized(ev) -> bool` | Terminal resize. |
+| `Event` | class | Opaque event object. |
+
+---
+
+## Performance
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `memo` | `@memo` | Cache a builder by positional args; returns the same Element until args change. |
+
+See [Performance](performance.md).
+
+---
+
+## Enums (low)
+
+| Enum | Values |
+|------|--------|
+| `FlexDirection` | `Row` `Column` `RowReverse` `ColumnReverse` |
+| `Align` | `Start` `Center` `End` `Stretch` `Baseline` |
+| `Justify` | `Start` `Center` `End` `SpaceBetween` `SpaceAround` `SpaceEvenly` |
+| `BorderStyle` | `None_` `Single` `Double` `Round` `Bold` `SingleDouble` `DoubleSingle` `Classic` `Arrow` `Dashed` |
+| `TextWrap` | `Wrap` `TruncateEnd` `TruncateMiddle` `TruncateStart` `NoWrap` |
+| `SpecialKey` | `Up` `Down` `Left` `Right` `Home` `End` `PageUp` `PageDown` `Tab` `BackTab` `Backspace` `Delete` `Insert` `Enter` `Escape` `F1`–`F12` |
+
+### Enum shortcuts (top-level)
+
+| Shortcut | Equals |
+|----------|--------|
+| `Round` | `BorderStyle.Round` |
+| `Single` | `BorderStyle.Single` |
+| `Double` | `BorderStyle.Double` |
+| `BoldBorder` | `BorderStyle.Bold` |
+| `Classic` | `BorderStyle.Classic` |
+| `Dashed` | `BorderStyle.Dashed` |
+| `Row` | `FlexDirection.Row` |
+| `Column` | `FlexDirection.Column` |
+
+---
+
+## Types (low)
+
+| Symbol | Description |
+|--------|-------------|
+| `Element` | An opaque element tree node. Returned by builders; consumed by renderers. |
+| `Style` | Text style descriptor (see [styling](#text--styling)). |
+| `Color` | A color value (see [styling](#text--styling)). |
+| `Event` | An input event (see [events](#events-low)). |
+
+---
+
+## Color palette names
+
+Accepted anywhere a color is expected in the easy API:
+
+```
+black  white  red   green  blue   yellow magenta cyan
+gray   grey   orange purple pink   teal   lime    sky
+gold   slate
+```
+
+Plus `"#RRGGBB"` / `"#RGB"` hex strings, `(r, g, b)` tuples, `0xRRGGBB` ints,
+and `Color` objects.
+
+## Module metadata
+
+| Symbol | Value |
+|--------|-------|
+| `maya_py.__version__` | `"0.1.0"` |
+| `maya_py._maya` | the compiled pybind11 extension module |
