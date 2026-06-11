@@ -28,9 +28,40 @@ _W = _maya._widgets
 # enums, re-exported for callers who want them explicitly
 GaugeStyle = _W.GaugeStyle
 ColumnAlign = _W.ColumnAlign
+ButtonVariant = _W.ButtonVariant
+TaskStatus = _W.TaskStatus
+ToastLevel = _W.ToastLevel
+TodoItemStatus = _W.TodoItemStatus
+TodoListStatus = _W.TodoListStatus
 
 _ALIGN = {"left": ColumnAlign.Left, "center": ColumnAlign.Center,
           "right": ColumnAlign.Right}
+
+_BUTTON_VARIANT = {"default": ButtonVariant.Default, "primary": ButtonVariant.Primary,
+                   "danger": ButtonVariant.Danger, "ghost": ButtonVariant.Ghost}
+
+_TASK_STATUS = {"pending": TaskStatus.Pending, "inprogress": TaskStatus.InProgress,
+                "in_progress": TaskStatus.InProgress, "running": TaskStatus.InProgress,
+                "completed": TaskStatus.Completed, "done": TaskStatus.Completed}
+
+_TOAST_LEVEL = {"info": ToastLevel.Info, "success": ToastLevel.Success,
+                "warning": ToastLevel.Warning, "warn": ToastLevel.Warning,
+                "error": ToastLevel.Error}
+
+_TODO_ITEM = {"pending": TodoItemStatus.Pending, "inprogress": TodoItemStatus.InProgress,
+              "in_progress": TodoItemStatus.InProgress, "running": TodoItemStatus.InProgress,
+              "completed": TodoItemStatus.Completed, "done": TodoItemStatus.Completed}
+
+_TODO_LIST = {"pending": TodoListStatus.Pending, "running": TodoListStatus.Running,
+              "done": TodoListStatus.Done, "failed": TodoListStatus.Failed}
+
+
+def _enum(value, table, default):
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return table.get(value.lower().replace(" ", "_"), default)
+    return value
 
 
 def _col(c: Any) -> Color | None:
@@ -151,7 +182,249 @@ def heatmap(grid: Sequence[Sequence[float]], *, low: Any = None, high: Any = Non
                       [str(x) for x in x_labels], [str(y) for y in y_labels])
 
 
-# ── scrolling ────────────────────────────────────────────────────────
+def checkbox(label: str, checked: bool = False) -> Element:
+    """A ``[x] label`` checkbox in its checked/unchecked state."""
+    return _W.checkbox(str(label), bool(checked))
+
+
+def toggle(label: str, on: bool = False) -> Element:
+    """An on/off toggle switch (●━━ / ━━◯)."""
+    return _W.toggle(str(label), bool(on))
+
+
+def radio(items: Sequence[str], *, selected: int = 0,
+          visible_count: int = 0) -> Element:
+    """A radio group; ``selected`` is the chosen index."""
+    return _W.radio([str(s) for s in items], int(selected), int(visible_count))
+
+
+def select(items: Sequence[str], *, cursor: int = 0, indicator: str = "",
+           visible_count: int = 0) -> Element:
+    """A single-choice list with a ``❯`` cursor on row ``cursor``."""
+    return _W.select([str(s) for s in items], int(cursor), indicator,
+                     int(visible_count))
+
+
+def slider(value: float, label: str = "", *, min: float = 0.0, max: float = 1.0,
+           step: float = 0.01, width: int = 24, fill: Any = None,
+           track: Any = None) -> Element:
+    """A horizontal slider filled to ``value`` within ``[min, max]``.
+
+    ``width`` is the track width in columns (a fixed width is required for a
+    standalone render)."""
+    return _W.slider(float(value), label, float(min), float(max), float(step),
+                     int(width), _col(fill), _col(track))
+
+
+def button(label: str, *, variant: Any = "default") -> Element:
+    """A button. ``variant``: default/primary/danger/ghost."""
+    return _W.button(str(label),
+                     _enum(variant, _BUTTON_VARIANT, ButtonVariant.Default))
+
+
+def calendar(year: int, month: int, *, today: Any = None) -> Element:
+    """A month grid for ``year``/``month`` (1-12). ``today`` is an optional
+    ``(y, m, d)`` tuple to highlight the current day."""
+    t = tuple(today) if today is not None else None
+    return _W.calendar(int(year), int(month), t)
+
+
+def line_chart(data: Sequence[float], *, height: int = 8, label: str = "",
+               color: Any = None) -> Element:
+    """A braille line chart with a y-axis."""
+    return _W.line_chart([float(x) for x in data], int(height), label,
+                         _col(color))
+
+
+def link(text: str, url: str = "", *, show_icon: bool = False,
+         color: Any = None) -> Element:
+    """An OSC-8 hyperlink (clickable in supporting terminals)."""
+    return _W.link(str(text), str(url), bool(show_icon), _col(color))
+
+
+def key_help(bindings: Sequence[Any], *, title: str = "") -> Element:
+    """A keyboard-shortcut cheat sheet.
+
+    ``bindings`` is a list of ``(key, description)`` or
+    ``(key, description, group)`` tuples.
+    """
+    out = []
+    for b in bindings:
+        out.append((b,) if isinstance(b, str) else tuple(str(x) for x in b))
+    return _W.key_help(out, title)
+
+
+def timeline(events: Sequence[Any], *, show_connector: bool = True,
+             compact: bool = False, frame: int = 0,
+             track_width: int = 40) -> Element:
+    """A vertical event timeline.
+
+    Each event is a dict ``{label, detail, duration, status, bar_width}`` or a
+    tuple ``(label, detail, duration, status, bar_width)``. ``status`` is
+    pending/in_progress/completed.
+    """
+    out = []
+    for e in events:
+        if isinstance(e, dict):
+            d = dict(e)
+            if "status" in d:
+                d["status"] = _enum(d["status"], _TASK_STATUS, TaskStatus.Pending)
+            out.append(d)
+        else:
+            e = list(e)
+            if len(e) > 3:
+                e[3] = _enum(e[3], _TASK_STATUS, TaskStatus.Pending)
+            out.append(tuple(e))
+    return _W.timeline(out, bool(show_connector), bool(compact), int(frame),
+                       int(track_width))
+
+
+def tree(root: dict) -> Element:
+    """A collapsible tree. ``root`` is a nested dict
+    ``{label, expanded, selected, children: [...]}``."""
+    return _W.tree(root)
+
+
+def list_view(items: Sequence[Any], *, cursor: int = 0, filterable: bool = False,
+              visible_count: int = 0) -> Element:
+    """A scrollable item list with a highlighted ``cursor`` row.
+
+    Items are strings, ``(label, description, icon)`` tuples, or dicts.
+    """
+    out = []
+    for it in items:
+        out.append(it if isinstance(it, (str, dict)) else tuple(str(x) for x in it))
+    return _W.list_view(out, int(cursor), bool(filterable), int(visible_count))
+
+
+def menu(items: Sequence[Any], *, cursor: int = 0) -> Element:
+    """A dropdown menu. Items are strings, dicts, or
+    ``(label, shortcut, enabled, separator)`` tuples."""
+    out = [it if isinstance(it, (str, dict)) else tuple(it) for it in items]
+    return _W.menu(out, int(cursor))
+
+
+def disclosure(label: str, *, open: bool = False,
+               content: Element | None = None) -> Element:
+    """A collapsible section. When ``open`` and ``content`` is given, the
+    content renders beneath the header."""
+    return _W.disclosure(str(label), bool(open), content)
+
+
+def toast(messages: Sequence[Any]) -> Element:
+    """A stack of toast notifications. Each is a string or
+    ``(message, level)`` tuple; level is info/success/warning/error."""
+    out = []
+    for m in messages:
+        if isinstance(m, str):
+            out.append(m)
+        else:
+            m = list(m)
+            if len(m) > 1:
+                m[1] = _enum(m[1], _TOAST_LEVEL, ToastLevel.Info)
+            out.append(tuple(m))
+    return _W.toast(out)
+
+
+def todo_list(items: Sequence[Any], *, description: str = "",
+              status: Any = "pending", elapsed: float = 0.0,
+              expanded: bool = True) -> Element:
+    """An agent-style todo card. Items are strings or ``(content, status)``
+    tuples (status: pending/in_progress/completed). The card ``status`` is
+    pending/running/done/failed."""
+    out = []
+    for it in items:
+        if isinstance(it, str):
+            out.append(it)
+        else:
+            it = list(it)
+            if len(it) > 1:
+                it[1] = _enum(it[1], _TODO_ITEM, TodoItemStatus.Pending)
+            out.append(tuple(it))
+    return _W.todo_list(out, description,
+                        _enum(status, _TODO_LIST, TodoListStatus.Pending),
+                        float(elapsed), bool(expanded))
+
+
+def title_chip(title: str, *, edge_color: Any = None, text_color: Any = None,
+               max_chars: int = 0) -> Element:
+    """A rounded title chip (the agent header style)."""
+    return _W.title_chip(str(title), _col(edge_color), _col(text_color),
+                         int(max_chars))
+
+
+def model_badge(model: str, *, compact: bool = False) -> Element:
+    """A model-name badge (e.g. ``✦ Opus 4``)."""
+    return _W.model_badge(str(model), bool(compact))
+
+
+def file_ref(path: str, *, line: int = 0, show_icon: bool = True) -> Element:
+    """A ``📄 path:line`` file reference."""
+    return _W.file_ref(str(path), int(line), bool(show_icon))
+
+
+def inline_diff(before: str, after: str, *, label: str = "",
+                show_header: bool = True) -> Element:
+    """A word-level inline diff between ``before`` and ``after``."""
+    return _W.inline_diff(str(before), str(after), label, bool(show_header))
+
+
+def flame_chart(spans: Sequence[Any], *, time_scale: float = 0.0,
+                width: int = 60, show_times: bool = True) -> Element:
+    """A flamegraph. Spans are ``(label, start, duration, depth, color)``
+    tuples (depth/color optional)."""
+    out = []
+    for s in spans:
+        s = list(s)
+        if len(s) > 4:
+            s[4] = _col(s[4])
+        out.append(tuple(s))
+    return _W.flame_chart(out, float(time_scale), int(width), bool(show_times))
+
+
+def waterfall(entries: Sequence[Any], *, time_scale: float = 0.0,
+              bar_width: int = 30, show_labels: bool = True,
+              frame: int = 0) -> Element:
+    """A request waterfall. Entries are ``(label, start, duration, color)``
+    tuples (color optional)."""
+    out = []
+    for e in entries:
+        e = list(e)
+        if len(e) > 3:
+            e[3] = _col(e[3])
+        out.append(tuple(e))
+    return _W.waterfall(out, float(time_scale), int(bar_width),
+                        bool(show_labels), int(frame))
+
+
+def thinking(content: str = "", *, active: bool = False, expanded: bool = True,
+             max_lines: int = 0) -> Element:
+    """A collapsible 'thinking' block (agent reasoning trace)."""
+    return _W.thinking(str(content), bool(active), bool(expanded),
+                       int(max_lines))
+
+
+def markdown(source: str) -> Element:
+    """Render GFM markdown (headings, lists, tables, code, emphasis) to an
+    Element — the same renderer maya uses for agent output."""
+    return _W.markdown(str(source))
+
+
+def image(pixels: Sequence[Sequence[Any]], *, color: Any = None) -> Element:
+    """A 1-bit braille image. ``pixels`` is a 2-D grid of truthy/falsy values
+    (on/off dots)."""
+    grid = [[1 if v else 0 for v in row] for row in pixels]
+    return _W.image(grid, _col(color))
+
+
+def canvas(pixels: Sequence[Sequence[Any]]) -> Element:
+    """A color half-block canvas. ``pixels`` is a 2-D grid of colors (name,
+    (r,g,b), "#rrggbb", maya Color) or ``None`` for a blank cell."""
+    grid = [[_col(v) for v in row] for row in pixels]
+    return _W.canvas(grid)
+
+
+# ── scrolling ───────────────────────────────────────
 ScrollState = _W.ScrollState
 ScrollbarStyle = _W.ScrollbarStyle
 
@@ -234,9 +507,15 @@ def scroll_handle(state: "ScrollState", ev: Any) -> bool:
 
 
 __all__ = [
-    "GaugeStyle", "ColumnAlign", "ScrollState", "ScrollbarStyle",
+    "GaugeStyle", "ColumnAlign", "ButtonVariant", "TaskStatus", "ToastLevel",
+    "TodoItemStatus", "TodoListStatus", "ScrollState", "ScrollbarStyle",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "bar_chart", "gradient", "heatmap",
+    "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
+    "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
+    "disclosure", "toast", "todo_list", "title_chip", "model_badge",
+    "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
+    "markdown", "image", "canvas",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]

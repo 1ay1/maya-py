@@ -125,10 +125,41 @@ col(
 )
 ```
 
-Available: `sparkline`, `gauge`, `progress`, `badge`, `divider`, `spinner`,
-`table`, `callout`, `status_banner`, `breadcrumb`, `tabs`, `bar_chart`,
-`gradient`, `heatmap`. Every color argument takes a name / `(r,g,b)` /
-`"#rrggbb"` / `Color`, same as everywhere else.
+Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
+`Color`, same as everywhere else:
+
+- **charts & meters**: `sparkline`, `gauge`, `progress`, `bar_chart`,
+  `line_chart`, `heatmap`, `flame_chart`, `waterfall`
+- **controls** (rendered in any state — pass `checked`/`on`/`selected`/`cursor`):
+  `checkbox`, `toggle`, `radio`, `select`, `slider`, `button`
+- **text & labels**: `badge`, `divider`, `spinner`, `callout`, `status_banner`,
+  `breadcrumb`, `tabs`, `gradient`, `link`, `title_chip`, `model_badge`,
+  `file_ref`, `markdown`
+- **structure & nav**: `table`, `tree`, `list_view`, `menu`, `disclosure`,
+  `key_help`, `calendar`, `timeline`
+- **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`
+- **graphics**: `image` (1-bit braille), `canvas` (color half-block)
+
+```python
+from maya_py import col, row, checkbox, slider, todo_list, timeline, tree
+
+col(
+    checkbox("Ship it", checked=True),
+    slider(0.6, "volume", width=24, fill="sky"),
+    todo_list([("design", "completed"), ("build", "in_progress"), "test"],
+              description="sprint", status="running"),
+    timeline([("clone", "", "0.4s", "completed"),
+              ("compile", "", "", "in_progress", 8)]),
+    tree({"label": "src", "expanded": True,
+          "children": [{"label": "main.py"}, {"label": "util.py"}]}),
+    gap=1,
+)
+```
+
+List/tuple inputs are flexible: list items accept `"str"`,
+`(label, description, icon)`, or `{...}` dicts; timeline/todo statuses accept
+strings (`"completed"`, `"in_progress"`, ...) or the exported enums
+(`TaskStatus`, `TodoItemStatus`, `ToastLevel`, `ButtonVariant`).
 
 ### Scrolling: viewport + scrollbar
 

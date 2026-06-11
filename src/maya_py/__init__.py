@@ -229,18 +229,30 @@ __all__ += [
 
 # ── Widgets (maya's native renderers) ────────────────────────────────
 from .widgets import (  # noqa: E402
-    GaugeStyle, ColumnAlign, ScrollState, ScrollbarStyle,
+    GaugeStyle, ColumnAlign, ButtonVariant, TaskStatus, ToastLevel,
+    TodoItemStatus, TodoListStatus, ScrollState, ScrollbarStyle,
     sparkline, gauge, progress, badge, divider, spinner,
     table, callout, status_banner, breadcrumb, tabs,
     bar_chart, gradient, heatmap,
+    checkbox, toggle, radio, select, slider, button, calendar,
+    line_chart, link, key_help, timeline, tree, list_view, menu,
+    disclosure, toast, todo_list, title_chip, model_badge,
+    file_ref, inline_diff, flame_chart, waterfall, thinking,
+    markdown, image, canvas,
     scroll_state, viewport, scrollbar, scroll_handle,
 )
 
 __all__ += [
-    "GaugeStyle", "ColumnAlign", "ScrollState", "ScrollbarStyle",
+    "GaugeStyle", "ColumnAlign", "ButtonVariant", "TaskStatus", "ToastLevel",
+    "TodoItemStatus", "TodoListStatus", "ScrollState", "ScrollbarStyle",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "bar_chart", "gradient", "heatmap",
+    "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
+    "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
+    "disclosure", "toast", "todo_list", "title_chip", "model_badge",
+    "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
+    "markdown", "image", "canvas",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]
 

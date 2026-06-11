@@ -13,6 +13,9 @@ from maya_py import (
     col, row, card, b,
     sparkline, gauge, progress, badge, divider, spinner,
     table, callout, status_banner, breadcrumb, tabs, bar_chart, gradient, heatmap,
+    checkbox, toggle, radio, select, slider, button, line_chart, link,
+    key_help, timeline, tree, list_view, menu, disclosure, toast, todo_list,
+    title_chip, model_badge, file_ref, inline_diff, thinking, markdown,
 )
 
 
@@ -60,6 +63,62 @@ def gallery():
             [[0.1, 0.4, 0.8, 0.9], [0.3, 0.6, 0.5, 0.2], [0.9, 0.7, 0.4, 0.1]],
             low="slate", high="lime",
         ),
+        divider("controls", color="slate"),
+        row(
+            card(
+                checkbox("Enable telemetry", checked=True),
+                checkbox("Beta features", checked=False),
+                toggle("Dark mode", on=True),
+                title="checks",
+            ),
+            card(
+                b("radio"), radio(["Small", "Medium", "Large"], selected=1),
+                b("select"), select(["Build", "Test", "Deploy"], cursor=0),
+                title="choice",
+            ),
+            card(
+                b("slider"), slider(0.6, "volume", width=20, fill="sky"),
+                b("buttons"),
+                row(button("Save", variant="primary"),
+                    button("Delete", variant="danger"), gap=1),
+                title="input",
+            ),
+            gap=1,
+        ),
+        divider("line chart", color="slate"),
+        line_chart([2, 5, 3, 8, 6, 9, 4, 7, 5, 8, 6, 10], height=6,
+                   label="rps", color="sky"),
+        divider("navigation", color="slate"),
+        row(
+            tree({"label": "src", "expanded": True, "children": [
+                {"label": "main.py"},
+                {"label": "widget", "expanded": True,
+                 "children": [{"label": "table.hpp"}, {"label": "tree.hpp"}]},
+            ]}),
+            list_view([("Ada", "engineer", "★"), ("Bob", "designer")], cursor=0),
+            key_help([("↑↓", "move"), ("enter", "select"), ("q", "quit")],
+                     title="keys"),
+            gap=2,
+        ),
+        divider("agent UI", color="slate"),
+        row(model_badge("Opus 4.8", compact=True),
+            title_chip("session", edge_color="cyan"),
+            file_ref("src/main.py", line=42), gap=2),
+        todo_list(
+            [("design API", "completed"), ("implement", "in_progress"),
+             ("write tests", "pending")],
+            description="current sprint", status="running", elapsed=42.0,
+        ),
+        timeline([
+            ("clone", "", "0.4s", "completed"),
+            ("compile", "", "2.1s", "completed"),
+            ("link", "", "", "in_progress", 8),
+        ]),
+        thinking("The user wants a flexbox layout, so I should...",
+                 active=True, max_lines=3),
+        inline_diff("const x = 1", "const x = 42", label="app.ts"),
+        markdown("### Notes\n- maya renders **GFM** inline\n- `code` too"),
+        toast([("Build succeeded", "success"), ("3 warnings", "warning")]),
         gap=1,
     )
 

@@ -35,9 +35,38 @@
 #include <maya/widget/scrollbar.hpp>
 #include <maya/core/scroll_state.hpp>
 
+#include <maya/widget/checkbox.hpp>
+#include <maya/widget/radio.hpp>
+#include <maya/widget/slider.hpp>
+#include <maya/widget/select.hpp>
+#include <maya/widget/button.hpp>
+#include <maya/widget/calendar.hpp>
+#include <maya/widget/line_chart.hpp>
+#include <maya/widget/link.hpp>
+#include <maya/widget/key_help.hpp>
+#include <maya/widget/timeline.hpp>
+#include <maya/widget/tree.hpp>
+#include <maya/widget/list.hpp>
+#include <maya/widget/menu.hpp>
+#include <maya/widget/disclosure.hpp>
+#include <maya/widget/toast.hpp>
+#include <maya/widget/todo_list.hpp>
+#include <maya/widget/title_chip.hpp>
+#include <maya/widget/model_badge.hpp>
+#include <maya/widget/file_ref.hpp>
+#include <maya/widget/inline_diff.hpp>
+#include <maya/widget/flame_chart.hpp>
+#include <maya/widget/waterfall.hpp>
+#include <maya/widget/thinking.hpp>
+#include <maya/widget/markdown.hpp>
+#include <maya/widget/image.hpp>
+#include <maya/widget/canvas.hpp>
+#include <maya/widget/plan_view.hpp>  // TaskStatus
+
 #include <optional>
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace py = pybind11;
 using namespace maya;
@@ -54,6 +83,34 @@ void init_widgets(py::module_& m) {
         .value("Left", ColumnAlign::Left)
         .value("Center", ColumnAlign::Center)
         .value("Right", ColumnAlign::Right);
+
+    py::enum_<ButtonVariant>(w, "ButtonVariant")
+        .value("Default", ButtonVariant::Default)
+        .value("Primary", ButtonVariant::Primary)
+        .value("Danger", ButtonVariant::Danger)
+        .value("Ghost", ButtonVariant::Ghost);
+
+    py::enum_<TaskStatus>(w, "TaskStatus")
+        .value("Pending", TaskStatus::Pending)
+        .value("InProgress", TaskStatus::InProgress)
+        .value("Completed", TaskStatus::Completed);
+
+    py::enum_<ToastLevel>(w, "ToastLevel")
+        .value("Info", ToastLevel::Info)
+        .value("Success", ToastLevel::Success)
+        .value("Warning", ToastLevel::Warning)
+        .value("Error", ToastLevel::Error);
+
+    py::enum_<TodoItemStatus>(w, "TodoItemStatus")
+        .value("Pending", TodoItemStatus::Pending)
+        .value("InProgress", TodoItemStatus::InProgress)
+        .value("Completed", TodoItemStatus::Completed);
+
+    py::enum_<TodoListStatus>(w, "TodoListStatus")
+        .value("Pending", TodoListStatus::Pending)
+        .value("Running", TodoListStatus::Running)
+        .value("Done", TodoListStatus::Done)
+        .value("Failed", TodoListStatus::Failed);
 
     // ── sparkline(data, label, color, show_min_max, show_last) ──────────
     w.def("sparkline",
@@ -245,6 +302,462 @@ void init_widgets(py::module_& m) {
           py::arg("grid"), py::arg("low") = std::nullopt, py::arg("high") = std::nullopt,
           py::arg("x_labels") = std::vector<std::string>{},
           py::arg("y_labels") = std::vector<std::string>{});
+
+    // ── checkbox(label, checked) ────────────────────────────────────────
+    w.def("checkbox",
+          [](std::string label, bool checked) {
+              Checkbox c{std::move(label), checked};
+              return static_cast<Element>(c);
+          },
+          py::arg("label"), py::arg("checked") = false);
+
+    // ── toggle(label, on) ───────────────────────────────────────────────
+    w.def("toggle",
+          [](std::string label, bool on) {
+              ToggleSwitch t{std::move(label), on};
+              return static_cast<Element>(t);
+          },
+          py::arg("label"), py::arg("on") = false);
+
+    // ── radio(items, selected, visible_count) ───────────────────────────
+    w.def("radio",
+          [](std::vector<std::string> items, int selected, int visible_count) {
+              RadioConfig cfg{};
+              if (visible_count > 0) cfg.visible_count = visible_count;
+              Radio r{std::move(items), cfg};
+              r.set_selected(selected);
+              return static_cast<Element>(r);
+          },
+          py::arg("items"), py::arg("selected") = 0, py::arg("visible_count") = 0);
+
+    // ── select(items, cursor, indicator, visible_count) ─────────────────
+    w.def("select",
+          [](std::vector<std::string> items, int cursor,
+             const std::string& indicator, int visible_count) {
+              SelectConfig cfg{};
+              if (!indicator.empty()) cfg.indicator = indicator;
+              if (visible_count > 0) cfg.visible_count = visible_count;
+              Select s{std::move(items), cfg};
+              if (cursor > 0) const_cast<Signal<int>&>(s.cursor()).set(cursor);
+              return static_cast<Element>(s);
+          },
+          py::arg("items"), py::arg("cursor") = 0,
+          py::arg("indicator") = "", py::arg("visible_count") = 0);
+
+    // ── slider(value, label, min, max, step, width, fill, track) ────────
+    // width must be > 0 for a static render: the dynamic-width path returns a
+    // ComponentElement capturing the Slider, which dangles once this factory
+    // returns. A fixed track width builds a concrete element.
+    w.def("slider",
+          [](float value, std::string label, float vmin, float vmax, float step,
+             int width, std::optional<Color> fill, std::optional<Color> track) {
+              SliderConfig cfg{};
+              cfg.min = vmin;
+              cfg.max = vmax;
+              cfg.step = step;
+              cfg.width = width > 0 ? width : 24;
+              if (fill)  cfg.fill_color = *fill;
+              if (track) cfg.track_color = *track;
+              Slider s{std::move(label), cfg};
+              s.set_value(value);
+              return static_cast<Element>(s);
+          },
+          py::arg("value"), py::arg("label") = "",
+          py::arg("min") = 0.0f, py::arg("max") = 1.0f, py::arg("step") = 0.01f,
+          py::arg("width") = 24,
+          py::arg("fill") = std::nullopt, py::arg("track") = std::nullopt);
+
+    // ── button(label, variant) ──────────────────────────────────────────
+    w.def("button",
+          [](std::string label, ButtonVariant variant) {
+              Button b{std::move(label), {}, variant};
+              return static_cast<Element>(b);
+          },
+          py::arg("label"), py::arg("variant") = ButtonVariant::Default);
+
+    // ── calendar(year, month, today=(y,m,d)) ────────────────────────────
+    w.def("calendar",
+          [](int year, int month, std::optional<py::sequence> today) {
+              if (today && py::len(*today) >= 3) {
+                  return static_cast<Element>(
+                      Calendar{year, month, (*today)[0].cast<int>(),
+                               (*today)[1].cast<int>(), (*today)[2].cast<int>()});
+              }
+              return static_cast<Element>(Calendar{year, month});
+          },
+          py::arg("year"), py::arg("month"), py::arg("today") = std::nullopt);
+
+    // ── line_chart(data, height, label, color) ──────────────────────────
+    w.def("line_chart",
+          [](std::vector<float> data, int height, std::string label,
+             std::optional<Color> color) {
+              LineChart c{std::move(data), height};
+              if (!label.empty()) c.set_label(label);
+              if (color) c.set_color(*color);
+              return static_cast<Element>(c);
+          },
+          py::arg("data"), py::arg("height") = 8, py::arg("label") = "",
+          py::arg("color") = std::nullopt);
+
+    // ── link(text, url, show_icon, color) ───────────────────────────────
+    w.def("link",
+          [](std::string text, std::string url, bool show_icon,
+             std::optional<Color> color) {
+              Link l{};
+              l.text = std::move(text);
+              l.url = std::move(url);
+              l.show_icon = show_icon;
+              if (color) l.link_style = Style{}.with_fg(*color).with_underline();
+              return static_cast<Element>(l);
+          },
+          py::arg("text"), py::arg("url") = "", py::arg("show_icon") = false,
+          py::arg("color") = std::nullopt);
+
+    // ── key_help(bindings, title) ───────────────────────────────────────
+    // bindings: list of (key, description) or (key, description, group).
+    w.def("key_help",
+          [](const py::list& bindings, const std::string& title) {
+              std::vector<KeyBinding> bs;
+              for (const auto& item : bindings) {
+                  auto t = item.cast<py::sequence>();
+                  KeyBinding b{};
+                  b.key = t[0].cast<std::string>();
+                  if (py::len(t) > 1) b.description = t[1].cast<std::string>();
+                  if (py::len(t) > 2) b.group = t[2].cast<std::string>();
+                  bs.push_back(std::move(b));
+              }
+              KeyHelp k{std::move(bs)};
+              if (!title.empty()) k.set_title(title);
+              return static_cast<Element>(k);
+          },
+          py::arg("bindings"), py::arg("title") = "");
+
+    // ── timeline(events, show_connector, compact, frame, track_width) ───
+    // events: list of dicts/tuples (label, detail, duration, status, bar_width).
+    w.def("timeline",
+          [](const py::list& events, bool show_connector, bool compact,
+             int frame, int track_width) {
+              std::vector<TimelineEvent> evs;
+              for (const auto& item : events) {
+                  TimelineEvent ev{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("label"))    ev.label = d["label"].cast<std::string>();
+                      if (d.contains("detail"))   ev.detail = d["detail"].cast<std::string>();
+                      if (d.contains("duration")) ev.duration = d["duration"].cast<std::string>();
+                      if (d.contains("status"))   ev.status = d["status"].cast<TaskStatus>();
+                      if (d.contains("bar_width"))ev.bar_width = d["bar_width"].cast<int>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      ev.label = t[0].cast<std::string>();
+                      if (py::len(t) > 1) ev.detail = t[1].cast<std::string>();
+                      if (py::len(t) > 2) ev.duration = t[2].cast<std::string>();
+                      if (py::len(t) > 3) ev.status = t[3].cast<TaskStatus>();
+                      if (py::len(t) > 4) ev.bar_width = t[4].cast<int>();
+                  }
+                  evs.push_back(std::move(ev));
+              }
+              Timeline tl{};
+              for (auto& ev : evs) tl.add(std::move(ev));
+              tl.set_show_connector(show_connector);
+              tl.set_compact(compact);
+              tl.set_frame(frame);
+              tl.set_track_width(track_width);
+              return static_cast<Element>(tl);
+          },
+          py::arg("events"), py::arg("show_connector") = true,
+          py::arg("compact") = false, py::arg("frame") = 0,
+          py::arg("track_width") = 40);
+
+    // ── tree(root) — root is a nested dict {label, children, expanded} ──
+    w.def("tree",
+          [](const py::dict& root) {
+              std::function<TreeNode(const py::dict&)> conv =
+                  [&](const py::dict& d) -> TreeNode {
+                  TreeNode n{};
+                  if (d.contains("label")) n.label = d["label"].cast<std::string>();
+                  if (d.contains("expanded")) n.expanded = d["expanded"].cast<bool>();
+                  if (d.contains("selected")) n.selected = d["selected"].cast<bool>();
+                  if (d.contains("children")) {
+                      for (const auto& c : d["children"].cast<py::list>())
+                          n.children.push_back(conv(c.cast<py::dict>()));
+                  }
+                  return n;
+              };
+              Tree t{conv(root)};
+              return static_cast<Element>(t);
+          },
+          py::arg("root"));
+
+    // ── list(items, cursor, filterable, visible_count) ──────────────────
+    // items: list of str, or dicts/tuples (label, description, icon).
+    w.def("list_view",
+          [](const py::list& items, int cursor, bool filterable, int visible_count) {
+              std::vector<ListItem> lis;
+              for (const auto& item : items) {
+                  ListItem li{};
+                  if (py::isinstance<py::str>(item)) {
+                      li.label = item.cast<std::string>();
+                  } else if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("label"))       li.label = d["label"].cast<std::string>();
+                      if (d.contains("description")) li.description = d["description"].cast<std::string>();
+                      if (d.contains("icon"))        li.icon = d["icon"].cast<std::string>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      li.label = t[0].cast<std::string>();
+                      if (py::len(t) > 1) li.description = t[1].cast<std::string>();
+                      if (py::len(t) > 2) li.icon = t[2].cast<std::string>();
+                  }
+                  lis.push_back(std::move(li));
+              }
+              ListConfig cfg{};
+              cfg.filterable = filterable;
+              if (visible_count > 0) cfg.visible_count = visible_count;
+              List l{std::move(lis), cfg};
+              if (cursor > 0) const_cast<Signal<int>&>(l.cursor()).set(cursor);
+              return static_cast<Element>(l);
+          },
+          py::arg("items"), py::arg("cursor") = 0,
+          py::arg("filterable") = false, py::arg("visible_count") = 0);
+
+    // ── menu(items) — items: str, or (label, shortcut, enabled, separator) ─
+    w.def("menu",
+          [](const py::list& items, int cursor) {
+              std::vector<MenuItem> mis;
+              for (const auto& item : items) {
+                  MenuItem mi{};
+                  if (py::isinstance<py::str>(item)) {
+                      mi.label = item.cast<std::string>();
+                  } else if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("label"))     mi.label = d["label"].cast<std::string>();
+                      if (d.contains("shortcut"))  mi.shortcut = d["shortcut"].cast<std::string>();
+                      if (d.contains("enabled"))   mi.enabled = d["enabled"].cast<bool>();
+                      if (d.contains("separator")) mi.separator = d["separator"].cast<bool>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      mi.label = t[0].cast<std::string>();
+                      if (py::len(t) > 1) mi.shortcut = t[1].cast<std::string>();
+                      if (py::len(t) > 2) mi.enabled = t[2].cast<bool>();
+                      if (py::len(t) > 3) mi.separator = t[3].cast<bool>();
+                  }
+                  mis.push_back(std::move(mi));
+              }
+              Menu mn{std::move(mis)};
+              if (cursor > 0) const_cast<Signal<int>&>(mn.cursor()).set(cursor);
+              return static_cast<Element>(mn);
+          },
+          py::arg("items"), py::arg("cursor") = 0);
+
+    // ── disclosure(label, open, content) ────────────────────────────────
+    w.def("disclosure",
+          [](std::string label, bool open, std::optional<Element> content) {
+              Disclosure::Config cfg{};
+              cfg.label = std::move(label);
+              Disclosure d{cfg};
+              d.set_open(open);
+              if (content) return d.build(*content);
+              return d.build();
+          },
+          py::arg("label"), py::arg("open") = false,
+          py::arg("content") = std::nullopt);
+
+    // ── toast(messages) — list of (message, level) ──────────────────────
+    w.def("toast",
+          [](const py::list& messages) {
+              ToastManager::Config cfg{};
+              ToastManager tm{cfg};
+              for (const auto& item : messages) {
+                  if (py::isinstance<py::str>(item)) {
+                      tm.push(item.cast<std::string>(), ToastLevel::Info);
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      ToastLevel lvl = ToastLevel::Info;
+                      if (py::len(t) > 1) lvl = t[1].cast<ToastLevel>();
+                      tm.push(t[0].cast<std::string>(), lvl);
+                  }
+              }
+              return static_cast<Element>(tm);
+          },
+          py::arg("messages"));
+
+    // ── todo_list(items, description, status, elapsed, expanded) ─────────
+    // items: (content, status) tuples or strings.
+    w.def("todo_list",
+          [](const py::list& items, std::string description,
+             TodoListStatus status, float elapsed, bool expanded) {
+              std::vector<TodoListItem> tis;
+              for (const auto& item : items) {
+                  TodoListItem ti{};
+                  if (py::isinstance<py::str>(item)) {
+                      ti.content = item.cast<std::string>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      ti.content = t[0].cast<std::string>();
+                      if (py::len(t) > 1) ti.status = t[1].cast<TodoItemStatus>();
+                  }
+                  tis.push_back(std::move(ti));
+              }
+              TodoListTool tl{};
+              tl.set_items(std::move(tis));
+              if (!description.empty()) tl.set_description(description);
+              tl.set_status(status);
+              tl.set_elapsed(elapsed);
+              tl.set_expanded(expanded);
+              return static_cast<Element>(tl);
+          },
+          py::arg("items"), py::arg("description") = "",
+          py::arg("status") = TodoListStatus::Pending,
+          py::arg("elapsed") = 0.0f, py::arg("expanded") = true);
+
+    // ── title_chip(title, edge_color, text_color, max_chars) ────────────
+    w.def("title_chip",
+          [](std::string title, std::optional<Color> edge,
+             std::optional<Color> text, int max_chars) {
+              TitleChip::Config cfg{};
+              cfg.title = std::move(title);
+              if (edge) cfg.edge_color = *edge;
+              if (text) cfg.text_color = *text;
+              if (max_chars > 0) cfg.max_chars = static_cast<std::size_t>(max_chars);
+              return static_cast<Element>(TitleChip{cfg});
+          },
+          py::arg("title"), py::arg("edge_color") = std::nullopt,
+          py::arg("text_color") = std::nullopt, py::arg("max_chars") = 0);
+
+    // ── model_badge(model, compact) ─────────────────────────────────────
+    w.def("model_badge",
+          [](std::string model, bool compact) {
+              ModelBadge mb{std::move(model)};
+              mb.set_compact(compact);
+              return static_cast<Element>(mb);
+          },
+          py::arg("model"), py::arg("compact") = false);
+
+    // ── file_ref(path, line, show_icon) ─────────────────────────────────
+    w.def("file_ref",
+          [](std::string path, int line, bool show_icon) {
+              FileRef fr{std::move(path), line};
+              FileRef::Config cfg{};
+              cfg.show_icon = show_icon;
+              return fr.build(cfg);
+          },
+          py::arg("path"), py::arg("line") = 0, py::arg("show_icon") = true);
+
+    // ── inline_diff(before, after, label, show_header) ──────────────────
+    w.def("inline_diff",
+          [](std::string before, std::string after, std::string label,
+             bool show_header) {
+              InlineDiffConfig cfg{};
+              cfg.show_header = show_header;
+              InlineDiff d{std::move(before), std::move(after), cfg};
+              if (!label.empty()) d.set_label(std::move(label));
+              return static_cast<Element>(d);
+          },
+          py::arg("before"), py::arg("after"), py::arg("label") = "",
+          py::arg("show_header") = true);
+
+    // ── flame_chart(spans, time_scale, width, show_times) ───────────────
+    // spans: (label, start, duration, depth, color) tuples.
+    w.def("flame_chart",
+          [](const py::list& spans, float time_scale, int width, bool show_times) {
+              FlameChart fc{time_scale};
+              fc.set_width(width);
+              fc.set_show_times(show_times);
+              for (const auto& item : spans) {
+                  auto t = item.cast<py::sequence>();
+                  std::string label = t[0].cast<std::string>();
+                  float start = t[1].cast<float>();
+                  float dur = t[2].cast<float>();
+                  int depth = py::len(t) > 3 ? t[3].cast<int>() : 0;
+                  Color color = (py::len(t) > 4 && !t[4].is_none())
+                                    ? t[4].cast<Color>() : Color{};
+                  fc.add_span(std::move(label), start, dur, depth, color);
+              }
+              return static_cast<Element>(fc);
+          },
+          py::arg("spans"), py::arg("time_scale") = 0.0f,
+          py::arg("width") = 60, py::arg("show_times") = true);
+
+    // ── waterfall(entries, time_scale, bar_width, show_labels, frame) ───
+    // entries: (label, start, duration, color) tuples.
+    w.def("waterfall",
+          [](const py::list& entries, float time_scale, int bar_width,
+             bool show_labels, int frame) {
+              Waterfall wf{};
+              wf.set_time_scale(time_scale);
+              wf.set_bar_width(bar_width);
+              wf.set_show_labels(show_labels);
+              wf.set_frame(frame);
+              for (const auto& item : entries) {
+                  auto t = item.cast<py::sequence>();
+                  WaterfallEntry e{};
+                  e.label = t[0].cast<std::string>();
+                  e.start = t[1].cast<float>();
+                  e.duration = t[2].cast<float>();
+                  if (py::len(t) > 3 && !t[3].is_none()) e.color = t[3].cast<Color>();
+                  wf.add(std::move(e));
+              }
+              return static_cast<Element>(wf);
+          },
+          py::arg("entries"), py::arg("time_scale") = 0.0f,
+          py::arg("bar_width") = 30, py::arg("show_labels") = true,
+          py::arg("frame") = 0);
+
+    // ── thinking(content, active, expanded, max_lines) ──────────────────
+    w.def("thinking",
+          [](std::string content, bool active, bool expanded, int max_lines) {
+              ThinkingBlock t{};
+              t.set_content(content);
+              t.set_active(active);
+              t.set_expanded(expanded);
+              if (max_lines > 0) t.set_max_visible_lines(max_lines);
+              return static_cast<Element>(t);
+          },
+          py::arg("content") = "", py::arg("active") = false,
+          py::arg("expanded") = true, py::arg("max_lines") = 0);
+
+    // ── markdown(source) — full GFM render to an Element ────────────────
+    w.def("markdown",
+          [](const std::string& source) {
+              return maya::markdown(source);
+          },
+          py::arg("source"));
+
+    // ── image(pixels, color) — pixels: 2-D list of bools (braille) ──────
+    w.def("image",
+          [](const std::vector<std::vector<int>>& pixels, std::optional<Color> color) {
+              int h = static_cast<int>(pixels.size());
+              int wd = 0;
+              for (const auto& row : pixels) wd = std::max(wd, static_cast<int>(row.size()));
+              Image img{wd, h, color.value_or(Color::white())};
+              for (int y = 0; y < h; ++y)
+                  for (int x = 0; x < static_cast<int>(pixels[y].size()); ++x)
+                      if (pixels[y][x]) img.set_pixel(x, y, true);
+              return static_cast<Element>(img);
+          },
+          py::arg("pixels"), py::arg("color") = std::nullopt);
+
+    // ── canvas(pixels) — pixels: 2-D list of Color|None (half-block) ────
+    w.def("canvas",
+          [](const py::list& pixels) {
+              int h = static_cast<int>(py::len(pixels));
+              int wd = 0;
+              for (const auto& row : pixels)
+                  wd = std::max(wd, static_cast<int>(py::len(row.cast<py::sequence>())));
+              PixelCanvas c{wd, h};
+              int y = 0;
+              for (const auto& row : pixels) {
+                  auto r = row.cast<py::sequence>();
+                  for (int x = 0; x < static_cast<int>(py::len(r)); ++x) {
+                      if (!r[x].is_none()) c.set_pixel(x, y, r[x].cast<Color>());
+                  }
+                  ++y;
+              }
+              return static_cast<Element>(c);
+          },
+          py::arg("pixels"));
+
 
     // ── ScrollState ─────────────────────────────────────────────────────
     // A mutable scroll position. Hold one in your Python state, build the
