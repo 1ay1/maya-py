@@ -32,6 +32,8 @@
 #include <maya/widget/bar_chart.hpp>
 #include <maya/widget/gradient.hpp>
 #include <maya/widget/heatmap.hpp>
+#include <maya/widget/scrollbar.hpp>
+#include <maya/core/scroll_state.hpp>
 
 #include <optional>
 #include <string>
@@ -243,4 +245,97 @@ void init_widgets(py::module_& m) {
           py::arg("grid"), py::arg("low") = std::nullopt, py::arg("high") = std::nullopt,
           py::arg("x_labels") = std::vector<std::string>{},
           py::arg("y_labels") = std::vector<std::string>{});
+
+    // ── ScrollState ─────────────────────────────────────────────────────
+    // A mutable scroll position. Hold one in your Python state, build the
+    // viewport() around your content + a scrollbar(), and route events to
+    // it with handle_event(ev). The renderer writes back max_x / max_y
+    // after layout so the next frame clamps correctly.
+    py::class_<ScrollState>(w, "ScrollState")
+        .def(py::init<>())
+        .def_readwrite("x", &ScrollState::x)
+        .def_readwrite("y", &ScrollState::y)
+        .def_readwrite("max_x", &ScrollState::max_x)
+        .def_readwrite("max_y", &ScrollState::max_y)
+        .def_readwrite("step_x", &ScrollState::step_x)
+        .def_readwrite("step_y", &ScrollState::step_y)
+        .def_readwrite("auto_dispatch", &ScrollState::auto_dispatch)
+        .def("scroll_by", &ScrollState::scroll_by, py::arg("dx"), py::arg("dy"))
+        .def("scroll_to", &ScrollState::scroll_to, py::arg("x"), py::arg("y"))
+        .def("scroll_to_top", &ScrollState::scroll_to_top)
+        .def("scroll_to_bottom", &ScrollState::scroll_to_bottom)
+        .def("scroll_to_left", &ScrollState::scroll_to_left)
+        .def("scroll_to_right", &ScrollState::scroll_to_right)
+        .def("scroll_to_origin", &ScrollState::scroll_to_origin)
+        .def("at_top", &ScrollState::at_top)
+        .def("at_bottom", &ScrollState::at_bottom)
+        .def("at_left", &ScrollState::at_left)
+        .def("at_right", &ScrollState::at_right)
+        .def("clamp", &ScrollState::clamp);
+
+    // ── ScrollbarStyle ──────────────────────────────────────────────────
+    // Glyphs + colors. Use a preset (line/block/slim/...) or build one and
+    // tweak track_color / thumb_color.
+    py::class_<ScrollbarStyle>(w, "ScrollbarStyle")
+        .def(py::init<>())
+        .def_readwrite("track_color", &ScrollbarStyle::track_color)
+        .def_readwrite("thumb_color", &ScrollbarStyle::thumb_color)
+        .def_static("line", &ScrollbarStyle::line)
+        .def_static("block", &ScrollbarStyle::block)
+        .def_static("slim", &ScrollbarStyle::slim)
+        .def_static("heavy", &ScrollbarStyle::heavy)
+        .def_static("double_line", &ScrollbarStyle::double_line)
+        .def_static("dotted", &ScrollbarStyle::dotted)
+        .def_static("dashed", &ScrollbarStyle::dashed)
+        .def_static("braille", &ScrollbarStyle::braille)
+        .def_static("ascii", &ScrollbarStyle::ascii)
+        .def_static("shadow", &ScrollbarStyle::shadow)
+        .def_static("minimal", &ScrollbarStyle::minimal)
+        .def_static("neon", &ScrollbarStyle::neon)
+        .def_static("retro", &ScrollbarStyle::retro)
+        .def_static("danger", &ScrollbarStyle::danger)
+        .def_static("pixel", &ScrollbarStyle::pixel);
+
+    // ── scrollbar_y / scrollbar_x ───────────────────────────────────────
+    // The bar reflects `state` over a track `viewport` cells tall/wide.
+    // The ScrollState reference must outlive the rendered frame (hold it
+    // in your Python state).
+    w.def("scrollbar_y",
+          [](ScrollState& s, int viewport, std::optional<ScrollbarStyle> style) {
+              return maya::scrollbar_y(s, viewport, style.value_or(ScrollbarStyle{}));
+          },
+          py::arg("state"), py::arg("viewport"), py::arg("style") = std::nullopt,
+          py::keep_alive<0, 1>());
+    w.def("scrollbar_x",
+          [](ScrollState& s, int viewport, std::optional<ScrollbarStyle> style) {
+              return maya::scrollbar_x(s, viewport, style.value_or(ScrollbarStyle{}));
+          },
+          py::arg("state"), py::arg("viewport"), py::arg("style") = std::nullopt,
+          py::keep_alive<0, 1>());
+
+    // ── viewport(content, state, width, height) ─────────────────────────
+    // Clip `content` to a width×height window scrolled by `state` (the
+    // runtime equivalent of maya's `content | scroll(state, w, h)` pipe).
+    // width/height of 0 means "fill available space on that axis". The
+    // renderer writes max_x / max_y back into `state` after layout.
+    w.def("viewport",
+          [](const Element& content, ScrollState& s, int width, int height) {
+              // Wrap content in a box, then set the scroll fields the
+              // builder doesn't expose — mirrors dsl::scroll()'s WrappedNode.
+              auto b = maya::box();
+              if (width > 0)  b.width(Dimension::fixed(width));
+              if (height > 0) b.height(Dimension::fixed(height));
+              Element built = b(content);
+              if (auto* bx = maya::as_box(built)) {
+                  bx->overflow         = Overflow::Scroll;
+                  bx->layout.scroll_x  = s.x;
+                  bx->layout.scroll_y  = s.y;
+                  bx->scroll_state     = &s;
+                  bx->scroll_role      = ScrollRole::Viewport;
+              }
+              return built;
+          },
+          py::arg("content"), py::arg("state"),
+          py::arg("width") = 0, py::arg("height") = 0,
+          py::keep_alive<0, 2>());
 }

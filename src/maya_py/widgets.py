@@ -151,9 +151,91 @@ def heatmap(grid: Sequence[Sequence[float]], *, low: Any = None, high: Any = Non
                       [str(x) for x in x_labels], [str(y) for y in y_labels])
 
 
+# ── scrolling ────────────────────────────────────────────────────────
+ScrollState = _W.ScrollState
+ScrollbarStyle = _W.ScrollbarStyle
+
+# scrollbar style presets by name
+_SCROLL_STYLES = {
+    "line": ScrollbarStyle.line, "block": ScrollbarStyle.block,
+    "slim": ScrollbarStyle.slim, "heavy": ScrollbarStyle.heavy,
+    "double": ScrollbarStyle.double_line, "double_line": ScrollbarStyle.double_line,
+    "dotted": ScrollbarStyle.dotted, "dashed": ScrollbarStyle.dashed,
+    "braille": ScrollbarStyle.braille, "ascii": ScrollbarStyle.ascii,
+    "shadow": ScrollbarStyle.shadow, "minimal": ScrollbarStyle.minimal,
+    "neon": ScrollbarStyle.neon, "retro": ScrollbarStyle.retro,
+    "danger": ScrollbarStyle.danger, "pixel": ScrollbarStyle.pixel,
+}
+
+
+def _resolve_style(style, thumb_color, track_color):
+    if style is None:
+        st = ScrollbarStyle()
+    elif isinstance(style, str):
+        maker = _SCROLL_STYLES.get(style.lower())
+        if maker is None:
+            opts = ", ".join(sorted(_SCROLL_STYLES))
+            raise ValueError(f"unknown scrollbar style {style!r}; valid: {opts}")
+        st = maker()
+    else:
+        st = style
+    if thumb_color is not None:
+        st.thumb_color = _color(thumb_color)
+    if track_color is not None:
+        st.track_color = _color(track_color)
+    return st
+
+
+def scroll_state() -> "ScrollState":
+    """A fresh scroll position (x/y offsets + max bounds). Hold one in your
+    app state; pass it to ``viewport`` and ``scrollbar``.
+
+    ``auto_dispatch`` is off by default: in maya-py you route events yourself
+    via ``scroll_handle`` (inside ``@app.on_key`` / ``@app.on_mouse``). Set it
+    back to True only if you also want maya's run-loop auto-dispatch — doing
+    both double-scrolls.
+    """
+    s = ScrollState()
+    s.auto_dispatch = False
+    return s
+
+
+def viewport(content: Element, state: "ScrollState", *, width: int = 0,
+             height: int = 0) -> Element:
+    """Clip ``content`` to a ``width``×``height`` window scrolled by ``state``.
+    0 on an axis means "fill available space". The renderer writes the max
+    scroll bounds back into ``state`` after layout each frame.
+    """
+    return _W.viewport(content, state, width, height)
+
+
+def scrollbar(state: "ScrollState", viewport_size: int, *, axis: str = "y",
+              style: Any = None, thumb_color: Any = None,
+              track_color: Any = None) -> Element:
+    """A scrollbar reflecting ``state`` over a ``viewport_size``-cell track.
+
+    ``axis`` is "y" (vertical) or "x" (horizontal). ``style`` is a preset
+    name ("line", "block", "slim", "neon", "braille", "ascii", ...) or a
+    ``ScrollbarStyle``; ``thumb_color`` / ``track_color`` override colors.
+    """
+    st = _resolve_style(style, thumb_color, track_color)
+    if axis == "x":
+        return _W.scrollbar_x(state, viewport_size, st)
+    return _W.scrollbar_y(state, viewport_size, st)
+
+
+def scroll_handle(state: "ScrollState", ev: Any) -> bool:
+    """Route an App event to ``state``: arrow keys / PgUp / PgDn / Home / End
+    and mouse wheel + scrollbar drag. Returns True if consumed. Use inside
+    ``@app.on_key`` / ``@app.on_mouse`` handlers (set ``state.auto_dispatch``
+    off if you route manually)."""
+    return _maya.scroll_handle(state, ev)
+
+
 __all__ = [
-    "GaugeStyle", "ColumnAlign",
+    "GaugeStyle", "ColumnAlign", "ScrollState", "ScrollbarStyle",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "bar_chart", "gradient", "heatmap",
+    "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]

@@ -130,6 +130,48 @@ Available: `sparkline`, `gauge`, `progress`, `badge`, `divider`, `spinner`,
 `gradient`, `heatmap`. Every color argument takes a name / `(r,g,b)` /
 `"#rrggbb"` / `Color`, same as everywhere else.
 
+### Scrolling: viewport + scrollbar
+
+Clip tall/wide content to a window and pair it with a live scrollbar. Hold a
+`scroll_state()` in your app state, route events to it with `scroll_handle`,
+and the renderer writes the scroll bounds back each frame:
+
+```python
+from maya_py import App, col, row, card, T, scroll_state, viewport, scrollbar
+import maya_py as maya
+
+app = App("log", mouse=True)
+s = scroll_state()                       # manual-dispatch by default
+app.state(s=s)
+content = col(*[T(f"line {i}") for i in range(200)])
+
+@app.on_key
+def keys(st, ev): maya.scroll_handle(st.s, ev)   # ↑↓ PgUp/PgDn Home/End
+
+@app.on_mouse
+def mouse(st, ev): maya.scroll_handle(st.s, ev)  # wheel + drag the thumb
+
+@app.on("q", "esc")
+def quit(st): app.stop()
+
+@app.view
+def view(st):
+    return row(
+        viewport(content, st.s, height=14),         # 14-row window
+        scrollbar(st.s, 14, style="neon", thumb_color="sky"),
+        gap=1,
+    )
+
+app.run()
+```
+
+`viewport(content, state, width=, height=)` clips + scrolls (0 = fill that
+axis). `scrollbar(state, size, axis="y"|"x", style=, thumb_color=, track_color=)`
+draws the bar; `style` is a preset name — `line`, `block`, `slim`, `heavy`,
+`double`, `dotted`, `dashed`, `braille`, `ascii`, `shadow`, `minimal`, `neon`,
+`retro`, `danger`, `pixel`. The `ScrollState` exposes `x`/`y`/`max_x`/`max_y`,
+`scroll_by`, `scroll_to`, `scroll_to_top/bottom`, `at_top()`/`at_bottom()`.
+
 ### Apps: a class with decorators, no event loop
 
 ```python
@@ -223,6 +265,7 @@ animate(render, fps=30)   # maya.quit() to stop
   bar charts and a log feed, animated at 10fps.
 - `examples/snake.py` — a playable Snake game (arrow keys, `App` runtime).
 - `examples/paint.py` — a mouse-driven pixel painter (click/scroll/right-click).
+- `examples/scroll.py` — a scrollable log viewer with a live scrollbar (15 styles).
 - `examples/stopwatch.py` — live stopwatch with lap splits.
 - `examples/mandelbrot.py` — a colored ASCII Mandelbrot that zooms (`component`).
 - `examples/matrix.py` — falling "digital rain" animation.
@@ -256,7 +299,7 @@ release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.2 \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.3 \
   maya-py
 ```
 
@@ -264,7 +307,7 @@ Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install https://github.com/1ay1/maya-py/releases/download/v0.1.2/maya_py-0.1.2-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.1.3/maya_py-0.1.3-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
 ```
 
 </details>
@@ -288,7 +331,7 @@ Clang 18+) and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/download/v0.1.2/maya_py-0.1.2.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.1.3/maya_py-0.1.3.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes
@@ -335,6 +378,9 @@ maya.box(
 - `component(fn, grow=..., width=..., height=...)` — a lazy element whose
   `fn(width, height)` runs once layout allocates a size and returns the tree
   to fill it.
+- `scroll_state()`, `viewport(content, state, width=, height=)`,
+  `scrollbar(state, size, axis=, style=)`, `scroll_handle(state, ev)` — the
+  scrollable-window + scrollbar pair (maya's `ScrollState` + `scrollbar_y/x`).
 - Styles compose with `|`: `maya.bold | maya.fg(255, 128, 0)`, or
   `maya.style(fg=(80,220,120), bold=True)`.
 - `render_to_string(element, width=80)`, `print(element)`,

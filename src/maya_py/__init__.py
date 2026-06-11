@@ -229,18 +229,20 @@ __all__ += [
 
 # ── Widgets (maya's native renderers) ────────────────────────────────
 from .widgets import (  # noqa: E402
-    GaugeStyle, ColumnAlign,
+    GaugeStyle, ColumnAlign, ScrollState, ScrollbarStyle,
     sparkline, gauge, progress, badge, divider, spinner,
     table, callout, status_banner, breadcrumb, tabs,
     bar_chart, gradient, heatmap,
+    scroll_state, viewport, scrollbar, scroll_handle,
 )
 
 __all__ += [
-    "GaugeStyle", "ColumnAlign",
+    "GaugeStyle", "ColumnAlign", "ScrollState", "ScrollbarStyle",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "bar_chart", "gradient", "heatmap",
+    "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]
 
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"

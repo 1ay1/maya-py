@@ -567,6 +567,16 @@ PYBIND11_MODULE(_maya, m) {
         return py::cast(me->kind);
     });
 
+    // scroll_handle(state, ev) -> bool
+    // Route an event to a ScrollState (key arrows/pgup/home/end + mouse
+    // wheel + scrollbar drag). Returns True if the event was consumed.
+    // ScrollState is registered in the _widgets submodule but pybind's type
+    // registry is process-wide, so we accept it as a py::object and cast.
+    m.def("scroll_handle", [](py::object state, const PyEvent& ev) -> bool {
+        ScrollState& s = state.cast<ScrollState&>();
+        return s.handle_event(ev.ev);
+    }, py::arg("state"), py::arg("ev"));
+
     // ── run() — simple event loop (Fullscreen / Inline) ──────────────────
     // event_fn: (Event) -> bool   (False => quit)
     // render_fn: () -> Element
