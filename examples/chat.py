@@ -1,10 +1,11 @@
-"""chat.py — a terminal chat client with a live conversation, typing indicator,
-and a scrollable history.
+"""chat.py — a terminal chat client with a live conversation + typing indicator.
 
 Type a message and press Enter; a mock "bot" replies after a beat with a
 typing animation. Messages render as left/right aligned bubbles with avatars.
+In inline mode the history flows into the terminal's own scrollback — no in-app
+scrollbar.
 
-  type · Enter send · ↑↓ scroll history · q/esc quit (when input empty)
+  type · Enter send · Esc clear/quit · Ctrl-C quit
 
     PYTHONPATH=src python examples/chat.py
 """
@@ -17,8 +18,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
-from maya_py import (App, col, row, card, b, dim_text, T, badge, divider,
-                     scroll_state, viewport, scrollbar)
+from maya_py import (App, col, row, card, b, dim_text, T, badge, divider)
 
 REPLIES = [
     "Got it — pushing that now.",
@@ -32,8 +32,7 @@ REPLIES = [
 ]
 
 app = App("chat", inline=True, fps=12)
-s = scroll_state()
-app.state(s=s, msgs=[], input="", typing=False, typing_until=0.0, t=0.0)
+app.state(msgs=[], input="", typing=False, typing_until=0.0, t=0.0)
 app.s.msgs = [
     ("bot", "Hey! I'm maya-bot. Ask me anything."),
     ("me", "are the deploys passing?"),
@@ -99,7 +98,10 @@ def bubble(who, text):
 
 
 def history(st):
-    rows = [bubble(who, text) for who, text in st.msgs]
+    # show the recent messages; older ones flow into the terminal's own
+    # scrollback (inline mode), so no in-app viewport/scrollbar is needed.
+    recent = st.msgs[-12:]
+    rows = [bubble(who, text) for who, text in recent]
     if st.typing:
         dots = "." * (1 + int(st.t * 3) % 3)
         rows.append(row(T(" 🤖 ").bg("slate"),
@@ -117,11 +119,7 @@ def view(st):
     return card(
         row(b("💬 maya chat").fg("sky"),
             badge("online", kind="success"), justify="between"),
-        row(
-            viewport(history(st), st.s, height=16, grow=1),
-            scrollbar(st.s, 16, style="slim", thumb_color="sky"),
-            gap=1,
-        ),
+        history(st),
         divider(color="slate"),
         row(T("›").fg("sky"),
             T(st.input + "▏").fg("white") if st.input else dim_text("type a message…"),

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import maya_py as maya
 from maya_py import (App, col, row, card, b, dim_text, T, badge, divider,
                      thinking, todo_list, file_ref, inline_diff, markdown,
-                     model_badge, spinner, scroll_state, viewport, scrollbar)
+                     model_badge, spinner)
 
 PROMPT = "Add a --json flag to the export command and update the tests."
 
@@ -39,8 +39,7 @@ unchanged.
 PH_THINK, PH_READ, PH_EDIT, PH_PLAN, PH_BASH, PH_STREAM, PH_DONE = range(7)
 
 app = App("agent", inline=True, fps=20)
-s = scroll_state()
-app.state(s=s, phase=PH_THINK, t=0.0, reveal=0, started=0.0)
+app.state(phase=PH_THINK, t=0.0, reveal=0, started=0.0)
 app.s.started = time.time()
 
 
@@ -160,11 +159,7 @@ def view(st):
             badge("DONE", kind="success") if not busy
             else badge("WORKING", kind="info"),
             justify="between"),
-        row(
-            viewport(transcript(st), st.s, height=22, grow=1),
-            scrollbar(st.s, 22, style="neon", thumb_color="sky"),
-            gap=1,
-        ),
+        transcript(st),
         dim_text("space advance/skip · r restart · q quit"),
         title="agent", gap=1,
     )

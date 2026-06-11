@@ -1,14 +1,13 @@
-"""markup.py — the markdown renderer + scrollable viewer.
+"""markup.py — the markdown renderer rendered inline.
 
 maya's ``markdown()`` widget renders GFM (headings, emphasis, lists, tables,
 blockquotes, fenced code, links) to a real Element tree through the same C++
-engine maya uses for agent output. Here we render a four-panel document and
-let you scroll it.
-
-  --dump   one-shot colored dump to stdout (pipe to `less -R`)
-  default  interactive scrollable viewer · ↑↓/PgUp/PgDn/Home/End · q quit
+engine maya uses for agent output. Here we render a four-panel document; in
+inline mode it flows into the terminal's own scrollback (scroll with your
+terminal). Pipe to `less -R` to page through.
 
     PYTHONPATH=src python examples/markup.py
+    PYTHONPATH=src python examples/markup.py | less -R
 """
 
 import sys
@@ -17,8 +16,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
-from maya_py import (App, col, card, b, dim_text, T, markdown, divider,
-                     scroll_state, viewport, scrollbar)
+from maya_py import col, card, b, dim_text, T, markdown, divider
 
 DOC1 = """\
 # maya markdown
@@ -91,31 +89,8 @@ def dump():
     maya.print(document())
 
 
-app = App("markup", inline=True)
-s = scroll_state()
-app.state(s=s)
-
-
-@app.on("q", "esc")
-def _quit(st): app.stop()
-
-
-@app.view
-def view(st):
-    return card(
-        col(b("markdown viewer").fg("sky"),
-            dim_text("↑↓ scroll · PgUp/PgDn page · Home/End jump · q quit")),
-        maya.row(
-            viewport(document(), st.s, height=20, grow=1),
-            scrollbar(st.s, 20, style="neon", thumb_color="sky"),
-            gap=1,
-        ),
-        title="markup", gap=1,
-    )
-
-
 if __name__ == "__main__":
-    if "--dump" in sys.argv:
-        dump()
-    else:
-        app.run()
+    # Inline mode: the document flows into the terminal's own scrollback —
+    # scroll with your terminal, no in-app viewport. (`--dump` is identical;
+    # kept for piping to `less -R`.)
+    dump()

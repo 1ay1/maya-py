@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import maya_py as maya
 from maya_py import (App, col, row, card, b, dim_text, T, badge, divider,
                      thinking, todo_list, file_ref, inline_diff, markdown,
-                     model_badge, spinner, scroll_state, viewport, scrollbar)
+                     model_badge, spinner)
 
 SCENARIOS = [
     {
@@ -63,8 +63,7 @@ SCENARIOS = [
 PH_THINK, PH_TOOL, PH_PLAN, PH_STREAM, PH_HOLD = range(5)
 
 app = App("agent_session", inline=True, fps=20)
-s = scroll_state()
-app.state(s=s, sc=0, phase=PH_THINK, t=0.0, reveal=0, started=0.0)
+app.state(sc=0, phase=PH_THINK, t=0.0, reveal=0, started=0.0)
 app.s.started = time.time()
 
 
@@ -165,11 +164,7 @@ def view(st):
             row(spinner() if busy else T("✓").fg("lime"),
                 dim_text(names[st.phase]), gap=1),
             justify="between"),
-        row(
-            viewport(transcript(st), st.s, height=22, grow=1),
-            scrollbar(st.s, 22, style="neon", thumb_color="sky"),
-            gap=1,
-        ),
+        transcript(st),
         dim_text("auto-cycling · space skip · n next · q quit"),
         title="agent_session", gap=1,
     )

@@ -17,8 +17,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
-from maya_py import (App, col, row, card, b, dim_text, T, badge, divider,
-                     scroll_state, viewport, scrollbar)
+from maya_py import (App, col, row, card, b, dim_text, T, badge, divider)
 
 CHANNELS = ["#general", "#dev", "#random", "#incidents"]
 PEERS = [("ada", "lime"), ("linus", "sky"), ("grace", "magenta"),
@@ -35,8 +34,7 @@ CHATTER = {
 }
 
 app = App("messenger", inline=True, fps=8)
-s = scroll_state()
-app.state(s=s, active=0, msgs={c: [] for c in CHANNELS},
+app.state(active=0, msgs={c: [] for c in CHANNELS},
           unread={c: 0 for c in CHANNELS}, input="", t=0.0, next_peer=0.0)
 
 # seed
@@ -111,15 +109,16 @@ def channel_list(st):
         bar = T("▎").fg("sky") if active else T(" ")
         name = T(c).fg("white").bold if active else T(c).fg("slate")
         un = st.unread[c]
-        tail = badge(str(un), kind="error") if un else T("")
-        rows.append(row(bar, name, tail, justify="between", gap=1))
+        tail = T(f" •{un}").fg("red") if un else T("")
+        rows.append(row(bar, name, tail, gap=1))
     return col(*rows, gap=0)
 
 
 def conversation(st):
     c = CHANNELS[st.active]
     rows = []
-    for who, clr, text, mine in st.msgs[c]:
+    # show the recent messages; older ones flow into native scrollback.
+    for who, clr, text, mine in st.msgs[c][-12:]:
         head = T(f"{who}").fg(clr).bold
         rows.append(col(row(head, dim_text("now"), gap=1),
                         T("  " + text).fg("white"), gap=0))
@@ -135,21 +134,20 @@ def view(st):
         row(b("✉ maya messenger").fg("sky"),
             badge("online", kind="success"), justify="between"),
         row(
-            card(channel_list(st), title="channels", pad=1),
+            card(channel_list(st), title="channels", pad=1,
+                 basis=22, grow=0, shrink=0),
             col(
                 card(
                     row(b(c).fg("white"),
                         dim_text(f"{len(st.msgs[c])} messages"),
                         justify="between"),
-                    row(viewport(conversation(st), st.s, height=14, grow=1),
-                        scrollbar(st.s, 14, style="slim", thumb_color="sky"),
-                        gap=1),
+                    conversation(st),
                     pad=1, gap=1,
                 ),
                 row(T("›").fg("sky"),
                     T(st.input + "▏").fg("white") if st.input
                     else dim_text(f"message {c}…"), gap=1),
-                gap=1,
+                gap=1, grow=1,
             ),
             gap=2,
         ),

@@ -328,7 +328,7 @@ each (CI-friendly, no TTY needed).
 - `agent.py` / `agent_session.py` — Claude-Code-style agent sessions:
   thinking → tool cards → todo plan → streaming markdown answer.
 - `widgets.py` — one-shot widget showcase. `widgets_gallery.py` — live version.
-- `markup.py` — a scrollable markdown/GFM viewer (`--dump` for piping).
+- `markup.py` — a GFM markdown render that flows into scrollback (pipe to `less -R`).
 - `inline_progress.py` — inline `print` + `live` (no alt-screen takeover).
 
 **Primitives & basics:**
