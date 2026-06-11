@@ -238,7 +238,7 @@ from .widgets import (  # noqa: E402
     line_chart, link, key_help, timeline, tree, list_view, menu,
     disclosure, toast, todo_list, title_chip, model_badge,
     file_ref, inline_diff, flame_chart, waterfall, thinking,
-    markdown, image, canvas,
+    markdown, image, canvas, picker,
     scroll_state, viewport, scrollbar, scroll_handle,
 )
 
@@ -252,7 +252,7 @@ __all__ += [
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
     "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
-    "markdown", "image", "canvas",
+    "markdown", "image", "canvas", "picker",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]
 

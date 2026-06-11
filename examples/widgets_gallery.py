@@ -16,6 +16,7 @@ from maya_py import (
     checkbox, toggle, radio, select, slider, button, line_chart, link,
     key_help, timeline, tree, list_view, menu, disclosure, toast, todo_list,
     title_chip, model_badge, file_ref, inline_diff, thinking, markdown,
+    picker, dim_text,
 )
 
 
@@ -119,6 +120,20 @@ def gallery():
         inline_diff("const x = 1", "const x = 42", label="app.ts"),
         markdown("### Notes\n- maya renders **GFM** inline\n- `code` too"),
         toast([("Build succeeded", "success"), ("3 warnings", "warning")]),
+        divider("command palette", color="slate"),
+        picker(
+            [
+                ("Opus 4.8", "anthropic", True),
+                ("Sonnet 4", "anthropic"),
+                {"leading": "GPT-5", "trailing": "openai", "active": True},
+                ("Gemini 2.5", "google"),
+            ],
+            title="Models",
+            accent="cyan",
+            header=[dim_text("  search: opus_")],
+            footer=[dim_text("  ↑↓ move · enter select · esc cancel")],
+            min_width=46,
+        ),
         gap=1,
     )
 

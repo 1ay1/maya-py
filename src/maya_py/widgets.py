@@ -21,7 +21,7 @@ from typing import Any, Sequence
 
 from . import _maya
 from ._maya import Element, Color
-from .easy import color as _color
+from .easy import color as _color, _el as _as_element
 
 _W = _maya._widgets
 
@@ -424,6 +424,58 @@ def canvas(pixels: Sequence[Sequence[Any]]) -> Element:
     return _W.canvas(grid)
 
 
+def picker(rows: Sequence[Any] = (), *, title: str = "", accent: Any = None,
+           selected: int | None = None, header: Sequence[Element] = (),
+           footer: Sequence[Element] = (), items: Sequence[Element] = (),
+           min_width: int = 50, viewport_h: int = 14,
+           cursor_color: Any = None, active_color: Any = None) -> Element:
+    """A bordered command-palette / fuzzy-picker panel (Zed/VS Code style).
+
+    ``rows`` is a list of entries the widget styles itself — a string, a
+    ``(leading, trailing, selected, active)`` tuple, or a dict with those keys
+    (plus optional ``leading_style`` / ``trailing_style``). The selected row
+    gets the cursor edge-bar + bold; an ``active`` row gets the magenta
+    "current" bar. ``selected`` is the 0-based cursor index (auto-derived from
+    the first row flagged ``selected`` if omitted).
+
+    ``header`` / ``footer`` are pre-built Elements painted above/below the list
+    (e.g. a search line, a ``↑↓ move`` hint). For full layout control pass raw
+    ``items`` Elements instead of ``rows`` (no auto-styling).
+    """
+    norm = []
+    auto_sel = -1
+    for i, r in enumerate(rows):
+        if isinstance(r, str):
+            norm.append(r)
+        elif isinstance(r, dict):
+            norm.append(dict(r))
+            if r.get("selected"):
+                auto_sel = i
+        else:
+            r = list(r)
+            norm.append(r)
+            if len(r) > 2 and r[2]:
+                auto_sel = i
+    sel = auto_sel if selected is None else int(selected)
+    # When the caller gives a bare `selected` index (not per-row flags), mark
+    # that row so the cursor edge-bar + bold styling actually appears.
+    if selected is not None and 0 <= sel < len(norm):
+        r = norm[sel]
+        if isinstance(r, str):
+            norm[sel] = {"leading": r, "selected": True}
+        elif isinstance(r, dict):
+            r["selected"] = True
+        else:  # list form
+            while len(r) < 3:
+                r.append("" if len(r) < 2 else False)
+            r[2] = True
+    return _W.picker(norm, title, _col(accent), sel,
+                     [_as_element(h) for h in header],
+                     [_as_element(f) for f in footer],
+                     list(items), int(min_width), int(viewport_h),
+                     _col(cursor_color), _col(active_color))
+
+
 # ── scrolling ───────────────────────────────────────
 ScrollState = _W.ScrollState
 ScrollbarStyle = _W.ScrollbarStyle
@@ -516,6 +568,6 @@ __all__ = [
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
     "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
-    "markdown", "image", "canvas",
+    "markdown", "image", "canvas", "picker",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]

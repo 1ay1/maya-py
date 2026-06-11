@@ -136,7 +136,7 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
   `breadcrumb`, `tabs`, `gradient`, `link`, `title_chip`, `model_badge`,
   `file_ref`, `markdown`
 - **structure & nav**: `table`, `tree`, `list_view`, `menu`, `disclosure`,
-  `key_help`, `calendar`, `timeline`
+  `key_help`, `calendar`, `timeline`, `picker` (bordered command palette)
 - **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`
 - **graphics**: `image` (1-bit braille), `canvas` (color half-block)
 

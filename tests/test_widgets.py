@@ -246,8 +246,31 @@ def test_image_and_canvas():
     check("canvas_nonempty", len(cv.strip()) > 0)
 
 
+# ── command palette ──────────────────────────────────────────────
+def test_picker():
+    out = render(m.picker(
+        [("Opus 4.8", "anthropic", True), ("Sonnet", "anthropic"),
+         {"leading": "GPT-5", "trailing": "openai", "active": True}],
+        title="Models", accent="cyan",
+        header=[m.dim_text("  search: o_")],
+        footer=[m.dim_text("  enter select")],
+        min_width=44,
+    ))
+    check("picker_rows", "Opus 4.8" in out and "GPT-5" in out)
+    check("picker_title", "Models" in out)
+    check("picker_header_footer", "search" in out and "select" in out)
+    # cursor edge bar (▎) appears on the selected/active rows
+    check("picker_cursor_bar", "▎" in out)
+
+
+def test_picker_selected_index():
+    # a bare `selected` index marks that row (cursor bar) even with str rows
+    out = render(m.picker(["Apple", "Banana", "Cherry"], title="Fruit",
+                          selected=1, min_width=24))
+    check("picker_selected_index", "▎" in out and "Banana" in out)
+
+
 def test_new_widget_color_coercion():
-    # the new wrappers accept friendly colors too
     render(m.slider(0.5, fill="sky", track=(40, 40, 40)))
     render(m.line_chart([1, 2, 3], color="#33cc88"))
     render(m.canvas([[(255, 0, 0)]]))

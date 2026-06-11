@@ -61,6 +61,7 @@
 #include <maya/widget/markdown.hpp>
 #include <maya/widget/image.hpp>
 #include <maya/widget/canvas.hpp>
+#include <maya/widget/picker.hpp>
 #include <maya/widget/plan_view.hpp>  // TaskStatus
 
 #include <optional>
@@ -757,6 +758,64 @@ void init_widgets(py::module_& m) {
               return static_cast<Element>(c);
           },
           py::arg("pixels"));
+
+    // ── picker(rows, title, accent, selected, header, footer, ...) ──────
+    // A bordered command-palette / fuzzy-picker panel. `rows` are structured
+    // (leading, trailing, selected, active) entries the widget styles itself
+    // (edge bar + bold on the selected row). Rendered statically: the list
+    // paints inline (no live ScrollState), so keep it within `viewport_h`
+    // rows or pass a longer list and let it clip from the top.
+    w.def("picker",
+          [](const py::list& rows, std::string title, std::optional<Color> accent,
+             int selected, std::vector<Element> header, std::vector<Element> footer,
+             const py::list& items, int min_width, int viewport_h,
+             std::optional<Color> cursor_color, std::optional<Color> active_color) {
+              Picker::Config cfg{};
+              if (!title.empty()) cfg.title = " " + title + " ";
+              if (accent) cfg.accent = *accent;
+              cfg.selected = selected;
+              cfg.header = std::move(header);
+              cfg.footer = std::move(footer);
+              cfg.min_width = min_width;
+              cfg.viewport_h = viewport_h;
+              if (cursor_color) cfg.cursor_color = *cursor_color;
+              if (active_color) cfg.active_color = *active_color;
+
+              for (const auto& item : rows) {
+                  Picker::Config::Row row{};
+                  if (py::isinstance<py::str>(item)) {
+                      row.leading = item.cast<std::string>();
+                  } else if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("leading"))  row.leading = d["leading"].cast<std::string>();
+                      if (d.contains("trailing")) row.trailing = d["trailing"].cast<std::string>();
+                      if (d.contains("selected")) row.selected = d["selected"].cast<bool>();
+                      if (d.contains("active"))   row.active = d["active"].cast<bool>();
+                      if (d.contains("leading_style"))  row.leading_style = d["leading_style"].cast<Style>();
+                      if (d.contains("trailing_style")) row.trailing_style = d["trailing_style"].cast<Style>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      row.leading = t[0].cast<std::string>();
+                      if (py::len(t) > 1) row.trailing = t[1].cast<std::string>();
+                      if (py::len(t) > 2) row.selected = t[2].cast<bool>();
+                      if (py::len(t) > 3) row.active = t[3].cast<bool>();
+                  }
+                  cfg.rows.push_back(std::move(row));
+              }
+              // Raw pre-built item Elements (escape hatch; ignored if rows set).
+              if (cfg.rows.empty()) {
+                  for (const auto& it : items) cfg.items.push_back(it.cast<Element>());
+              }
+              return static_cast<Element>(Picker{std::move(cfg)});
+          },
+          py::arg("rows") = py::list{}, py::arg("title") = "",
+          py::arg("accent") = std::nullopt, py::arg("selected") = -1,
+          py::arg("header") = std::vector<Element>{},
+          py::arg("footer") = std::vector<Element>{},
+          py::arg("items") = py::list{}, py::arg("min_width") = 50,
+          py::arg("viewport_h") = 14,
+          py::arg("cursor_color") = std::nullopt,
+          py::arg("active_color") = std::nullopt);
 
 
     // ── ScrollState ─────────────────────────────────────────────────────
