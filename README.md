@@ -256,7 +256,7 @@ release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.1 \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.2 \
   maya-py
 ```
 
@@ -264,7 +264,7 @@ Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1-cp313-cp313-manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.1.2/maya_py-0.1.2-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
 ```
 
 </details>
@@ -288,7 +288,7 @@ Clang 18+) and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/download/v0.1.1/maya_py-0.1.1.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.1.2/maya_py-0.1.2.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes
