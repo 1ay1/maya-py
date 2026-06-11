@@ -142,7 +142,7 @@ Or grab the exact `.whl` for your Python from the
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install ./maya_py-0.1.0-cp313-cp313-manylinux_2_28_x86_64.whl
+pip install ./maya_py-0.1.1-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 The wheel already contains the compiled extension. It works even on machines
@@ -164,7 +164,7 @@ Clang 18+) and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.0.tar.gz
+  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.1.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes

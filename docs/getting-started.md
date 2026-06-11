@@ -42,7 +42,7 @@ GCC 14+ / Clang 18+ and CMake ≥ 3.28):
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.0.tar.gz
+  https://github.com/1ay1/maya-py/releases/latest/download/maya_py-0.1.1.tar.gz
 ```
 
 If your compiler is too old the build aborts early with a clear message.
