@@ -6,8 +6,10 @@ color, right-click to erase. Demonstrates maya-py mouse support.
 
     PYTHONPATH=src python examples/paint.py
 
-(Requires a terminal with mouse reporting — most do: xterm, kitty, iTerm2,
-Windows Terminal, tmux with `set -g mouse on`.)
+Requires a terminal with mouse reporting (xterm, kitty, iTerm2, Windows
+Terminal, tmux with `set -g mouse on`). The canvas is wrapped in a maya
+viewport so its painted position is reported back each frame — clicks
+hit-test against the REAL on-screen rect, never a hardcoded offset.
 """
 
 import sys
@@ -16,28 +18,28 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
-from maya_py import App, col, row, card, b, dim_text, T
-
-# the canvas is drawn starting at this screen offset (col, row), 1-based to
-# match maya's mouse coordinates. The card border + title shift content down.
-GRID_W, GRID_H = 28, 14
-ORIGIN_COL = 2   # inside the outer card's left border + padding
-ORIGIN_ROW = 4   # below title + top border + header row
-
-PALETTE = ["red", "orange", "gold", "lime", "sky", "magenta", "white"]
-
-app = App("paint", inline=True)
-app.state(
-    cells={},          # (cx, cy) -> color name
-    brush=0,           # index into PALETTE
-    last=None,         # last painted cell (for the status line)
+from maya_py import (
+    App, col, row, card, b, dim_text, T,
+    scroll_state, viewport, scroll_handle,
 )
 
+GRID_W, GRID_H = 60, 18
+PALETTE = ["red", "orange", "gold", "lime", "sky", "magenta", "white"]
 
-def _cell_at(col_, row_):
-    """Map a 1-based screen (col, row) to a grid cell, or None if outside."""
-    cx = col_ - ORIGIN_COL
-    cy = row_ - ORIGIN_ROW
+app = App("paint", inline=True, mouse=True)
+vp = scroll_state()          # records the canvas's painted bounds each frame
+app.state(cells={}, brush=0, last=None, vp=vp)
+
+
+def _cell_at(s, click_col, click_row):
+    """Map a 1-based screen click to a grid cell using the canvas's REAL
+    painted rect (viewport_bounds), so no offset is ever hardcoded."""
+    x, y, w, h = s.vp.viewport_bounds
+    if w == 0 and h == 0:        # not painted yet (first frame)
+        return None
+    # mouse coords are 1-based; bounds are 0-based canvas coords.
+    cx = (click_col - 1) - x
+    cy = (click_row - 1) - y
     if 0 <= cx < GRID_W and 0 <= cy < GRID_H:
         return (cx, cy)
     return None
@@ -45,7 +47,7 @@ def _cell_at(col_, row_):
 
 @app.on_click("left")
 def paint(s, col_, row_):
-    cell = _cell_at(col_, row_)
+    cell = _cell_at(s, col_, row_)
     if cell:
         s.cells[cell] = PALETTE[s.brush]
         s.last = cell
@@ -53,7 +55,7 @@ def paint(s, col_, row_):
 
 @app.on_click("right")
 def erase(s, col_, row_):
-    cell = _cell_at(col_, row_)
+    cell = _cell_at(s, col_, row_)
     if cell and cell in s.cells:
         del s.cells[cell]
         s.last = cell
@@ -75,16 +77,18 @@ def quit_(s):
 
 
 def canvas(s):
+    # one cell = ONE column (a single block glyph), so screen col ↔ grid col
+    # is a clean 1:1 map after subtracting the painted origin.
     rows = []
     for cy in range(GRID_H):
-        parts = []
+        line = []
         for cx in range(GRID_W):
             color = s.cells.get((cx, cy))
             if color:
-                parts.append(T("██").fg(color))
+                line.append(T("█").fg(color))
             else:
-                parts.append(T("··").fg(maya.rgb(45, 49, 58)))
-        rows.append(row(*parts, gap=0))
+                line.append(T("·").fg(maya.rgb(50, 54, 64)))
+        rows.append(row(*line, gap=0))
     return col(*rows)
 
 
@@ -99,10 +103,12 @@ def view(s):
             swatches.append(row(" ", chip, " ", gap=0))
     return card(
         row(b("✎ paint").fg("sky"),
-            dim_text(f"{len(s.cells)} cells"),
+            dim_text(f"{len(s.cells)} cells  ·  {s.last or ''}"),
             row(dim_text("brush:"), *swatches, gap=0),
             justify="between"),
-        canvas(s),
+        # the viewport records its painted rect into vp.viewport_bounds so the
+        # click handler can hit-test exactly; size it to the grid (no clip).
+        viewport(canvas(s), s.vp, width=GRID_W, height=GRID_H),
         dim_text("click paint · right erase · scroll color · c clear · q quit"),
         title="paint", gap=1,
     )

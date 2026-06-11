@@ -271,7 +271,23 @@ void init_widgets(py::module_& m) {
         .def("at_bottom", &ScrollState::at_bottom)
         .def("at_left", &ScrollState::at_left)
         .def("at_right", &ScrollState::at_right)
-        .def("clamp", &ScrollState::clamp);
+        .def("clamp", &ScrollState::clamp)
+        // Painted-region bounds, written back by the renderer each frame.
+        // viewport_bounds is the on-screen rect (0-based canvas coords) the
+        // viewport() content occupies — use it to hit-test clicks against
+        // the content WITHOUT hardcoding screen offsets.
+        .def_property_readonly("viewport_bounds", [](const ScrollState& s) {
+            return py::make_tuple(s.viewport_bounds.x, s.viewport_bounds.y,
+                                  s.viewport_bounds.w, s.viewport_bounds.h);
+        })
+        .def_property_readonly("bar_v_bounds", [](const ScrollState& s) {
+            return py::make_tuple(s.bar_v_bounds.x, s.bar_v_bounds.y,
+                                  s.bar_v_bounds.w, s.bar_v_bounds.h);
+        })
+        .def_property_readonly("bar_h_bounds", [](const ScrollState& s) {
+            return py::make_tuple(s.bar_h_bounds.x, s.bar_h_bounds.y,
+                                  s.bar_h_bounds.w, s.bar_h_bounds.h);
+        });
 
     // ── ScrollbarStyle ──────────────────────────────────────────────────
     // Glyphs + colors. Use a preset (line/block/slim/...) or build one and

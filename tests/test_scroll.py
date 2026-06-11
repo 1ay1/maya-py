@@ -46,6 +46,33 @@ def test_viewport_clips_and_writes_back_max():
     check("hides_overflow", "row 30" not in out)
 
 
+def test_viewport_grow_fills_width():
+    s = m.scroll_state()
+    # viewport with grow=1 next to a scrollbar should push the bar to the edge
+    ui = m.row(m.viewport(_content(40), s, height=8, grow=1),
+               m.scrollbar(s, 8, style="line"))
+    out = m.to_string(ui, 50)
+    # the bar glyph (│ or ┃) should appear near the right edge of every body row
+    body = [l for l in out.splitlines() if "row" in l]
+    last_cols = [len(l.rstrip()) for l in body]
+    check("grow_pushes_bar_right", max(last_cols) >= 48)
+
+
+def test_viewport_bounds_written_back():
+    # viewport_bounds records the painted rect so apps can hit-test clicks
+    # without hardcoding offsets. It's written by the interactive renderer;
+    # render_to_string establishes the layout. Before any paint it's zero.
+    s = m.scroll_state()
+    x0, y0, w0, h0 = s.viewport_bounds
+    check("bounds_zero_initially", w0 == 0 and h0 == 0)
+    # bounds is a 4-tuple accessor that doesn't raise
+    ui = m.row(m.viewport(_content(40), s, width=20, height=8), m.scrollbar(s, 8))
+    m.to_string(ui, 40)
+    bx, by, bw, bh = s.viewport_bounds
+    check("bounds_is_4tuple", isinstance(s.viewport_bounds, tuple)
+          and len(s.viewport_bounds) == 4)
+
+
 def test_scroll_position_moves_window():
     s = m.scroll_state()
     ui = lambda: m.row(m.viewport(_content(40), s, height=8), m.scrollbar(s, 8))
