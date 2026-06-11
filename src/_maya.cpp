@@ -16,6 +16,7 @@
 
 #include <optional>
 #include <array>
+#include <unistd.h>
 #include <string>
 #include <vector>
 
@@ -588,6 +589,24 @@ PYBIND11_MODULE(_maya, m) {
               cfg.mouse = mouse;
               cfg.fps = fps;
               cfg.mode = inline_mode ? Mode::Inline : Mode::Fullscreen;
+
+              // Belt-and-suspenders mouse-off: maya's Runtime emits the
+              // disable on its normal+destructor paths, but a Python callback
+              // that throws (KeyboardInterrupt, a bug in view()) unwinds
+              // through pybind here. This guard guarantees the terminal is
+              // taken out of mouse-reporting mode on EVERY exit so the user's
+              // shell never echoes raw SGR mouse reports. Idempotent with
+              // maya's own off-sequence (a second disable is a harmless no-op).
+              struct MouseGuard {
+                  bool on;
+                  ~MouseGuard() {
+                      if (on) {
+                          const char off[] = "\x1b[?1006l\x1b[?1003l";
+                          ssize_t r = ::write(1, off, sizeof(off) - 1);
+                          (void)r;
+                      }
+                  }
+              } mouse_guard{mouse};
 
               // Release the GIL for the blocking loop (Ctrl-C stays live); the
               // callbacks re-acquire it. maya's RAII restores the terminal if

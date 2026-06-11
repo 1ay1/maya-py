@@ -131,7 +131,7 @@ def view(st):
             dim_text(f"{style} · {pct}%  ({st.s.y}/{st.s.max_y})"),
             justify="between"),
         row(
-            viewport(CONTENT, st.s, height=vh),
+            viewport(CONTENT, st.s, height=vh, grow=1),
             scrollbar(st.s, vh, style=style, thumb_color="sky"),
             gap=1,
         ),

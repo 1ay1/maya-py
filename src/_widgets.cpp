@@ -319,12 +319,14 @@ void init_widgets(py::module_& m) {
     // width/height of 0 means "fill available space on that axis". The
     // renderer writes max_x / max_y back into `state` after layout.
     w.def("viewport",
-          [](const Element& content, ScrollState& s, int width, int height) {
+          [](const Element& content, ScrollState& s, int width, int height,
+             float grow) {
               // Wrap content in a box, then set the scroll fields the
               // builder doesn't expose — mirrors dsl::scroll()'s WrappedNode.
               auto b = maya::box();
               if (width > 0)  b.width(Dimension::fixed(width));
               if (height > 0) b.height(Dimension::fixed(height));
+              if (grow > 0.0f) b.grow(grow);
               Element built = b(content);
               if (auto* bx = maya::as_box(built)) {
                   bx->overflow         = Overflow::Scroll;
@@ -336,6 +338,6 @@ void init_widgets(py::module_& m) {
               return built;
           },
           py::arg("content"), py::arg("state"),
-          py::arg("width") = 0, py::arg("height") = 0,
+          py::arg("width") = 0, py::arg("height") = 0, py::arg("grow") = 0.0f,
           py::keep_alive<0, 2>());
 }

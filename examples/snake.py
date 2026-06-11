@@ -123,7 +123,11 @@ def view(s):
     return card(
         row(b("snake").fg("lime"), dim_text(f"score {s.score}"),
             status, justify="between"),
-        card(field(s), border="round", border_color="slate", pad=0),
+        # center the fixed-size board horizontally; align_self=center stops
+        # the inner card from stretching to the full row width.
+        row(card(field(s), border="round", border_color="slate", pad=0,
+                 align_self="center"),
+            justify="center"),
         dim_text("↑↓←→/wasd move · p pause · r restart · q quit"),
         title="snake", gap=1,
     )

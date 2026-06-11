@@ -146,6 +146,57 @@ def test_mouse_predicates_exist():
     assert m.MouseEventKind.Press is not None
 
 
+def test_mouse_mode_enabled_and_disabled_on_exit():
+    # The core fix: an App(mouse=True) MUST emit the SGR mouse-tracking
+    # enable on start and the matching DISABLE on exit. Without the disable
+    # the terminal echoes raw mouse reports into the user's shell after the
+    # app quits (the reported bug). Capture the pty master = what the app
+    # writes to the terminal.
+    src = (
+        "import sys, os\n"
+        'sys.path.insert(0, os.path.join(os.getcwd(), "src"))\n'
+        "import maya_py as m\n"
+        'app = m.App("t", inline=True, mouse=True)\n'
+        '@app.on_click("left")\n'
+        "def _c(s, col, row): pass\n"
+        '@app.on("q", "esc")\n'
+        "def _q(s): app.stop()\n"
+        '@app.view\ndef _v(s): return m.card("ok")\n'
+        "app.run()\n"
+    )
+    f = tempfile.NamedTemporaryFile("w", suffix=".py", delete=False)
+    f.write(src)
+    f.close()
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execvp(sys.executable, [sys.executable, f.name])
+    buf = b""
+    time.sleep(0.8)
+    os.write(fd, b"q")
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        try:
+            r, _, _ = select.select([fd], [], [], 0.05)
+            if r:
+                buf += os.read(fd, 8192)
+        except OSError:
+            break
+        wpid, _ = os.waitpid(pid, os.WNOHANG)
+        if wpid != 0:
+            break
+    else:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    assert b"\x1b[?1003h" in buf, "mouse any-event tracking (1003h) was never enabled"
+    assert b"\x1b[?1006h" in buf, "SGR mouse mode (1006h) was never enabled"
+    assert b"\x1b[?1003l" in buf, "mouse tracking (1003l) was never DISABLED on exit"
+    assert b"\x1b[?1006l" in buf, "SGR mouse mode (1006l) was never DISABLED on exit"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

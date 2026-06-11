@@ -201,12 +201,13 @@ def scroll_state() -> "ScrollState":
 
 
 def viewport(content: Element, state: "ScrollState", *, width: int = 0,
-             height: int = 0) -> Element:
+             height: int = 0, grow: float = 0.0) -> Element:
     """Clip ``content`` to a ``width``×``height`` window scrolled by ``state``.
-    0 on an axis means "fill available space". The renderer writes the max
-    scroll bounds back into ``state`` after layout each frame.
+    0 on an axis means "fill available space". Pass ``grow=1`` so the window
+    expands to fill its row/column (pushing a sibling scrollbar to the edge).
+    The renderer writes the max scroll bounds back into ``state`` each frame.
     """
-    return _W.viewport(content, state, width, height)
+    return _W.viewport(content, state, width, height, grow)
 
 
 def scrollbar(state: "ScrollState", viewport_size: int, *, axis: str = "y",
