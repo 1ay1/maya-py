@@ -175,4 +175,23 @@ def print(element, *args, width: int | None = None, **kwargs):  # noqa: A001
     return _builtin_print(element, *args, **kwargs)
 
 
+# ── Friendly high-level API (the recommended surface) ───────────────────
+from .easy import (  # noqa: E402
+    T, b, i, u, dim as _dim_markup, c, color,
+    col, row, card, field, hr, spacer,
+    show, to_string, App, animate,
+)
+
+# Note: `easy.dim` is a markup helper (dim("x") -> styled T); the bare `dim`
+# at module top is the Style flag. Both are useful, so expose the markup one
+# under `dim_text` and keep `dim` as the Style.
+dim_text = _dim_markup
+
+__all__ += [
+    "T", "b", "i", "u", "dim_text", "c", "color",
+    "col", "row", "card", "field", "hr", "spacer",
+    "show", "to_string", "App", "animate",
+]
+
+
 __version__ = "0.1.0"

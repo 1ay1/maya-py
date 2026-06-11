@@ -2,23 +2,109 @@
 
 Python bindings for [**maya**](https://github.com/1ay1/maya) — a C++26 TUI
 framework with flexbox layout, a SIMD cell-diff renderer, and an Elm-style
-runtime. `maya-py` exposes maya's runtime element-builder surface so you can
-build styled terminal UIs, render them inline or fullscreen, and drive
-interactive apps from plain Python callbacks.
+runtime. `maya-py` gives you a **dead-simple** Python API for building styled
+terminal UIs and interactive apps.
 
 ```python
 import maya_py as maya
+from maya_py import card, field, b, hr
 
-ui = maya.box(
-    maya.text("Hello World", maya.bold | maya.fg(100, 180, 255)),
-    maya.box(
-        maya.text("Status:", maya.dim),
-        maya.text("Online", maya.bold | maya.fg(80, 220, 120)),
-        gap=1,
-    ),
-    border=maya.Round, padding=1,
-)
-maya.print(ui)
+maya.show(card(
+    b("maya-py").fg("sky"),
+    hr(20),
+    field("Status", "Online", value_color="green"),
+    field("Region", "us-east-1"),
+    title="service",
+))
+```
+
+That's the whole program. Strings *are* UI — no manual element wrapping.
+
+## The 30-second tour
+
+### Text: just style strings
+
+```python
+from maya_py import T, b, i, dim_text, c
+
+b("bold")                 # bold
+T("hi").bold.fg("sky")     # fluent chain
+c("warn", "orange")        # colored
+T("x").bg("red").fg("white")
+```
+
+Colors accept names (`"red"`, `"sky"`, `"gold"`), hex (`"#ff8800"`, `"#f80"`),
+tuples (`(255, 128, 0)`), or ints (`0xFF8800`).
+
+### Layout: stacks that take bare strings
+
+```python
+from maya_py import col, row, card, field, hr
+
+col("top", "middle", "bottom")          # vertical
+row("left", "right", gap=2)             # horizontal
+card("body", title="hi", pad=1)          # bordered box
+field("Name", "Ada")                     # "Name: Ada"
+hr(40)                                   # horizontal rule
+```
+
+`col` / `row` / `card` keywords: `border` (`"round"`/`"double"`/...), `pad`,
+`gap`, `title`, `border_color`, `bg`, `align`, `justify`, `width`, `height`,
+`grow`.
+
+### Apps: a class with decorators, no event loop
+
+```python
+from maya_py import App, card, b
+
+app = App("counter")
+app.state(n=0)
+
+@app.on("+", "=")
+def inc(s): s.n += 1
+
+@app.on("-")
+def dec(s): s.n -= 1
+
+@app.on("q", "esc")
+def quit(s): app.stop()
+
+@app.view
+def view(s):
+    return card(b(f"Count: {s.n}").fg("sky"), title="counter")
+
+app.run()
+```
+
+Key names: single chars (`"q"`, `"+"`), `"up"/"down"/"left"/"right"`,
+`"enter"`, `"esc"`, `"space"`, `"tab"`, `"ctrl+c"`, `"alt+x"`, etc. Handlers
+get the state object; the view re-renders every frame.
+
+### Animation
+
+```python
+import maya_py as maya
+from maya_py import animate, card
+
+frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+n = 0
+def render(dt):
+    global n; n += 1
+    return card(frames[n % len(frames)] + " working")
+animate(render, fps=30)   # maya.quit() to stop
+```
+
+## Examples
+
+- `examples/hello.py` — static dashboard card.
+- `examples/counter.py` — interactive counter (`App`).
+- `examples/todo.py` — arrow-key menu with toggles (`App`).
+- `examples/live_spinner.py` — inline animation (`animate`).
+
+Run any of them:
+
+```bash
+PYTHONPATH=src python examples/todo.py
 ```
 
 ## Install
@@ -40,57 +126,27 @@ cp build/_maya*.so src/maya_py/
 PYTHONPATH=src python examples/hello.py
 ```
 
-## API
+## Low-level API
 
-### Elements
-
-- `text(content, style=None, wrap=TextWrap.Wrap)` — a styled text leaf.
-- `box(*children, **opts)` — a flex container. Children may be Elements or
-  plain strings (auto-wrapped). Strings stack along the box direction.
-- `vstack(*children, **opts)` / `hstack(*children, **opts)` — box with the
-  direction fixed to Column / Row.
-- `blank()` — a one-row spacer.
-
-`box` keyword options: `direction`, `gap`, `padding` (int or 2/4-tuple),
-`margin`, `border`, `border_color`, `border_text`, `bg`, `fg`, `grow`,
-`align`, `justify`, `width`, `height`.
-
-### Styles & colors
-
-Compose styles with `|`:
+The friendly layer above is built on a thin primitive surface. You rarely need
+it, but it's there when you want raw control. `box`/`text` take explicit
+`Style`/`Color` objects:
 
 ```python
-maya.bold | maya.fg(255, 128, 0)
-maya.style(fg=(80, 220, 120), bold=True, underline=True)
+maya.box(
+    maya.text("Hello", maya.bold | maya.fg(255, 128, 0)),
+    border=maya.Round, padding=1,
+)
 ```
 
-- Flags: `maya.bold`, `maya.dim`, `maya.italic`, `maya.underline`,
-  `maya.strikethrough`, `maya.inverse`.
-- `fg(...)` / `bg(...)` accept `(r, g, b)`, three ints, a hex int, or a `Color`.
-- `rgb(r, g, b)`, `hex(0xRRGGBB)`, and named `Color.cyan()` etc.
-
-### Rendering
-
-- `print(element, width=None)` — render to stdout (one-shot). Plain strings
-  fall through to the builtin `print`.
-- `render_to_string(element, width=80)` — render to a plain string (no tty).
-- `live(render_fn, fps=30)` — inline animation loop. `render_fn(dt)` returns
-  an Element each frame; call `maya.quit()` to stop.
-- `run(event_fn, render_fn, title="", inline_mode=False, mouse=False, fps=0)`
-  — interactive event loop. `event_fn(ev)` returns `False` to quit;
-  `render_fn()` returns the current Element.
-
-### Events
-
-Inside `run`'s `event_fn`, match input with `key(ev, "q")`,
-`key_special(ev, SpecialKey.Up)`, `ctrl(ev, "c")`, `alt(ev, "x")`,
-`any_key(ev)`, `resized(ev)`.
-
-## Examples
-
-- `examples/hello.py` — static styled card.
-- `examples/counter.py` — interactive counter (`run`).
-- `examples/live_spinner.py` — inline animation (`live`).
+- `text(content, style=None, wrap=...)`, `box(*children, **opts)`,
+  `vstack`/`hstack`, `blank()`.
+- Styles compose with `|`: `maya.bold | maya.fg(255, 128, 0)`, or
+  `maya.style(fg=(80,220,120), bold=True)`.
+- `render_to_string(element, width=80)`, `print(element)`,
+  `live(render_fn, fps=30)`, `run(event_fn, render_fn, ...)`.
+- Event predicates: `key(ev, "q")`, `key_special(ev, SpecialKey.Up)`,
+  `ctrl(ev, "c")`, `alt(ev, "x")`, `any_key(ev)`, `resized(ev)`.
 
 ## Notes
 

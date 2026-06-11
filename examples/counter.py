@@ -1,37 +1,40 @@
-"""Interactive counter — the simple run() loop driven from Python.
+"""Interactive counter — the App API. No event-loop boilerplate.
 
   +/=  increment    -  decrement    r  reset    q/Esc  quit
 """
-import maya_py as maya
+from maya_py import App, card, b, dim_text
 
-count = 0
-
-
-def on_event(ev):
-    global count
-    if maya.key(ev, "q") or maya.key_special(ev, maya.SpecialKey.Escape):
-        return False  # quit
-    if maya.key(ev, "+") or maya.key(ev, "="):
-        count += 1
-    elif maya.key(ev, "-"):
-        count -= 1
-    elif maya.key(ev, "r"):
-        count = 0
-    return True
+app = App("counter", inline=True)
+app.state(n=0)
 
 
-def view():
-    return maya.box(
-        maya.vstack(
-            maya.text("Counter", maya.bold | maya.fg(100, 180, 255)),
-            maya.blank(),
-            maya.text(str(count), maya.bold),
-            maya.blank(),
-            maya.text("+/- change   r reset   q quit", maya.dim),
-        ),
-        border=maya.Round,
-        padding=1,
+@app.on("+", "=")
+def inc(s):
+    s.n += 1
+
+
+@app.on("-")
+def dec(s):
+    s.n -= 1
+
+
+@app.on("r")
+def reset(s):
+    s.n = 0
+
+
+@app.on("q", "esc")
+def quit_(s):
+    app.stop()
+
+
+@app.view
+def view(s):
+    return card(
+        b(f"Count: {s.n}").fg("sky"),
+        dim_text("+/- change   r reset   q quit"),
+        title="counter",
     )
 
 
-maya.run(on_event, view, title="counter", inline_mode=True)
+app.run()
