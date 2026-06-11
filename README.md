@@ -28,6 +28,7 @@ A full reference manual lives in [`docs/`](docs/index.md):
 - [Text & Style](docs/text-and-style.md) — `T`, markup helpers, colors.
 - [Layout](docs/layout.md) — `col`, `row`, `card`, `field`, `hr`, options.
 - [Apps](docs/apps.md) — the `App` class, key bindings, state, the view.
+- [Widgets](docs/widgets.md) — 44 native renderers: charts, controls, agent UI, scrolling.
 - [Rendering](docs/rendering.md) — `show`, `to_string`, `animate`, `run`.
 - [Performance](docs/performance.md) — `memo`, the boundary tax, benchmarks.
 - [API Reference](docs/api-reference.md) — every public symbol.

@@ -100,6 +100,44 @@ See [Layout](layout.md#keyword-options).
 
 ---
 
+## Widgets
+
+Native maya widget renderers (return the same `Element` maya's C++ produces).
+Full docs + examples in [Widgets](widgets.md). Colours accept name / hex /
+tuple / `Color` everywhere.
+
+**Charts & meters:** `sparkline` `gauge` `progress` `bar_chart` `line_chart`
+`heatmap` `flame_chart` `waterfall`
+
+**Controls:** `checkbox` `toggle` `radio` `select` `slider` `button`
+
+**Text & labels:** `badge` `divider` `spinner` `callout` `status_banner`
+`breadcrumb` `tabs` `gradient` `link` `title_chip` `model_badge` `file_ref`
+`markdown`
+
+**Structure & nav:** `table` `tree` `list_view` `menu` `disclosure` `key_help`
+`calendar` `timeline` `picker`
+
+**Agent UI:** `thinking` `todo_list` `toast` `inline_diff`
+
+**Graphics:** `image` `canvas`
+
+**Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
+`ToastLevel` `TodoItemStatus` `TodoListStatus`
+
+## Scrolling
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `scroll_state` | `scroll_state() -> ScrollState` | A fresh scroll position (auto-dispatch on). |
+| `viewport` | `viewport(content, state, *, width=0, height=0, grow=0.0) -> Element` | Clip content to a scrolled window (0 = fill that axis). |
+| `scrollbar` | `scrollbar(state, viewport_size, *, axis="y", style=None, thumb_color=None, track_color=None) -> Element` | A scrollbar reflecting `state`. |
+| `scroll_handle` | `scroll_handle(state, ev) -> bool` | Manually route an event to a scroll state. |
+| `ScrollState` | class | Holds `x`/`y`/`max_x`/`max_y`, `scroll_*`, `at_*`, `viewport_bounds`. |
+| `ScrollbarStyle` | class | 15 presets (`.line()`, `.neon()`, `.braille()`, …). |
+
+---
+
 ## Rendering
 
 ### Easy
@@ -156,6 +194,13 @@ See [Performance](performance.md).
 | `BorderStyle` | `None_` `Single` `Double` `Round` `Bold` `SingleDouble` `DoubleSingle` `Classic` `Arrow` `Dashed` |
 | `TextWrap` | `Wrap` `TruncateEnd` `TruncateMiddle` `TruncateStart` `NoWrap` |
 | `SpecialKey` | `Up` `Down` `Left` `Right` `Home` `End` `PageUp` `PageDown` `Tab` `BackTab` `Backspace` `Delete` `Insert` `Enter` `Escape` `F1`–`F12` |
+| `GaugeStyle` | `Arc` `Bar` |
+| `ColumnAlign` | `Left` `Center` `Right` |
+| `ButtonVariant` | `Default` `Primary` `Danger` `Ghost` |
+| `TaskStatus` | `Pending` `InProgress` `Completed` |
+| `ToastLevel` | `Info` `Success` `Warning` `Error` |
+| `TodoItemStatus` | `Pending` `InProgress` `Completed` |
+| `TodoListStatus` | `Pending` `Running` `Done` `Failed` |
 
 ### Enum shortcuts (top-level)
 
@@ -200,5 +245,5 @@ and `Color` objects.
 
 | Symbol | Value |
 |--------|-------|
-| `maya_py.__version__` | `"0.1.0"` |
+| `maya_py.__version__` | `"0.1.3"` |
 | `maya_py._maya` | the compiled pybind11 extension module |

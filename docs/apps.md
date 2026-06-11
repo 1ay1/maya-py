@@ -111,6 +111,92 @@ def log(s, ev):
 You get the raw `Event` object; match it with the
 [event predicates](low-level.md#events) (`key`, `ctrl`, etc.) if needed.
 
+## Mouse
+
+Decorate mouse handlers — registering any of them auto-enables mouse reporting
+(no `mouse=True` needed). Coordinates are 1-based screen cells.
+
+```python
+@app.on_click("left")          # "left" / "right" / "middle" / "any"
+def click(s, col, row):
+    s.hits += 1
+    s.pos = (col, row)
+
+@app.on_scroll              # wheel
+def scroll(s, direction):      # -1 up, +1 down
+    s.offset += direction
+
+@app.on_mouse               # every mouse event (press/release/move/scroll)
+def any_mouse(s, ev):
+    ...
+```
+
+Mouse needs a terminal that reports it (xterm, kitty, iTerm2, Windows
+Terminal, or tmux with `set -g mouse on`). Low-level predicates
+(`mouse_clicked`, `mouse_pos`, `scrolled_up/down`, …) are in the
+[low-level docs](low-level.md#events).
+
+## Using widgets in an app
+
+All the [native widgets](widgets.md) are plain functions that return an
+`Element`, so they drop straight into a view. Render the widget in the state
+your `App` holds, and mutate that state in key handlers — the widget shows the
+right appearance every frame:
+
+```python
+from maya_py import App, col, gauge, progress, select
+
+app = App("panel", inline=True, fps=10)
+app.state(load=0.4, cursor=0)
+
+@app.on("down")
+def down(s): s.cursor = (s.cursor + 1) % 3
+
+@app.view
+def view(s):
+    return col(
+        gauge(s.load, "load"),
+        progress(s.load, "mem", width=24),
+        select(["Build", "Test", "Ship"], cursor=s.cursor),
+    )
+```
+
+For scrollable content, hold a `scroll_state()` in your state and pair
+`viewport()` with a `scrollbar()` — scrolling works with no handler code (see
+[Widgets → Scrolling](widgets.md#scrolling)).
+
+### Full-screen effects with `component`
+
+For a pixel field that **fills and grows with the terminal** (games, sims),
+use `component(draw, grow=1)` — the `draw(w, h)` callback receives the real
+allocated `(width, height)` each frame. Size your grid from those args and
+reallocate only when they change:
+
+```python
+from maya_py import App, card, component
+
+app = App("fx", inline=True, fps=30)
+app.state(grid=[], pw=0, ph=0)
+
+def field(s):
+    def draw(w, h):
+        h = max(1, min(h, 60))          # clamp the headless path
+        if (w, h * 2) != (s.pw, s.ph):  # resized -> reallocate
+            s.pw, s.ph = w, h * 2
+            s.grid = [[None] * s.pw for _ in range(s.ph)]
+        # ... advance + draw into s.grid ...
+        return render(s.grid)
+    return component(draw, grow=1)
+
+@app.view
+def view(s):
+    return card(field(s), pad=0)
+```
+
+The `examples/_halfblock.py` helper renders such a grid as half-blocks (two
+pixels per cell). See `examples/doom_fire.py`, `life.py`, `fluid.py`, and
+`fps.py`.
+
 ## The view
 
 ### `@app.view`
