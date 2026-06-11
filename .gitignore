@@ -1,0 +1,9 @@
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.so
+*.pyc
+.pytest_cache/
+_deps/
+maya-src/

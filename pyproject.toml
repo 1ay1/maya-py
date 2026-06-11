@@ -1,0 +1,33 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "maya-py"
+version = "0.1.0"
+description = "Python bindings for the maya C++26 TUI framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "maya-py" }]
+keywords = ["tui", "terminal", "ui", "ncurses", "flexbox", "maya"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Environment :: Console",
+    "Topic :: Terminals",
+]
+
+[project.urls]
+"maya (upstream)" = "https://github.com/1ay1/maya"
+
+[tool.scikit-build]
+minimum-version = "0.10"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/maya_py"]
+
+[tool.scikit-build.cmake]
+version = ">=3.28"
+
+[tool.scikit-build.cmake.define]
+MAYA_NATIVE_TUNING = "OFF"
