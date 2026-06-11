@@ -53,7 +53,7 @@ test-command = "python -c \"import maya_py; print(maya_py.to_string(maya_py.card
 
 [tool.cibuildwheel.linux]
 # Use the glibc-2.28 image; the .so will demand at most that glibc.
-manylinux-x86-64-image = "manylinux_2_28"
+manylinux-x86_64-image = "manylinux_2_28"
 manylinux-aarch64-image = "manylinux_2_28"
 # Install a C++26-capable GCC inside the build container. gcc-toolset-14 is
 # the newest RH toolset; if maya needs strictly GCC 15, set MAYA_PY_GCC_BUILD=1
