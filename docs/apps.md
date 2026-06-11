@@ -165,6 +165,27 @@ For scrollable content, hold a `scroll_state()` in your state and pair
 `viewport()` with a `scrollbar()` — scrolling works with no handler code (see
 [Widgets → Scrolling](widgets.md#scrolling)).
 
+### Fixed-width panes (sidebars)
+
+To pin a pane to an exact width inside a `row` (an IDE-style sidebar), use
+`basis=N, grow=0, shrink=0` — **not** `width=N`. In a flex row the bare `width`
+kwarg gets overridden by a `grow=1` sibling, so the fixed pane collapses; the
+`basis` + `shrink=0` triple holds the width across every layout context:
+
+```python
+row(
+    card(tree(FILES), title="explorer", basis=26, grow=0, shrink=0),  # 26 cols
+    card(editor, grow=1, basis=0),                                    # fills rest
+    col(outline, problems, basis=30, grow=0, shrink=0),               # 30 cols
+    gap=1,
+)
+```
+
+Keep widget content within the pane's usable width (border + padding eat ~4
+cols) — plain `T(...)` rows don't auto-wrap, so stack long lines (e.g. a
+diagnostic's badge on one row, its message on the next) rather than letting one
+wide row overflow the border. See `examples/ide.py`.
+
 ### Full-screen effects with `component`
 
 For a pixel field that **fills and grows with the terminal** (games, sims),

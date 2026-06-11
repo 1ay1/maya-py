@@ -151,11 +151,15 @@ def outline():
 def diagnostics():
     rows = []
     for lvl, clr, loc, msg in DIAGS:
-        rows.append(row(badge(lvl.upper(),
-                              kind="error" if lvl == "error" else
-                                   "warning" if lvl == "warn" else "info"),
-                        T(loc).fg("slate"), T(msg).fg("white"), gap=1))
-    return col(*rows, gap=0)
+        rows.append(col(
+            row(badge(lvl.upper(),
+                      kind="error" if lvl == "error" else
+                           "warning" if lvl == "warn" else "info"),
+                T(loc).fg("slate"), gap=1),
+            T("  " + msg).fg("white"),
+            gap=0,
+        ))
+    return col(*rows, gap=1)
 
 
 def terminal_pane(s):
@@ -187,25 +191,27 @@ def view(s):
         tabbar(s),
         divider(color="slate"),
         editor(s),
-        title=None, pad=1, gap=0, grow=1,
+        title=None, pad=1, gap=0, grow=1, basis=0, shrink=1,
     )
     panes = [center]
     if s.left:
-        panes.insert(0, card(tree(FILE_TREE), title="explorer", pad=1))
+        panes.insert(0, card(tree(FILE_TREE), title="explorer", pad=1,
+                             basis=26, grow=0, shrink=0))
     if s.right:
         panes.append(col(
             card(outline(), title="outline", pad=1),
             card(diagnostics(), title="problems", pad=1),
-            card(col(row(T("●").fg("gold"), dim_text("main ↑2 ↓0")),
-                     row(T("M").fg("gold"), dim_text("main.py")),
-                     row(T("A").fg("lime"), dim_text("widgets.py")), gap=0),
+            card(col(row(T("●").fg("gold"), dim_text("main ↑2 ↓0"), gap=1),
+                     row(T("M").fg("gold"), dim_text("main.py"), gap=1),
+                     row(T("A").fg("lime"), dim_text("widgets.py"), gap=1),
+                     gap=0),
                  title="git", pad=1),
-            gap=1,
+            gap=1, basis=30, grow=0, shrink=0,
         ))
     bottom = []
     if s.bottom:
         bottom = [card(terminal_pane(s), title="terminal", pad=1)]
-    return card(
+    return col(
         row(b("◧ maya ide").fg("sky"),
             dim_text(TABS[s.tab]),
             badge("PYTHON", kind="info"), justify="between"),
@@ -215,7 +221,7 @@ def view(s):
             dim_text("UTF-8 · LF · Python"),
             dim_text("Tab tabs · 1/2/3 panels · b build · q quit"),
             justify="between"),
-        title="ide", gap=1,
+        gap=1,
     )
 
 
