@@ -245,5 +245,5 @@ and `Color` objects.
 
 | Symbol | Value |
 |--------|-------|
-| `maya_py.__version__` | `"0.1.3"` |
+| `maya_py.__version__` | `"0.1.4"` |
 | `maya_py._maya` | the compiled pybind11 extension module |
