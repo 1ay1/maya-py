@@ -22,6 +22,9 @@
 namespace py = pybind11;
 using namespace maya;
 
+// Defined in _widgets.cpp — registers maya's widget renderers as a submodule.
+void init_widgets(py::module_& m);
+
 // ── Event wrapper ──────────────────────────────────────────────────────────
 //
 // maya::Event is a std::variant; passed bare to Python, pybind's variant
@@ -537,4 +540,8 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("event_fn"), py::arg("render_fn"),
           py::arg("title") = "", py::arg("inline_mode") = false,
           py::arg("mouse") = false, py::arg("fps") = 0);
+
+    // Widget renderers (registered last so the core types they reference in
+    // default args — Style, Color, BorderStyle — already exist).
+    init_widgets(m);
 }

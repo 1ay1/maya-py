@@ -105,6 +105,31 @@ def bar(w, h):
 col("Loading", component(bar, height=1))
 ```
 
+### Widgets: maya's native renderers
+
+maya ships a library of ready-made widgets — they render through the **same C++
+renderer** maya uses, then drop straight into any layout:
+
+```python
+from maya_py import col, row, sparkline, gauge, progress, badge, table, bar_chart
+
+col(
+    sparkline([3, 1, 4, 1, 5, 9, 2, 6], label="req/s", color="sky", show_last=True),
+    gauge(0.72, "load", style="bar"),            # "arc" or "bar"
+    progress(0.55, "build", width=24, fill="lime"),
+    row(badge("PASS", kind="success"), badge("SKIP", kind="warning"), gap=1),
+    table(["Name", ("Score", 0, "right")],       # (header, width, align)
+          [["Ada", 99], ["Bob", 7]], bordered=True, title="top"),
+    bar_chart([("jan", 4), ("feb", 9), ("mar", 6)]),
+    gap=1,
+)
+```
+
+Available: `sparkline`, `gauge`, `progress`, `badge`, `divider`, `spinner`,
+`table`, `callout`, `status_banner`, `breadcrumb`, `tabs`, `bar_chart`,
+`gradient`, `heatmap`. Every color argument takes a name / `(r,g,b)` /
+`"#rrggbb"` / `Color`, same as everywhere else.
+
 ### Apps: a class with decorators, no event loop
 
 ```python
@@ -152,6 +177,8 @@ animate(render, fps=30)   # maya.quit() to stop
 - `examples/hello.py` — static dashboard card.
 - `examples/dashboard.py` — full-power layout: sidebar + grow, z-stack badge,
   size-aware bars, partial borders.
+- `examples/widgets_gallery.py` — every widget (sparkline, gauge, table,
+  heatmap, ...) on one screen.
 - `examples/counter.py` — interactive counter (`App`).
 - `examples/todo.py` — arrow-key menu with toggles (`App`).
 - `examples/live_spinner.py` — inline animation (`animate`).
@@ -270,9 +297,17 @@ maya.box(
 
 ## Notes
 
-maya's compile-time DSL (`t<"...">`, type-state pipes) can't cross the Python
-boundary, so `maya-py` routes everything through maya's equivalent runtime
-builders. The element trees produced are identical.
+maya's compile-time DSL (`t<"...">`, type-state pipes) is resolved by the C++
+compiler and can't cross the Python boundary, so `maya-py` routes everything
+through maya's equivalent *runtime* builders. The element trees produced are
+identical — anything the DSL can express, the runtime API can too.
+
+The widget functions wrap maya's own widget classes (`Sparkline`, `Gauge`,
+`Table`, ...) and return the Element they build, so what you see is maya's
+native rendering, not a Python reimplementation. Interactive controls that
+need maya's `Program` runtime + focus + signals (`Input`, `TextArea`, full
+`List`/`Tree` navigation) aren't wrapped — drive interactivity from the `App`
+class instead.
 
 ## Performance
 

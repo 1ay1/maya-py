@@ -101,7 +101,7 @@ set_property(TARGET maya PROPERTY COMPILE_FEATURES "")
 set_target_properties(maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
 
 # ── the extension ─────────────────────────────────────────────────────────
-pybind11_add_module(_maya src/_maya.cpp)
+pybind11_add_module(_maya src/_maya.cpp src/_widgets.cpp)
 set_target_properties(_maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(_maya PRIVATE maya::maya)
 

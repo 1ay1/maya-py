@@ -212,5 +212,20 @@ __all__ += [
     "show", "to_string", "App", "animate",
 ]
 
+# ── Widgets (maya's native renderers) ────────────────────────────────
+from .widgets import (  # noqa: E402
+    GaugeStyle, ColumnAlign,
+    sparkline, gauge, progress, badge, divider, spinner,
+    table, callout, status_banner, breadcrumb, tabs,
+    bar_chart, gradient, heatmap,
+)
+
+__all__ += [
+    "GaugeStyle", "ColumnAlign",
+    "sparkline", "gauge", "progress", "badge", "divider", "spinner",
+    "table", "callout", "status_banner", "breadcrumb", "tabs",
+    "bar_chart", "gradient", "heatmap",
+]
+
 
 __version__ = "0.1.0"
