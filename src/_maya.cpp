@@ -21,6 +21,16 @@
 namespace py = pybind11;
 using namespace maya;
 
+// ── Event wrapper ──────────────────────────────────────────────────────────
+//
+// maya::Event is a std::variant; passed bare to Python, pybind's variant
+// caster tries (and fails) to convert the active member. This opaque wrapper
+// keeps the event on the C++ side — Python only ever feeds it back through the
+// key()/ctrl()/alt()/... predicates.
+struct PyEvent {
+    Event ev;
+};
+
 // ── Color ──────────────────────────────────────────────────────────────────
 //
 // Python sees a single Color class with classmethod constructors. We can't
@@ -295,20 +305,26 @@ PYBIND11_MODULE(_maya, m) {
     m.def("quit", &maya::quit);
 
     // ── Event (opaque) + predicates ───────────────────────────────────────
-    py::class_<Event>(m, "Event");
-    m.def("key", [](const Event& ev, const std::string& s) {
-        if (s.size() == 1) return maya::key(ev, s[0]);
+    // maya's Event is std::variant<KeyEvent, MouseEvent, ...>. pybind11/stl.h
+    // installs a variant caster that would try to convert the active member
+    // to Python — but those member types aren't registered, so the cast
+    // fails. Python never inspects the event directly (it only goes back
+    // through the key()/ctrl()/... predicates below), so wrap it in an opaque
+    // struct that pybind treats as a plain registered class, not a variant.
+    py::class_<PyEvent>(m, "Event");
+    m.def("key", [](const PyEvent& ev, const std::string& s) {
+        if (s.size() == 1) return maya::key(ev.ev, s[0]);
         return false;
     });
-    m.def("key_special", [](const Event& ev, SpecialKey sk) { return maya::key(ev, sk); });
-    m.def("ctrl", [](const Event& ev, const std::string& s) {
-        return s.size() == 1 && maya::ctrl(ev, s[0]);
+    m.def("key_special", [](const PyEvent& ev, SpecialKey sk) { return maya::key(ev.ev, sk); });
+    m.def("ctrl", [](const PyEvent& ev, const std::string& s) {
+        return s.size() == 1 && maya::ctrl(ev.ev, s[0]);
     });
-    m.def("alt", [](const Event& ev, const std::string& s) {
-        return s.size() == 1 && maya::alt(ev, s[0]);
+    m.def("alt", [](const PyEvent& ev, const std::string& s) {
+        return s.size() == 1 && maya::alt(ev.ev, s[0]);
     });
-    m.def("any_key", &maya::any_key);
-    m.def("resized", [](const Event& ev) { return maya::resized(ev); });
+    m.def("any_key", [](const PyEvent& ev) { return maya::any_key(ev.ev); });
+    m.def("resized", [](const PyEvent& ev) { return maya::resized(ev.ev); });
 
     // ── run() — simple event loop (Fullscreen / Inline) ──────────────────
     // event_fn: (Event) -> bool   (False => quit)
@@ -325,7 +341,7 @@ PYBIND11_MODULE(_maya, m) {
               maya::run(cfg,
                   [&event_fn](const Event& ev) -> bool {
                       py::gil_scoped_acquire gil;
-                      py::object r = event_fn(ev);
+                      py::object r = event_fn(PyEvent{ev});
                       return r.is_none() ? true : r.cast<bool>();
                   },
                   [&render_fn]() -> Element {
