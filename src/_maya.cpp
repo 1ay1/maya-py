@@ -416,13 +416,28 @@ PYBIND11_MODULE(_maya, m) {
     // Lazy element: render_fn(width, height) -> Element, called once the
     // layout allocates a size. Lets Python size-aware widgets (charts,
     // gauges) fill whatever the flexbox gives them.
+    //
+    // GIL SAFETY: maya copies the ComponentElement (and thus this callback's
+    // captures) by value MANY times during paint/cache, with the GIL
+    // RELEASED (run()/live() drop it for the blocking loop). A captured
+    // py::function would inc/decref a PyObject on every copy without the GIL
+    // → heap corruption → segfault. So we stash the callable behind a
+    // shared_ptr: copying the std::function only bumps the shared_ptr
+    // refcount (no Python touch). The Python object is released exactly once,
+    // by a deleter that takes the GIL first.
     m.def("component",
           [](py::function render_fn, std::optional<float> grow,
              std::optional<py::object> width, std::optional<py::object> height) {
-              auto cb = maya::detail::component(
-                  [render_fn](int w, int h) -> Element {
+              auto fn = std::shared_ptr<py::function>(
+                  new py::function(std::move(render_fn)),
+                  [](py::function* p) {
                       py::gil_scoped_acquire gil;
-                      py::object r = render_fn(w, h);
+                      delete p;
+                  });
+              auto cb = maya::detail::component(
+                  [fn](int w, int h) -> Element {
+                      py::gil_scoped_acquire gil;
+                      py::object r = (*fn)(w, h);
                       if (py::isinstance<py::str>(r))
                           return Element{TextElement{.content = r.cast<std::string>()}};
                       if (!py::isinstance<Element>(r))

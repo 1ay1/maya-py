@@ -179,6 +179,12 @@ animate(render, fps=30)   # maya.quit() to stop
   size-aware bars, partial borders.
 - `examples/widgets_gallery.py` — every widget (sparkline, gauge, table,
   heatmap, ...) on one screen.
+- `examples/sysmon.py` — a live system monitor: rolling sparklines, gauges,
+  bar charts and a log feed, animated at 10fps.
+- `examples/snake.py` — a playable Snake game (arrow keys, `App` runtime).
+- `examples/stopwatch.py` — live stopwatch with lap splits.
+- `examples/mandelbrot.py` — a colored ASCII Mandelbrot that zooms (`component`).
+- `examples/matrix.py` — falling "digital rain" animation.
 - `examples/counter.py` — interactive counter (`App`).
 - `examples/todo.py` — arrow-key menu with toggles (`App`).
 - `examples/live_spinner.py` — inline animation (`animate`).

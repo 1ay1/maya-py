@@ -261,6 +261,84 @@ m.animate(lambda dt: m.card(f"t={dt:.1f}"), fps=20)
     assert exited, "Ctrl-C should break out of live()/animate()"
 
 
+def test_component_in_live_app_no_segfault():
+    # Regression: maya copies a ComponentElement by value many times during
+    # paint with the GIL released. A naively-captured py::function would touch
+    # Python refcounts off-GIL and SEGFAULT (observed: crash on frame ~1-3).
+    # The component() binding stashes the callable behind a GIL-safe
+    # shared_ptr. On the buggy binding the child dies of SIGSEGV within the
+    # first second; on the fixed one it paints frames happily until we stop
+    # it. We run for ~1.5s, then SIGTERM, and assert the child did NOT die of
+    # a crash signal (SIGSEGV/SIGABRT) on its own beforehand.
+    import select as _select
+    import pty as _pty
+
+    src = """
+import sys, os
+sys.path.insert(0, os.path.join(os.getcwd(), "src"))
+import maya_py as m
+from maya_py import App, card, col, T, component
+app = App("t", inline=True, fps=60)
+app.state(n=0)
+def grid():
+    def draw(w, h):
+        return col(*[T("#" * 12).fg("lime") for _ in range(8)])
+    return component(draw, height=8, width=12)
+@app.view
+def v(s):
+    s.n += 1
+    return card(grid(), title="t")
+app.run()
+"""
+    path = "/tmp/_maya_component_child.py"
+    with open(path, "w") as f:
+        f.write(src)
+    pid, fd = _pty.fork()
+    if pid == 0:
+        os.execvp(sys.executable, [sys.executable, path])
+
+    # Let it paint many frames for ~1.5s; a buggy build crashes in this window.
+    end = time.time() + 1.5
+    early_status = None
+    while time.time() < end:
+        try:
+            r, _, _ = _select.select([fd], [], [], 0.05)
+            if r:
+                os.read(fd, 4096)
+        except OSError:
+            pass
+        wpid, st = os.waitpid(pid, os.WNOHANG)
+        if wpid != 0:
+            early_status = st
+            break
+
+    if early_status is not None:
+        # Died on its own during the paint window — only OK if it wasn't a crash.
+        if os.WIFSIGNALED(early_status):
+            raise AssertionError(
+                "live App with component() crashed: signal "
+                + str(os.WTERMSIG(early_status))
+                + " (regression: GIL-unsafe component value-copy)"
+            )
+    else:
+        # Still running after painting many frames = the fix holds. Stop it.
+        os.kill(pid, signal.SIGTERM)
+        try:
+            _, st = os.waitpid(pid, 0)
+            # SIGTERM is our doing; a SIGSEGV here would still be a crash.
+            if os.WIFSIGNALED(st) and os.WTERMSIG(st) not in (signal.SIGTERM, signal.SIGKILL):
+                raise AssertionError(
+                    "live App with component() crashed on teardown: signal "
+                    + str(os.WTERMSIG(st))
+                )
+        except ChildProcessError:
+            pass
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
