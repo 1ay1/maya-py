@@ -4,6 +4,12 @@
 
 ## Requirements
 
+**To install a prebuilt wheel: nothing special.** maya-py ships precompiled
+standalone wheels, so you don't need a C++ compiler at all — not even an old
+one. See [Installing](#install) below.
+
+**To build from source** (only if no wheel matches your platform):
+
 - A **C++26 compiler** — GCC 15 or newer. maya itself is compiled from source.
 - **CMake ≥ 3.28**.
 - **Python ≥ 3.9**.
@@ -14,7 +20,23 @@ separately.
 
 ## Install
 
-### From the repo (recommended while developing)
+### Prebuilt wheel (recommended — no compiler)
+
+```bash
+pip install maya-py
+```
+
+The wheel contains the already-compiled extension. It runs on machines with a
+very old (or no) C++ toolchain because it's built against an old glibc
+(`manylinux_2_28`, 2019) and statically links the C++ runtime. Your system
+GCC version doesn't matter — nothing is compiled at install time.
+
+If `pip` falls back to building from source (no matching wheel), it needs
+GCC 15+ and will print a clear message if your compiler is too old. Try
+`python -m pip install --upgrade pip` first, or install the `.whl` for your
+platform from the [Releases](https://github.com/1ay1/maya-py/releases) page.
+
+### From the repo (building from source)
 
 ```bash
 git clone git@github.com:1ay1/maya-py.git

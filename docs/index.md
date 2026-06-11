@@ -25,6 +25,7 @@ freely.
 6. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
 7. [API Reference](api-reference.md) — every public symbol, one table.
 8. [Low-Level API](low-level.md) — primitives, enums, the native binding.
+9. [Distribution & Standalone Wheels](distribution.md) — how it installs without a compiler.
 
 ## A complete example
 

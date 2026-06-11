@@ -31,3 +31,32 @@ version = ">=3.28"
 
 [tool.scikit-build.cmake.define]
 MAYA_NATIVE_TUNING = "OFF"
+MAYA_PY_STATIC_CXX = "ON"
+
+# ============================================================================
+# cibuildwheel — produce STANDALONE binary wheels
+# ============================================================================
+# These wheels are precompiled: installing one runs NO compiler on the user's
+# machine, so an ancient system toolchain is irrelevant. Two things make the
+# wheel portable:
+#   1. Built inside the manylinux_2_28 container → targets glibc 2.28 (2019),
+#      so it runs on distros that old or newer. auditwheel stamps the tag.
+#   2. MAYA_PY_STATIC_CXX=ON statically links libstdc++/libgcc → the .so does
+#      not need the host's (old) C++ runtime.
+# maya needs C++26 (GCC 15), which manylinux doesn't ship, so CIBW_BEFORE_ALL
+# bootstraps a modern GCC inside the container before building.
+[tool.cibuildwheel]
+build-frontend = "build"
+# Skip targets we can't realistically build maya on (32-bit, musl, PyPy).
+skip = ["*-musllinux*", "pp*", "*_i686", "*-win32"]
+test-command = "python -c \"import maya_py; print(maya_py.to_string(maya_py.card('ok'), 20))\""
+
+[tool.cibuildwheel.linux]
+# Use the glibc-2.28 image; the .so will demand at most that glibc.
+manylinux-x86-64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+# Install a C++26-capable GCC inside the build container. gcc-toolset-14 is
+# the newest RH toolset; if maya needs strictly GCC 15, set MAYA_PY_GCC_BUILD=1
+# to compile it from source (slow). See scripts/cibw_before_all.sh.
+before-all = "bash scripts/cibw_before_all.sh"
+environment = { CC = "gcc", CXX = "g++" }

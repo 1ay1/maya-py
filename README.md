@@ -32,6 +32,7 @@ A full reference manual lives in [`docs/`](docs/index.md):
 - [Performance](docs/performance.md) — `memo`, the boundary tax, benchmarks.
 - [API Reference](docs/api-reference.md) — every public symbol.
 - [Low-Level API](docs/low-level.md) — primitives and the native binding.
+- [Distribution](docs/distribution.md) — standalone wheels for old machines.
 
 ## The 30-second tour
 
@@ -122,9 +123,36 @@ PYTHONPATH=src python examples/todo.py
 
 ## Install
 
-Requires a C++26 compiler (GCC 15+) and CMake ≥ 3.28 — maya itself is compiled
-from source on install (pulled via CMake `FetchContent`, or from a sibling
-`../maya-src` checkout if present).
+**The wheel is standalone — no compiler needed.** maya-py ships precompiled
+binary wheels, so on a normal machine you just:
+
+```bash
+pip install maya-py
+```
+
+The wheel already contains the compiled extension. It works even on machines
+with a **very old C++ toolchain** (or none at all), because:
+
+- the wheel is built inside a `manylinux_2_28` container, so it targets
+  glibc 2.28 (2019) and runs on that-or-newer distros;
+- it **statically links libstdc++/libgcc**, so it doesn't need the host's
+  (old) C++ runtime — it depends only on baseline `libc`/`libm`.
+
+Nothing on your machine is compiled at install time, so your system GCC
+version is irrelevant.
+
+> If `pip` can't find a matching wheel (unusual platform / Python), it falls
+> back to building from source — and *that* needs a C++26 compiler (GCC 15+).
+> The build prints a clear message telling you so. First try
+> `python -m pip install --upgrade pip` (newer pip matches more wheels), or
+> grab the `.whl` for your platform from the
+> [Releases](https://github.com/1ay1/maya-py/releases) page and
+> `pip install ./that-file.whl`.
+
+### Building from source (only if you want to)
+
+Requires GCC 15+ and CMake ≥ 3.28. maya is pulled in via CMake `FetchContent`
+(or a sibling `../maya-src` checkout):
 
 ```bash
 pip install .
@@ -138,6 +166,10 @@ cmake --build build -j
 cp build/_maya*.so src/maya_py/
 PYTHONPATH=src python examples/hello.py
 ```
+
+Wheels are produced by [cibuildwheel](https://cibuildwheel.pypa.io) via
+`.github/workflows/wheels.yml` — push a `vX.Y.Z` tag to build and attach them
+to a release.
 
 ## Low-level API
 
