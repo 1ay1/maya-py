@@ -288,27 +288,60 @@ animate(render, fps=30)   # maya.quit() to stop
 
 ## Examples
 
-- `examples/hello.py` — static dashboard card.
-- `examples/dashboard.py` — full-power layout: sidebar + grow, z-stack badge,
-  size-aware bars, partial borders.
-- `examples/widgets_gallery.py` — every widget (sparkline, gauge, table,
-  heatmap, ...) on one screen.
-- `examples/sysmon.py` — a live system monitor: rolling sparklines, gauges,
-  bar charts and a log feed, animated at 10fps.
-- `examples/snake.py` — a playable Snake game (arrow keys, `App` runtime).
-- `examples/paint.py` — a mouse-driven pixel painter (click/scroll/right-click).
-- `examples/scroll.py` — a scrollable log viewer with a live scrollbar (15 styles).
-- `examples/stopwatch.py` — live stopwatch with lap splits.
-- `examples/mandelbrot.py` — a colored ASCII Mandelbrot that zooms (`component`).
-- `examples/matrix.py` — falling "digital rain" animation.
-- `examples/counter.py` — interactive counter (`App`).
-- `examples/todo.py` — arrow-key menu with toggles (`App`).
-- `examples/live_spinner.py` — inline animation (`animate`).
+**Every maya C++ example is ported 1:1 to Python** — 34 of them, plus extras.
+Most are full apps you can drive; run any with `PYTHONPATH=src python
+examples/NAME.py`. A headless `examples/smoke_all.py` renders one frame of
+each (CI-friendly, no TTY needed).
+
+**Games & toys** (half-block pixel rendering via `examples/_halfblock.py`):
+
+- `snake.py` — playable Snake (arrow keys / WASD).
+- `breakout.py` — Breakout/Arkanoid with bricks, comet trail, particles.
+- `life.py` — Conway's Game of Life with heat-aging palettes + patterns.
+- `sorts.py` — five sorting algorithms racing side by side.
+
+**Graphics & sims** (`animate` / `App` render loops):
+
+- `doom_fire.py` — the classic Doom fire effect, 3 palettes.
+- `fluid.py` — advection fluid / plasma with curl-noise velocity.
+- `particles.py` — a gravity particle fountain.
+- `space.py` — warp-speed starfield. `space3d.py` — rotating 3D wireframes.
+- `raymarch.py` — a real-time raymarched SDF scene (sphere + plane).
+- `fps.py` — a Wolfenstein-style textured raycaster with a minimap.
+- `mandelbrot.py` — a zooming coloured Mandelbrot. `matrix.py` — digital rain.
+
+**Dashboards & data:**
+
+- `dashboard.py` — full-power layout (sidebar, z-stack, size-aware bars).
+- `sysmon.py` — live system monitor (sparklines, gauges, log feed).
+- `stocks.py` — stock ticker with sparklines + a gainers board.
+- `spectrum.py` — a faux audio spectrum analyzer. `music.py` — a player UI.
+- `hacker.py` — a "hollywood hacker" terminal of fake breaches.
+
+**Apps & agent UI:**
+
+- `deploy.py` — a CI/CD pipeline dashboard with a live stage timeline.
+- `chat.py` — a chat client with bubbles + typing indicator.
+- `messenger.py` — multi-channel chat with unread badges + a composer.
+- `ide.py` — a VS Code / Zed-style mini IDE (tree, tabs, diagnostics, git).
+- `agent.py` / `agent_session.py` — Claude-Code-style agent sessions:
+  thinking → tool cards → todo plan → streaming markdown answer.
+- `widgets.py` — one-shot widget showcase. `widgets_gallery.py` — live version.
+- `markup.py` — a scrollable markdown/GFM viewer (`--dump` for piping).
+- `inline_progress.py` — inline `print` + `live` (no alt-screen takeover).
+
+**Primitives & basics:**
+
+- `hello.py` static card · `counter.py` / `stopwatch.py` / `todo.py` `App`
+  basics · `paint.py` mouse painter · `live_spinner.py` inline animation.
+- `scroll.py` / `scroll_clip.py` / `scroll_2d.py` / `scroll_slice.py` /
+  `scroll_styles.py` — every scrolling pattern (clip, two-axis, million-row
+  slice, and all 15 scrollbar styles).
 
 Run any of them:
 
 ```bash
-PYTHONPATH=src python examples/todo.py
+PYTHONPATH=src python examples/agent_session.py
 ```
 
 ## Install
