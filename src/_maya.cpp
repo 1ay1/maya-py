@@ -601,7 +601,8 @@ PYBIND11_MODULE(_maya, m) {
                   bool on;
                   ~MouseGuard() {
                       if (on) {
-                          const char off[] = "\x1b[?1006l\x1b[?1003l";
+                          const char off[] =
+                              "\x1b[?1007l\x1b[?1006l\x1b[?1002l\x1b[?1000l";
                           ssize_t r = ::write(1, off, sizeof(off) - 1);
                           (void)r;
                       }

@@ -191,9 +191,9 @@ def test_mouse_mode_enabled_and_disabled_on_exit():
         os.close(fd)
     except OSError:
         pass
-    assert b"\x1b[?1003h" in buf, "mouse any-event tracking (1003h) was never enabled"
+    assert b"\x1b[?1000h" in buf, "mouse button tracking (1000h) was never enabled"
     assert b"\x1b[?1006h" in buf, "SGR mouse mode (1006h) was never enabled"
-    assert b"\x1b[?1003l" in buf, "mouse tracking (1003l) was never DISABLED on exit"
+    assert b"\x1b[?1000l" in buf, "mouse tracking (1000l) was never DISABLED on exit"
     assert b"\x1b[?1006l" in buf, "SGR mouse mode (1006l) was never DISABLED on exit"
 
 
