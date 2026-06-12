@@ -22,10 +22,10 @@ from maya_py import App, col, row, card, b, dim_text, component
 from _halfblock import halfblock
 
 PW, PH = 64, 40          # mutated per-frame; capped so the SDF stays smooth
-MAX_STEPS = 40
+MAX_STEPS = 28
 MAX_DIST = 12.0
-EPS = 0.02
-MAX_PW = 96              # resolution ceiling (per-pixel raymarch is heavy)
+EPS = 0.025
+MAX_PW = 72              # resolution ceiling (per-pixel raymarch is heavy)
 
 
 def _sd_sphere(p, c, r):
@@ -36,7 +36,7 @@ def _length(v):
     return math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
 
 
-app = App("raymarch", inline=True, fps=20)
+app = App("raymarch", inline=True, fps=12)
 app.state(t=0.0, lx=2.5, ly=3.0, paused=False)
 
 
@@ -84,7 +84,7 @@ def _quit(s): app.stop()
 def render(s):
     def draw(w, h):
         global PW, PH
-        h = max(1, min(h, 44))
+        h = max(1, min(h, 36))
         PW = min(w, MAX_PW)
         PH = h * 2
         t = s.t
@@ -118,7 +118,14 @@ def render(s):
                     ld = (ld[0]/ll, ld[1]/ll, ld[2]/ll)
                     diff = max(0.0, n[0]*ld[0] + n[1]*ld[1] + n[2]*ld[2])
                     if mat == 1:
-                        glow = 0.5 + 0.5 * math.sin(t * 2)
+                        # Quantize the glow to a few discrete levels so the
+                        # moon's colour only changes every several frames
+                        # instead of every frame — most frames the moon
+                        # pixels are byte-identical and the inline diff drops
+                        # them, keeping per-frame output small (no recolor
+                        # flood / tearing). The pulse is still clearly visible.
+                        glow_raw = 0.5 + 0.5 * math.sin(t * 2)
+                        glow = round(glow_raw * 5) / 5
                         base = (255, int(120 + 100*glow), 60)
                     else:
                         chk = (int(p[0]) + int(p[2])) % 2
@@ -132,7 +139,9 @@ def render(s):
 @app.view
 def view(s):
     if not s.paused:
-        s.t += 0.1
+        # Slow time advance: smaller per-frame geometry delta = smaller diff,
+        # and the bob/pulse still reads as smooth motion at this fps.
+        s.t += 0.05
     return card(
         row(b("◐ raymarch").fg((255, 160, 80)),
             dim_text(f"sdf · light ({s.lx:.1f},{s.ly:.1f}) · "
