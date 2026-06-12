@@ -13,6 +13,37 @@ if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
     endif()
 endif()
 
+# ── macOS: prefer real GNU GCC over AppleClang ───────────────────────
+# maya is C++26. AppleClang lags upstream LLVM and (depending on the Xcode
+# version) misses C++26 / late-C++23 library bits maya leans on, so on macOS
+# we build with Homebrew GCC instead. This MUST run before project() so the
+# compiler-id probe picks GCC.
+#
+# We only auto-pick when the user hasn't already chosen a compiler — an
+# explicit -DCMAKE_CXX_COMPILER=..., a CXX env var, or a cached entry always
+# wins (escape hatch for someone who really wants Clang).
+if(APPLE
+   AND NOT DEFINED CMAKE_CXX_COMPILER
+   AND NOT DEFINED ENV{CXX}
+   AND NOT DEFINED CACHE{CMAKE_CXX_COMPILER})
+    # Newest first. Homebrew installs versioned binaries (g++-15, g++-14, ...);
+    # plain `g++` on macOS is an AppleClang shim, so we do NOT trust it here.
+    find_program(_maya_brew_gxx
+        NAMES g++-15 g++-14 g++-13
+        HINTS /opt/homebrew/bin /usr/local/bin)
+    if(_maya_brew_gxx)
+        set(CMAKE_CXX_COMPILER "${_maya_brew_gxx}" CACHE FILEPATH
+            "C++ compiler (Homebrew GCC, auto-selected on macOS)")
+        message(STATUS "maya_py: macOS — using GNU GCC at ${_maya_brew_gxx}")
+    else()
+        message(WARNING
+            "maya_py: no Homebrew GCC (g++-15/14/13) found on PATH — falling "
+            "back to the default toolchain. maya needs C++26; if the build "
+            "fails, install GCC with `brew install gcc` (or pass "
+            "-DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-15).")
+    endif()
+endif()
+
 project(maya_py LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 26)
@@ -60,10 +91,11 @@ if(NOT _maya_ok)
             "      so cl.exe is >= 19.40, then re-run pip install .\n")
     elseif(APPLE)
         set(_maya_toolchain_hint
-            "   3. If you truly must build from source, install a modern\n"
-            "      toolchain:\n"
-            "        xcode-select --install      # Xcode 15+ (AppleClang 15)\n"
-            "        # or LLVM:  brew install llvm  then point CC/CXX at it\n")
+            "   3. If you truly must build from source, install GNU GCC — maya\n"
+            "      is C++26 and is built with GCC on macOS, not AppleClang:\n"
+            "        brew install gcc          # provides g++-15 / g++-14\n"
+            "        # the build auto-picks Homebrew g++; or force it with\n"
+            "        # pip install . -C cmake.define.CMAKE_CXX_COMPILER=$(brew --prefix)/bin/g++-15\n")
     else()
         set(_maya_toolchain_hint
             "   3. If you truly must build from source, install a modern GCC:\n"
@@ -162,30 +194,36 @@ if(MSVC)
         NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 endif()
 
-# ── Self-contained runtime (works on machines with an OLD toolchain) ───────
+# ── Self-contained runtime (works on machines without the build toolchain) ─
 #
-# maya is C++26, so the .so is built with a modern GCC and pulls in very new
-# libstdc++ symbols (GLIBCXX_3.4.3x). An old target machine's system
-# libstdc++ won't have them, so by default the wheel would fail to LOAD even
-# though no compiler runs at install time.
+# maya is C++26, so the extension is built with a modern GCC and pulls in very
+# new libstdc++ symbols. An end-user machine won't have that libstdc++ (on
+# Linux it'd be too old; on macOS it lives only in the builder's Homebrew),
+# so by default the wheel would fail to LOAD even though no compiler runs at
+# install time.
 #
-# Fix: statically link libstdc++ and libgcc INTO the extension. The .so then
-# carries its own C++ runtime and depends only on libc / libm / libdl —
-# baseline libraries present on essentially every Linux. The wheel becomes
-# truly standalone: download, unzip, import; the old compiler is irrelevant.
+# Fix: statically link libstdc++ and libgcc INTO the extension. It then
+# carries its own C++ runtime and depends only on the platform's baseline
+# system libraries. The wheel becomes truly standalone: download, unzip,
+# import; the builder's GCC is irrelevant to the user.
 #
-# Opt out with -DMAYA_PY_STATIC_CXX=OFF (e.g. when building a manylinux wheel
-# where auditwheel + the manylinux libstdc++ already provide portability).
+# Opt out with -DMAYA_PY_STATIC_CXX=OFF (e.g. a manylinux wheel where
+# auditwheel + the manylinux libstdc++ already provide portability).
 option(MAYA_PY_STATIC_CXX "Statically link libstdc++/libgcc into the extension" ON)
 
 if(MAYA_PY_STATIC_CXX AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(_maya PRIVATE
-        -static-libstdc++
-        -static-libgcc
-        # Hide the statically-linked C++ symbols so they can't clash with a
-        # different libstdc++ already loaded in the host process.
-        -Wl,--exclude-libs,ALL
-    )
+    # -static-libstdc++/-static-libgcc are GCC driver flags and work on both
+    # Linux (GNU ld) and macOS (when building with Homebrew GCC) — they bake
+    # the C++ runtime into the module so it doesn't chase the builder's
+    # libstdc++ at load time.
+    target_link_options(_maya PRIVATE -static-libstdc++ -static-libgcc)
+    # --exclude-libs hides the statically-linked C++ symbols so they can't
+    # clash with a different libstdc++ already loaded in the host process.
+    # It's a GNU-ld feature; Apple's ld64 doesn't understand it, so gate it
+    # to non-Apple (Linux) builds only.
+    if(NOT APPLE)
+        target_link_options(_maya PRIVATE -Wl,--exclude-libs,ALL)
+    endif()
 endif()
 
 # Install into the package dir (scikit-build-core picks this up). The
