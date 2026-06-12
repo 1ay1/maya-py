@@ -17,6 +17,7 @@
 #include <pybind11/stl.h>
 
 #include <maya/maya.hpp>
+#include <maya/platform/io.hpp>   // platform::io_write_all / stdout_handle (cross-platform)
 
 #include "_pyevent.hpp"
 
@@ -248,9 +249,10 @@ static void run_program(py::object init_fn,
         bool on;
         ~MouseGuard() {
             if (on) {
-                const char off[] = "\x1b[?1007l\x1b[?1006l\x1b[?1002l\x1b[?1000l";
-                ssize_t r = ::write(1, off, sizeof(off) - 1);
-                (void)r;
+                // Cross-platform terminal write (POSIX fd / Win32 HANDLE).
+                (void)maya::platform::io_write_all(
+                    maya::platform::stdout_handle(),
+                    "\x1b[?1007l\x1b[?1006l\x1b[?1002l\x1b[?1000l");
             }
         }
     } mouse_guard{mouse};

@@ -16,6 +16,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -75,3 +77,23 @@ manylinux-aarch64-image = "manylinux_2_28"
 # to compile it from source (slow). See scripts/cibw_before_all.sh.
 before-all = "bash scripts/cibw_before_all.sh"
 environment = { CC = "gcc", CXX = "g++" }
+
+# ── macOS ────────────────────────────────────────────────────────────
+# Apple Clang 15 (Xcode 15, the default on macOS 13/14 GitHub runners) builds
+# maya's C++23 surface. No GCC bootstrap needed — the runner toolchain is
+# already modern. Build a universal2 wheel so ONE artifact runs on both
+# Intel and Apple-Silicon Macs; deployment floor 11.0 (oldest arm64 release).
+# The dynamic libc++ ships with every supported macOS, so no static-link is
+# needed (and delocate vendors any other deps into the wheel).
+[tool.cibuildwheel.macos]
+archs = ["universal2"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+# ── Windows ────────────────────────────────────────────────────────
+# The GitHub windows-2022 runner ships VS 2022 (cl >= 19.40), which compiles
+# maya's C++23. The .pyd links the UCRT, present on every Windows 10+ box, so
+# the wheel is standalone. delvewheel (run via repair) vendors any extra DLLs.
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"

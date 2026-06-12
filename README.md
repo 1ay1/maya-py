@@ -357,14 +357,23 @@ PYTHONPATH=src python examples/agent_session.py
 ## Install
 
 **The wheels are standalone — no compiler needed.** maya-py ships precompiled
-binary wheels for CPython 3.9–3.14 (Linux x86_64), so on a normal machine you
-just:
+binary wheels for CPython 3.9–3.14 on **Linux** (x86_64 + aarch64), **macOS**
+(universal2 — Apple Silicon *and* Intel in one wheel, macOS 11+), and
+**Windows** (x64), so on a normal machine you just:
 
 ```bash
 pip install maya-py
 ```
 
-That's it — the wheel already contains the compiled extension.
+That's it — the wheel already contains the compiled extension, and pip picks
+the right one for your OS / architecture / Python automatically.
+
+> **Terminal note.** maya speaks ANSI/VT escapes + truecolor + UTF-8. On
+> Linux and macOS any modern terminal works. On **Windows use Windows
+> Terminal** (the default on Windows 11; free on Windows 10) or any VT-capable
+> host — the legacy `cmd.exe` console works too (maya enables
+> `ENABLE_VIRTUAL_TERMINAL_PROCESSING` on startup), but Windows Terminal
+> gives the best Unicode + color fidelity.
 
 <details>
 <summary>Installing straight from a GitHub Release (no PyPI)</summary>
@@ -387,22 +396,28 @@ pip install https://github.com/1ay1/maya-py/releases/download/v0.1.3/maya_py-0.1
 
 </details>
 
-The wheel works even on machines with a **very old C++ toolchain** (or none at
-all), because:
+The Linux wheel works even on machines with a **very old C++ toolchain** (or
+none at all), because:
 
 - the wheel is built inside a `manylinux_2_28` container, so it targets
   glibc 2.28 (2019) and runs on that-or-newer distros;
 - it **statically links libstdc++/libgcc**, so it doesn't need the host's
   (old) C++ runtime — it depends only on baseline `libc`/`libm`.
 
-Nothing on your machine is compiled at install time, so your system GCC
-version is irrelevant.
+The macOS wheel targets macOS 11.0+ and uses the system `libc++`; the Windows
+wheel links the UCRT present on every Windows 10+ machine. Nothing on your
+machine is compiled at install time, so your system compiler is irrelevant.
 
 ### No matching wheel? Build from the sdist
 
 If no prebuilt wheel matches your platform/Python, install the source
-distribution — this compiles the extension locally and needs **GCC 14+** (or
-Clang 18+) and CMake ≥ 3.28:
+distribution — this compiles the extension locally and needs a C++23-capable
+toolchain and CMake ≥ 3.28:
+
+- **Linux:** GCC ≥ 14 or Clang ≥ 18
+- **macOS:** AppleClang ≥ 15 (Xcode 15 — `xcode-select --install`)
+- **Windows:** Visual Studio 2022 ≥ 17.10 (MSVC `cl` ≥ 19.40), "Desktop
+  development with C++" workload
 
 ```bash
 pip install \

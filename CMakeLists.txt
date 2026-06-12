@@ -1,4 +1,18 @@
 cmake_minimum_required(VERSION 3.28)
+
+# macOS deployment floor — must be set BEFORE project() so the compiler probe
+# and every target inherit it. 11.0 is the oldest arm64-capable release and
+# is fine for x86_64 too. cibuildwheel / the caller can override via the
+# MACOSX_DEPLOYMENT_TARGET env var or -DCMAKE_OSX_DEPLOYMENT_TARGET.
+if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(DEFINED ENV{MACOSX_DEPLOYMENT_TARGET})
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "$ENV{MACOSX_DEPLOYMENT_TARGET}"
+            CACHE STRING "Minimum macOS version")
+    else()
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+    endif()
+endif()
+
 project(maya_py LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 26)
@@ -21,19 +35,49 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         set(_maya_ok FALSE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
+    # AppleClang versions lag upstream LLVM; Apple Clang 15 (Xcode 15) ~=
+    # LLVM 16. Require AppleClang >= 15, plain Clang >= 18.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+            set(_maya_ok FALSE)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
+        set(_maya_ok FALSE)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # maya's C++23 feature set needs VS 2022 17.10+ (cl 19.40). Earlier
+    # toolsets miss std::expected / deducing-this and fail deep in maya.
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.40)
         set(_maya_ok FALSE)
     endif()
 endif()
 
 if(NOT _maya_ok)
+    if(WIN32)
+        set(_maya_toolchain_hint
+            "   3. If you truly must build from source, install Visual Studio\n"
+            "      2022 17.10+ (the \"Desktop development with C++\" workload)\n"
+            "      so cl.exe is >= 19.40, then re-run pip install .\n")
+    elseif(APPLE)
+        set(_maya_toolchain_hint
+            "   3. If you truly must build from source, install a modern\n"
+            "      toolchain:\n"
+            "        xcode-select --install      # Xcode 15+ (AppleClang 15)\n"
+            "        # or LLVM:  brew install llvm  then point CC/CXX at it\n")
+    else()
+        set(_maya_toolchain_hint
+            "   3. If you truly must build from source, install a modern GCC:\n"
+            "        # Ubuntu:  sudo apt install g++-14\n"
+            "        # then:    pip install . -C cmake.define.CMAKE_CXX_COMPILER=g++-14\n")
+    endif()
     message(FATAL_ERROR
         "\n"
         "==============================================================\n"
         " maya-py: your C++ compiler is too old to BUILD from source.\n"
         "\n"
         "   found:    ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\n"
-        "   required: GCC >= ${_maya_min_gcc} (or Clang >= 18)\n"
+        "   required: GCC >= ${_maya_min_gcc}, Clang >= 18,\n"
+        "             AppleClang >= 15, or MSVC >= 19.40 (VS 2022 17.10)\n"
         "\n"
         " You should NOT need to compile maya-py at all — it ships\n"
         " PRECOMPILED standalone wheels that install with no compiler.\n"
@@ -45,9 +89,7 @@ if(NOT _maya_ok)
         "        python -m pip install --upgrade pip\n"
         "   2. Install the prebuilt wheel directly from a GitHub release:\n"
         "        pip install <url-to-the-.whl-for-your-platform>\n"
-        "   3. If you truly must build from source, install a modern GCC:\n"
-        "        # Ubuntu:  sudo apt install g++-14\n"
-        "        # then:    pip install . -C cmake.define.CMAKE_CXX_COMPILER=g++-14\n"
+        ${_maya_toolchain_hint}
         "==============================================================\n")
 endif()
 
@@ -105,6 +147,21 @@ pybind11_add_module(_maya src/_maya.cpp src/_widgets.cpp src/_program.cpp)
 set_target_properties(_maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(_maya PRIVATE maya::maya)
 
+# ── MSVC / Windows build hygiene ───────────────────────────────────────────
+# maya's sources are UTF-8 and contain large templated TUs; MSVC needs to be
+# told both. NOMINMAX / WIN32_LEAN_AND_MEAN keep <windows.h> (pulled in by
+# maya's win32 platform layer) from defining min/max macros and bloating the
+# include. UNICODE makes the Win32 console APIs take wide strings, matching
+# maya's win32 backend.
+if(MSVC)
+    target_compile_options(maya PRIVATE /utf-8 /bigobj /EHsc)
+    target_compile_options(_maya PRIVATE /utf-8 /bigobj /EHsc)
+    target_compile_definitions(_maya PRIVATE
+        NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(maya PRIVATE
+        NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+endif()
+
 # ── Self-contained runtime (works on machines with an OLD toolchain) ───────
 #
 # maya is C++26, so the .so is built with a modern GCC and pulls in very new
@@ -131,5 +188,9 @@ if(MAYA_PY_STATIC_CXX AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     )
 endif()
 
-# Install into the package dir (scikit-build-core picks this up).
-install(TARGETS _maya LIBRARY DESTINATION maya_py)
+# Install into the package dir (scikit-build-core picks this up). The
+# extension is LIBRARY on POSIX (.so/.dylib) and RUNTIME on Windows (.pyd is
+# treated as a DLL), so list both destinations for a portable install rule.
+install(TARGETS _maya
+    LIBRARY DESTINATION maya_py
+    RUNTIME DESTINATION maya_py)
