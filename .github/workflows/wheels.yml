@@ -18,11 +18,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux (manylinux), macOS arm64 (macos-14) + Intel (macos-13) as
-        # NATIVE single-arch wheels (Homebrew GCC can't emit universal2), and
-        # Windows x64. Per-OS build details live in pyproject.toml's
+        # Reliable, fast-scheduling runners that GATE the PyPI publish:
+        # Linux (manylinux), macOS arm64 (macos-14, Apple Silicon), Windows
+        # x64. Per-OS build details live in pyproject.toml's
         # [tool.cibuildwheel.*] tables; the env below is Linux-scoped.
-        os: [ubuntu-latest, macos-14, macos-13, windows-2022]
+        os: [ubuntu-latest, macos-14, windows-2022]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +43,29 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  # Intel-mac (x86_64) wheels. The GitHub macos-13 runner pool is scarce and
+  # can queue 30-60+ min, so this is a SEPARATE, NON-BLOCKING job: the PyPI
+  # publish does NOT wait on it (see publish_pypi `needs`). When it does
+  # finish its wheels attach to the GitHub Release; Intel-mac users otherwise
+  # build from source (CMakeLists auto-picks Homebrew GCC). `|| true` keeps a
+  # runner-queue timeout from failing the overall run.
+  build_wheels_macos_intel:
+    name: wheels on macos-13 (intel, non-blocking)
+    runs-on: macos-13
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.1
+        env:
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-13
           path: ./wheelhouse/*.whl
 
   build_sdist:
