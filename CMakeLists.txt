@@ -66,13 +66,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         set(_maya_ok FALSE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # AppleClang versions lag upstream LLVM; Apple Clang 15 (Xcode 15) ~=
-    # LLVM 16. Require AppleClang >= 15, plain Clang >= 18.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
-            set(_maya_ok FALSE)
-        endif()
+        # AppleClang is NOT supported: it lags upstream LLVM and misses the
+        # C++26 / late-C++23 library bits maya leans on, so it fails deep in
+        # maya's templates. On macOS the build auto-selects Homebrew GCC
+        # (see the pre-project() block); if we still ended up on AppleClang
+        # it's because no Homebrew GCC was found — reject it here with the
+        # actionable `brew install gcc` hint rather than crash mid-compile.
+        set(_maya_ok FALSE)
     elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
+        # Plain upstream LLVM/Clang >= 18 is fine.
         set(_maya_ok FALSE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -108,8 +111,9 @@ if(NOT _maya_ok)
         " maya-py: your C++ compiler is too old to BUILD from source.\n"
         "\n"
         "   found:    ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\n"
-        "   required: GCC >= ${_maya_min_gcc}, Clang >= 18,\n"
-        "             AppleClang >= 15, or MSVC >= 19.40 (VS 2022 17.10)\n"
+        "   required: GCC >= ${_maya_min_gcc}, Clang >= 18, or\n"
+        "             MSVC >= 19.40 (VS 2022 17.10).  AppleClang is NOT\n"
+        "             supported — on macOS build with Homebrew GCC.\n"
         "\n"
         " You should NOT need to compile maya-py at all — it ships\n"
         " PRECOMPILED standalone wheels that install with no compiler.\n"
