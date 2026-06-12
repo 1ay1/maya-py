@@ -79,15 +79,20 @@ before-all = "bash scripts/cibw_before_all.sh"
 environment = { CC = "gcc", CXX = "g++" }
 
 # ── macOS ────────────────────────────────────────────────────────────
-# Apple Clang 15 (Xcode 15, the default on macOS 13/14 GitHub runners) builds
-# maya's C++23 surface. No GCC bootstrap needed — the runner toolchain is
-# already modern. Build a universal2 wheel so ONE artifact runs on both
-# Intel and Apple-Silicon Macs; deployment floor 11.0 (oldest arm64 release).
-# The dynamic libc++ ships with every supported macOS, so no static-link is
-# needed (and delocate vendors any other deps into the wheel).
+# maya is C++26 and is built with Homebrew GCC on macOS, NOT AppleClang
+# (CMakeLists hard-rejects AppleClang — it misses the library bits maya
+# needs). before-all installs GCC via Homebrew; the env points CC/CXX at the
+# versioned driver so CMake's compiler probe picks GCC.
+#
+# Homebrew GCC is single-arch, so we build a NATIVE wheel per runner (arm64 on
+# macos-14, x86_64 on a macos-13 runner) rather than a universal2 fat binary —
+# GCC can't emit universal2. Run the matrix on both runner archs to cover Intel
+# + Apple Silicon. MAYA_PY_STATIC_CXX bakes libstdc++/libgcc into the .so so the
+# wheel doesn't chase the builder's Homebrew libstdc++ at load time; delocate
+# vendors any remaining dylibs.
 [tool.cibuildwheel.macos]
-archs = ["universal2"]
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+before-all = "brew install gcc || true"
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", CC = "gcc-15", CXX = "g++-15", MAYA_PY_STATIC_CXX = "ON" }
 
 # ── Windows ────────────────────────────────────────────────────────
 # The GitHub windows-2022 runner ships VS 2022 (cl >= 19.40), which compiles
