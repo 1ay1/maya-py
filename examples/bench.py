@@ -24,7 +24,7 @@ import time
 import statistics
 
 import maya_py as maya
-from maya_py import col, row, card, field, b, c, hr, T
+from maya_py import col, row, trow, card, field, b, c, hr, T, DIM
 
 
 # ── workload parameters ──────────────────────────────────────────────────────
@@ -85,6 +85,30 @@ def maya_build(data):
 
 def maya_render(tree, width):
     return maya.to_string(tree, width)
+
+
+def maya_build_fast(data):
+    """Same tree, built via the zero-allocation `trow` fast path: each table
+    row's styled cells are passed as (text, color) specs and cross the
+    boundary ONCE, with no throwaway T object per cell. Byte-identical output
+    to maya_build — this is the speed door for hot redraw loops."""
+    table_rows = [
+        trow((d["name"], "sky"),
+             (d["status"][0], d["status"][1]),
+             (d["latency"], None, None, DIM),
+             (d["rps"], "gold"),
+             gap=2)
+        for d in data
+    ]
+    return card(
+        b("Service Dashboard").fg("sky"),
+        hr(40),
+        field("Region", "us-east-1", value_color="green"),
+        field("Healthy", f"{sum(1 for d in data if d['status'][0]=='OK')}/{len(data)}"),
+        hr(40),
+        col(*table_rows, gap=0),
+        title="dashboard",
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -205,7 +229,12 @@ def main():
 
     # ── maya-py split: build vs render ──────────────────────────────────────
     maya_build_only = time_it(lambda: maya_build(data), iters)
+    maya_build_fast_only = time_it(lambda: maya_build_fast(data), iters)
     maya_render_only = time_it(lambda: maya_render(tree, width), iters)
+
+    # The fast builder must be byte-identical to the friendly one.
+    assert maya_render(maya_build_fast(data), width) == m_out, \
+        "maya_build_fast diverged from maya_build"
 
     print("  FULL (build tree + render to string):")
     print(f"    maya-py        {fmt_us(maya_full)}")
@@ -216,7 +245,9 @@ def main():
     print(f"    →  {verdict}\n")
 
     print("  maya-py breakdown:")
-    print(f"    build (Python + pybind11)   {fmt_us(maya_build_only)}")
+    print(f"    build  T+row API (Python)   {fmt_us(maya_build_only)}")
+    print(f"    build  trow fast path       {fmt_us(maya_build_fast_only)}"
+          f"  (zero T objects, same output)")
     print(f"    render (native layout+diff) {fmt_us(maya_render_only)}")
     pct = maya_build_only / (maya_build_only + maya_render_only) * 100
     print(f"    →  Python boundary is {pct:.0f}% of maya-py's time\n")

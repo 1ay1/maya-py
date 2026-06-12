@@ -312,12 +312,26 @@ PYBIND11_MODULE(_maya, m) {
           [](const py::list& flat, int n, int direction, int gap, float grow) {
               std::vector<Element> kids;
               kids.reserve(static_cast<std::size_t>(n));
+              // Read the flat list through the raw CPython C-API. pybind's
+              // flat[i] builds a throwaway accessor proxy and .cast<> runs
+              // the full type-dispatch each call; for n*4 scalars that
+              // dominates the crossing. PyList_GET_ITEM is a bare array load
+              // (no bounds check, no refcount), PyUnicode_AsUTF8AndSize /
+              // PyLong_AsLong are the direct extractors. The Python side
+              // (_fused_specs) guarantees the layout: 4 entries per cell,
+              // [str, int, int, int]; anything else never reaches here.
+              PyObject* lst = flat.ptr();
               for (int i = 0; i < n; ++i) {
                   const int o = i * 4;
-                  kids.push_back(Element{make_styled_text(
-                      flat[o].cast<std::string>(),
-                      flat[o + 1].cast<long>(), flat[o + 2].cast<long>(),
-                      flat[o + 3].cast<int>())});
+                  PyObject* ps = PyList_GET_ITEM(lst, o);
+                  Py_ssize_t slen = 0;
+                  const char* sdata = PyUnicode_AsUTF8AndSize(ps, &slen);
+                  std::string s = sdata ? std::string(sdata, static_cast<std::size_t>(slen))
+                                        : std::string{};
+                  long fg = PyLong_AsLong(PyList_GET_ITEM(lst, o + 1));
+                  long bg = PyLong_AsLong(PyList_GET_ITEM(lst, o + 2));
+                  int  at = static_cast<int>(PyLong_AsLong(PyList_GET_ITEM(lst, o + 3)));
+                  kids.push_back(Element{make_styled_text(std::move(s), fg, bg, at)});
               }
               auto b = maya::box();
               b.direction(direction == 0 ? FlexDirection::Row

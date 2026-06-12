@@ -510,13 +510,28 @@ decisive win. This is the scenario maya was designed for.
 
 ### Making it fast
 
-Two levers close most of the Python-side gap:
+Three levers close most of the Python-side gap:
 
 1. **Fluent styling is free.** `T("x").bold.fg("sky")` accumulates state in
    pure Python and makes a *single* boundary crossing when the element is
    built (4.8× faster than the naive one-call-per-`.bold` approach).
 
-2. **`memo` caches unchanged sub-trees.** In a live app, wrap builders whose
+2. **`trow` / `tcol` skip the `T` objects entirely.** In a hot redraw path
+   (tables, lists, dashboards) the throwaway `T` per cell is the dominant
+   build cost. Pass `(text, fg[, bg[, attrs]])` specs instead and the whole
+   row crosses the boundary once — byte-identical output, ~17% less build
+   time on a 30-row table:
+
+   ```python
+   from maya_py import trow, DIM
+
+   # friendly (reads nicer for one-off UI):
+   row(T(name).fg("sky"), c(status, color), T(latency).dim, gap=2)
+   # fast (same output, zero T allocations — use in per-frame loops):
+   trow((name, "sky"), (status, color), (latency, None, None, DIM), gap=2)
+   ```
+
+3. **`memo` caches unchanged sub-trees.** In a live app, wrap builders whose
    inputs rarely change — the hot frame then does *no* Python tree
    construction, just maya's native diff:
 
@@ -531,10 +546,13 @@ Two levers close most of the Python-side gap:
        return col(header(s.title, len(s.items)), body(s))
    ```
 
-**Bottom line:** you won't get "pure C++ speed" for *building* a UI in Python
-— every `card(...)` is a Python call. But for the thing that actually matters
-in a terminal (incremental redraws, bytes on the wire), maya-py is genuinely
-fast, and `memo` lets the steady-state frame skip Python almost entirely.
+**Bottom line:** building a UI in Python always costs Python calls, but the
+thing that actually matters in a terminal — the per-frame redraw — is now
+*faster than a hand-tuned pure-Python renderer*: maya's native layout + paint
+renders the cached tree in ~24µs vs ~70µs for the bespoke string-builder in
+`examples/bench.py`, while still doing real flexbox, wrapping, and a
+partial-frame diff. `memo` + `trow` let the steady-state frame skip Python
+almost entirely.
 
 ## License
 

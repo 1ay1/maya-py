@@ -113,6 +113,35 @@ def test_T_color_object_still_works():
     assert "c" in out
 
 
+def test_trow_byte_identical_to_row_of_T():
+    from maya_py import trow, DIM
+    a = row(T("svc").fg("sky"), c("OK", "green"), T("5ms").dim,
+            T("100").fg("gold"), gap=2)
+    b_ = trow(("svc", "sky"), ("OK", "green"), ("5ms", None, None, DIM),
+              ("100", "gold"), gap=2)
+    assert maya.to_string(a, 60) == maya.to_string(b_, 60)
+
+
+def test_trow_plain_strings():
+    from maya_py import trow
+    out = maya.to_string(trow("a", "b", "c", gap=1), 20)
+    assert "a" in out and "b" in out and "c" in out
+
+
+def test_tcol_stacks_vertically():
+    from maya_py import tcol
+    out = maya.to_string(tcol(("top", "sky"), ("bot", "red")), 20)
+    assert "top" in out and "bot" in out
+    assert out.count("\n") >= 1   # two rows
+
+
+def test_field_fast_path_matches_T_path():
+    # plain-string value goes through trow; a T value goes through row(T)
+    plain = maya.to_string(field("Status", "Online", value_color="green"), 30)
+    via_t = maya.to_string(field("Status", T("Online").fg("green")), 30)
+    assert plain == via_t
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
