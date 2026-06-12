@@ -64,6 +64,26 @@ static Element coerce_child(const py::handle& h) {
     return h.cast<Element>();
 }
 
+// Build a styled TextElement from packed scalars (shared by styled_text and
+// the bulk/fused row builders). fg/bg: packed 0xRRGGBB or <0 for unset.
+// attrs bitmask: 1=bold 2=dim 4=italic 8=underline 16=strike 32=inverse.
+static inline TextElement make_styled_text(std::string content, long fg, long bg,
+                                           int attrs,
+                                           TextWrap wrap = TextWrap::Wrap) {
+    Style s{};
+    if (fg >= 0)
+        s = s.with_fg(Color::rgb((fg >> 16) & 0xFF, (fg >> 8) & 0xFF, fg & 0xFF));
+    if (bg >= 0)
+        s = s.with_bg(Color::rgb((bg >> 16) & 0xFF, (bg >> 8) & 0xFF, bg & 0xFF));
+    if (attrs & 1)  s = s.with_bold();
+    if (attrs & 2)  s = s.with_dim();
+    if (attrs & 4)  s = s.with_italic();
+    if (attrs & 8)  s = s.with_underline();
+    if (attrs & 16) s = s.with_strikethrough();
+    if (attrs & 32) s = s.with_inverse();
+    return TextElement{.content = std::move(content), .style = s, .wrap = wrap};
+}
+
 static std::vector<Element> coerce_children(const py::args& args) {
     std::vector<Element> out;
     out.reserve(args.size());
@@ -276,21 +296,59 @@ PYBIND11_MODULE(_maya, m) {
     // attrs is a bitmask: 1=bold 2=dim 4=italic 8=underline 16=strike 32=inverse.
     m.def("styled_text",
           [](const std::string& content, long fg, long bg, int attrs, TextWrap wrap) {
-              Style s{};
-              if (fg >= 0)
-                  s = s.with_fg(Color::rgb((fg >> 16) & 0xFF, (fg >> 8) & 0xFF, fg & 0xFF));
-              if (bg >= 0)
-                  s = s.with_bg(Color::rgb((bg >> 16) & 0xFF, (bg >> 8) & 0xFF, bg & 0xFF));
-              if (attrs & 1)  s = s.with_bold();
-              if (attrs & 2)  s = s.with_dim();
-              if (attrs & 4)  s = s.with_italic();
-              if (attrs & 8)  s = s.with_underline();
-              if (attrs & 16) s = s.with_strikethrough();
-              if (attrs & 32) s = s.with_inverse();
-              return Element{TextElement{.content = content, .style = s, .wrap = wrap}};
+              return Element{make_styled_text(content, fg, bg, attrs, wrap)};
           },
           py::arg("content"), py::arg("fg") = -1, py::arg("bg") = -1,
           py::arg("attrs") = 0, py::arg("wrap") = TextWrap::Wrap);
+
+    // styled_text_row(flat, n, direction, gap, grow) -> Element  [FUSED]
+    //
+    // The single biggest boundary-saver: build an ENTIRE row/col of styled
+    // text PLUS its box in ONE crossing. `flat` is a FLAT Python list of
+    // n*4 values interleaved [s0,fg0,bg0,a0, s1,fg1,...] — no per-cell tuple
+    // objects to allocate/unpack. fg/bg packed 0xRRGGBB or <0 unset.
+    // Replaces N styled_text() + 1 box_simple() with a single call.
+    m.def("styled_text_row",
+          [](const py::list& flat, int n, int direction, int gap, float grow) {
+              std::vector<Element> kids;
+              kids.reserve(static_cast<std::size_t>(n));
+              for (int i = 0; i < n; ++i) {
+                  const int o = i * 4;
+                  kids.push_back(Element{make_styled_text(
+                      flat[o].cast<std::string>(),
+                      flat[o + 1].cast<long>(), flat[o + 2].cast<long>(),
+                      flat[o + 3].cast<int>())});
+              }
+              auto b = maya::box();
+              b.direction(direction == 0 ? FlexDirection::Row
+                                         : FlexDirection::Column);
+              if (gap >= 0)  b.gap(gap);
+              if (grow >= 0) b.grow(grow);
+              return b(kids);
+          },
+          py::arg("flat"), py::arg("n"), py::arg("direction"),
+          py::arg("gap") = -1, py::arg("grow") = -1.0f);
+
+    // box_simple(children, direction, gap, grow) -> Element  [FAST PATH]
+    //
+    // The overwhelming-majority box: a plain row/col with at most a gap and
+    // an optional grow, no border/padding/sizing. Takes a pre-built child
+    // LIST + scalars positionally, so pybind does NO kwargs-dict construction
+    // and the body does NO opts.contains() probing (the full box() runs ~25
+    // dict lookups from C++ per call). children is an already-coerced list of
+    // Element; direction 0=Row 1=Column; gap<0 means unset; grow<0 unset.
+    m.def("box_simple",
+          [](const std::vector<Element>& children, int direction, int gap,
+             float grow) {
+              auto b = maya::box();
+              b.direction(direction == 0 ? FlexDirection::Row
+                                         : FlexDirection::Column);
+              if (gap >= 0)  b.gap(gap);
+              if (grow >= 0) b.grow(grow);
+              return b(children);
+          },
+          py::arg("children"), py::arg("direction"),
+          py::arg("gap") = -1, py::arg("grow") = -1.0f);
 
     // box(*children, **opts) -> Element
     //
@@ -479,8 +537,59 @@ PYBIND11_MODULE(_maya, m) {
           },
           py::arg("element"), py::arg("width") = std::nullopt);
 
+    // render_to_string(element, width) -> str
+    //
+    // Reuses thread-local scratch (Canvas + StylePool + layout_nodes) across
+    // calls, so repeated renders (live overlays, the bench, any redraw loop
+    // that goes through to_string) pay ZERO per-call heap allocation for the
+    // 80×N cell grid and the layout-node vector. Mirrors maya's
+    // render_to_string body but keeps the buffers warm between invocations.
     m.def("render_to_string",
-          [](const Element& e, int width) { return maya::render_to_string(e, width); },
+          [](const Element& e, int width) -> std::string {
+              thread_local StylePool pool;
+              thread_local std::vector<layout::LayoutNode> layout_nodes;
+              thread_local Canvas canvas{1, 1, &pool};
+              thread_local int last_width = -1;
+
+              constexpr int kInitH = 120;   // covers the common < 2-screen case
+              if (width != last_width || canvas.height() < kInitH) {
+                  canvas.resize(width, kInitH);
+                  last_width = width;
+              }
+              canvas.set_style_pool(&pool);
+              canvas.clear();
+              render_tree(e, canvas, pool, theme::dark, layout_nodes,
+                          /*auto_height=*/true);
+
+              int rows = content_height(canvas);
+              if (rows >= canvas.height() && !layout_nodes.empty()) {
+                  int needed = layout_nodes[0].computed.size.height.raw();
+                  if (needed > canvas.height()) {
+                      canvas.resize(width, needed + 8);
+                      canvas.clear();
+                      render_tree(e, canvas, pool, theme::dark, layout_nodes,
+                                  /*auto_height=*/true);
+                      rows = content_height(canvas);
+                  }
+              }
+              if (rows < 0) return {};
+
+              std::string result;
+              result.reserve(static_cast<std::size_t>((width + 1) * (rows + 1)));
+              for (int y = 0; y <= rows; ++y) {
+                  std::size_t row_start = result.size();
+                  for (int x = 0; x < width; ++x) {
+                      char32_t ch = canvas.get(x, y).character;
+                      if (ch == U'\0') ch = U' ';
+                      detail::encode_utf8(ch, result);
+                  }
+                  std::size_t end = result.size();
+                  while (end > row_start && result[end - 1] == ' ') --end;
+                  result.resize(end);
+                  if (y < rows) result += '\n';
+              }
+              return result;
+          },
           py::arg("element"), py::arg("width") = 80);
 
     // ── live() — inline render loop ───────────────────────────────────────

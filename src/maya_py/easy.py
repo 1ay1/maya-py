@@ -59,10 +59,19 @@ _PALETTE: dict[str, int] = {
 
 
 def _rgb_int(value: Any) -> int:
-    """Resolve a color-ish value to a packed 0xRRGGBB int. Pure Python."""
-    if isinstance(value, int):
-        return value & 0xFFFFFF
-    if isinstance(value, str):
+    """Resolve a color-ish value to a packed 0xRRGGBB int. Pure Python.
+
+    Hot path: a palette name (``"sky"``) is by far the most common argument,
+    so it's tested FIRST with a plain dict hit and no isinstance. `type() is`
+    identity checks beat isinstance for the exact built-in types; resolved
+    ``#hex`` strings are memoised into the palette dict so a repeated literal
+    costs one dict lookup on every subsequent frame.
+    """
+    # Most calls pass a palette name verbatim (already lower, no whitespace).
+    if type(value) is str:
+        hit = _PALETTE.get(value)
+        if hit is not None:
+            return hit
         v = value.strip().lower()
         hit = _PALETTE.get(v)
         if hit is not None:
@@ -71,10 +80,18 @@ def _rgb_int(value: Any) -> int:
             h = v[1:]
             if len(h) == 3:
                 h = h[0] * 2 + h[1] * 2 + h[2] * 2
-            return int(h, 16) & 0xFFFFFF
+            packed = int(h, 16) & 0xFFFFFF
+            _PALETTE[value] = packed   # memoise the literal for next frame
+            return packed
         raise ValueError(f"unknown color: {value!r}")
-    if isinstance(value, (tuple, list)):
+    if type(value) is int:
+        return value & 0xFFFFFF
+    if type(value) is tuple or type(value) is list:
         return _pack(int(value[0]), int(value[1]), int(value[2]))
+    if isinstance(value, int):          # int subclasses (e.g. IntEnum)
+        return value & 0xFFFFFF
+    if isinstance(value, str):
+        return _rgb_int(str(value))
     if isinstance(value, Color):
         # A real Color object — we can't unpack it cheaply, so fall back to
         # the slow path by stashing it; element() will use with_fg.
@@ -135,12 +152,22 @@ class T:
 
     # -- colors (resolve to packed int in pure Python) ------------------------
     def fg(self, c: Any) -> "T":
-        self._fg = c if isinstance(c, Color) else _rgb_int(c)
+        # Common case: a palette name. Inline the dict hit to skip both the
+        # isinstance(Color) test and the _rgb_int call frame entirely.
+        if type(c) is str:
+            hit = _PALETTE.get(c)
+            self._fg = hit if hit is not None else _rgb_int(c)
+        else:
+            self._fg = c if isinstance(c, Color) else _rgb_int(c)
         self._cache = None
         return self
 
     def bg(self, c: Any) -> "T":
-        self._bg = c if isinstance(c, Color) else _rgb_int(c)
+        if type(c) is str:
+            hit = _PALETTE.get(c)
+            self._bg = hit if hit is not None else _rgb_int(c)
+        else:
+            self._bg = c if isinstance(c, Color) else _rgb_int(c)
         self._cache = None
         return self
 
@@ -167,7 +194,11 @@ class T:
         e = self._cache
         if e is None:
             fg, bg = self._fg, self._bg
-            if isinstance(fg, Color) or isinstance(bg, Color):
+            # Hot path: both fg/bg are packed ints (or -1) → one styled_text
+            # crossing, no isinstance, no Style assembly.
+            if type(fg) is int and type(bg) is int:
+                e = _maya.styled_text(self._s, fg, bg, self._attrs)
+            else:
                 # Rare: a raw Color object was passed. Build a Style explicitly.
                 st = Style()
                 if isinstance(fg, Color):
@@ -186,8 +217,6 @@ class T:
                 if a & _STRIKE: st = st.with_strikethrough()
                 if a & _INVERSE: st = st.with_inverse()
                 e = _maya.text(self._s, st)
-            else:
-                e = _maya.styled_text(self._s, fg, bg, self._attrs)
             self._cache = e
         return e
 
@@ -202,7 +231,21 @@ def c(s: Any, col: Any) -> T: return T(s).fg(col)
 
 # ── element coercion ─────────────────────────────────────────────────────────
 def _el(x: Any) -> Element:
-    """Turn str / T / Element (or anything with .element()) into an Element."""
+    """Turn str / T / Element (or anything with .element()) into an Element.
+
+    Ordered by frequency: built children are mostly ``T`` (from b()/c()/fg())
+    and already-built ``Element`` boxes, so those are tested first with
+    `type() is` identity (cheaper than isinstance + MRO walk).
+    """
+    tx = type(x)
+    if tx is T:
+        e = x._cache
+        return e if e is not None else x.element()
+    if tx is Element:
+        return x
+    if tx is str:
+        return _maya.text(x)
+    # slower fallbacks (subclasses, None, duck-typed .element())
     if isinstance(x, Element):
         return x
     if isinstance(x, T):
@@ -220,7 +263,30 @@ def _el(x: Any) -> Element:
 
 
 def _children(items) -> list[Element]:
-    return [_el(x) for x in items]
+    # Hot path inlined: most children are T or already-built Element.
+    out = []
+    ap = out.append
+    styled = _maya.styled_text
+    for x in items:
+        tx = type(x)
+        if tx is T:
+            e = x._cache
+            if e is None:
+                fg, bg = x._fg, x._bg
+                # Inline the common int/int build — skip the element() frame.
+                if type(fg) is int and type(bg) is int:
+                    e = styled(x._s, fg, bg, x._attrs)
+                    x._cache = e
+                else:
+                    e = x.element()
+            ap(e)
+        elif tx is Element:
+            ap(x)
+        elif tx is str:
+            ap(_maya.text(x))
+        else:
+            ap(_el(x))
+    return out
 
 
 # ── layout ───────────────────────────────────────────────────────────────────
@@ -244,7 +310,25 @@ _COLOR_OPTS = ("border_color", "bg", "fg")
 _ALIASES = {"pad": "padding", "title": "_title"}
 
 
+# opts that box_simple handles directly; anything else forces the full path.
+_SIMPLE_OPTS = frozenset(("gap", "grow"))
+_DIR_ROW = _maya.FlexDirection.Row
+
+
 def _box(children, *, direction, **opts) -> Element:
+    # FAST PATH: a plain row/col with at most gap/grow (the vast majority of
+    # boxes). Skip the kwargs dict + the C++ side's ~25 opts.contains() probes
+    # by calling box_simple with a pre-built child list and scalars only.
+    if not opts or opts.keys() <= _SIMPLE_OPTS:
+        gap = opts.get("gap", -1)
+        grow = opts.get("grow", -1.0)
+        return _maya.box_simple(
+            _children(children),
+            0 if direction == _DIR_ROW else 1,
+            gap if gap is not None else -1,
+            float(grow) if grow is not None else -1.0,
+        )
+
     out: dict[str, Any] = {"direction": direction}
 
     # title is sugar: a centered border_text + a default Round border.
@@ -302,13 +386,63 @@ _OVERFLOW = {"visible": _maya.Overflow.Visible, "hidden": _maya.Overflow.Hidden,
              "scroll": _maya.Overflow.Scroll}
 
 
+def _fused_specs(children):
+    """If EVERY child is a fresh ``T`` with plain-int fg/bg (the table-cell
+    case), return ``(flat, n)`` where flat is a FLAT list
+    [s0,fg0,bg0,a0, s1,...] so the whole row builds in ONE crossing via
+    styled_text_row (no per-cell tuple objects). Return None to fall back to
+    the per-child path (any Element / nested box / Color-object child).
+    """
+    flat = []
+    ap = flat.append
+    n = 0
+    for x in children:
+        if type(x) is not T:
+            return None
+        fg = x._fg
+        bg = x._bg
+        if type(fg) is not int or type(bg) is not int:
+            return None
+        ap(x._s); ap(fg); ap(bg); ap(x._attrs)
+        n += 1
+    return (flat, n) if n else None
+
+
 def col(*children, **opts) -> Element:
     """Vertical stack. Children may be strings, T's, or Elements."""
+    if not opts:
+        f = _fused_specs(children)
+        if f is not None:
+            return _maya.styled_text_row(f[0], f[1], 1, -1, -1.0)
+        return _maya.box_simple(_children(children), 1, -1, -1.0)
+    if opts.keys() <= _SIMPLE_OPTS:
+        gap = opts.get("gap", -1)
+        grow = opts.get("grow", -1.0)
+        g = gap if gap is not None else -1
+        gr = float(grow) if grow is not None else -1.0
+        f = _fused_specs(children)
+        if f is not None:
+            return _maya.styled_text_row(f[0], f[1], 1, g, gr)
+        return _maya.box_simple(_children(children), 1, g, gr)
     return _box(children, direction=_maya.FlexDirection.Column, **opts)
 
 
 def row(*children, **opts) -> Element:
     """Horizontal stack."""
+    if not opts:
+        f = _fused_specs(children)
+        if f is not None:
+            return _maya.styled_text_row(f[0], f[1], 0, -1, -1.0)
+        return _maya.box_simple(_children(children), 0, -1, -1.0)
+    if opts.keys() <= _SIMPLE_OPTS:
+        gap = opts.get("gap", -1)
+        grow = opts.get("grow", -1.0)
+        g = gap if gap is not None else -1
+        gr = float(grow) if grow is not None else -1.0
+        f = _fused_specs(children)
+        if f is not None:
+            return _maya.styled_text_row(f[0], f[1], 0, g, gr)
+        return _maya.box_simple(_children(children), 0, g, gr)
     return _box(children, direction=_maya.FlexDirection.Row, **opts)
 
 

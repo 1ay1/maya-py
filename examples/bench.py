@@ -233,6 +233,20 @@ def main():
     v = f"maya-py {sp:.2f}× faster" if sp >= 1 else f"pure-python {1/sp:.2f}× faster"
     print(f"    →  {v}\n")
 
+    # ── what the µs comparison leaves out ────────────────────────────────
+    # The pyui renderer is a bespoke string-concatenator that ONLY knows how
+    # to draw this one dashboard: no flexbox, no wrapping, no responsive
+    # sizing, no partial-frame diff. maya-py builds a real layout tree and
+    # emits ONLY the cells that changed. On a real terminal (ssh / serial /
+    # tmux) the wire is the bottleneck, not the µs of string-building — see
+    # bench_live.py: maya writes ~11× fewer bytes per frame because it diffs.
+    # The fair number for an interactive app is the LIVE-APP path above
+    # (build memoised, only changed sub-trees rebuilt), not a full rebuild
+    # of every glyph every frame.
+    print("  note: pyui has no layout/diff — it re-emits the whole frame.")
+    print("        run bench_live.py for the wire-bytes story (maya ≈ 11× fewer")
+    print("        bytes/frame); that, not µs, is the real-terminal bottleneck.\n")
+
 
 if __name__ == "__main__":
     main()
