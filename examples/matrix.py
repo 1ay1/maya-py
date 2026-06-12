@@ -30,33 +30,51 @@ _TAIL = [((20 << 16) | (g << 8) | 40) for g in range(40, 161)]  # fading green r
 
 
 def _new_col(h):
-    return [random.uniform(-h, 0), random.uniform(0.3, 1.2), random.randint(4, max(4, h))]
+    return [random.uniform(-h, 0), random.uniform(0.15, 0.5), random.randint(4, max(4, h))]
 
 
 def _seed_col(h):
     # Initial seed: scatter heads across the whole height (not all above the
     # top) so the very first frame already shows rain instead of a blank
     # screen that fills in over the next second.
-    return [random.uniform(0, h), random.uniform(0.3, 1.2), random.randint(4, max(4, h))]
+    return [random.uniform(0, h), random.uniform(0.15, 0.5), random.randint(4, max(4, h))]
 
 
 class Rain:
     """Mutable per-column drop state, lazily sized to the terminal."""
-    __slots__ = ("w", "h", "cols")
+    __slots__ = ("w", "h", "cols", "glyphs")
 
     def __init__(self):
         self.w = self.h = 0
         self.cols = []
+        self.glyphs = []   # persistent glyph index per (y, x) cell
 
     def ensure(self, w, h):
         if w != self.w or h != self.h:
             self.w, self.h = w, h
             self.cols = [_seed_col(h) for _ in range(w)]
+            # One stable glyph per cell. Re-rolled only when a drop's HEAD
+            # passes a cell (see step), so a cell that isn't at a leading
+            # edge keeps its glyph frame-to-frame — the renderer's diff then
+            # emits nothing for it. Without this, re-randomising every lit
+            # cell every frame changes the whole screen each frame and the
+            # diff can't suppress anything (= a flood of output).
+            self.glyphs = [[random.randrange(_NG) for _ in range(w)]
+                           for _ in range(h)]
 
     def step(self):
         h = self.h
-        for cdef in self.cols:
+        glyphs = self.glyphs
+        w = self.w
+        for x, cdef in enumerate(self.cols):
+            prev_head = int(cdef[0])
             cdef[0] += cdef[1]          # advance head
+            new_head = int(cdef[0])
+            # Re-roll the glyph(s) the head just stepped onto/through, so the
+            # leading character flickers but the settled tail stays stable.
+            for y in range(prev_head + 1, new_head + 1):
+                if 0 <= y < h:
+                    glyphs[y][x] = random.randrange(_NG)
             if cdef[0] - cdef[2] > h:   # fell off the bottom → respawn at top
                 cdef[0], cdef[1], cdef[2] = _new_col(h)
 
@@ -74,6 +92,7 @@ def _draw(w, h):
         return col()
     _rain.ensure(w, h)
     cols = _rain.cols
+    cell_glyphs = _rain.glyphs
 
     # grid[y][x] = brightness in [0,1] or None (blank)
     grid = [[None] * w for _ in range(h)]
@@ -86,14 +105,15 @@ def _draw(w, h):
             if 0 <= y < h:
                 grid[y][x] = 1.0 - i * inv
 
-    rnd = random.random
-    choice_i = random.randrange
     rows = []
     ntail = len(_TAIL)
     for y in range(h):
         row = grid[y]
+        grow = cell_glyphs[y]
         # Each cell is a (text, fg, bg, attrs) spec. Blanks are plain " "
-        # (no style). trow builds the whole row in ONE crossing.
+        # (no style). The glyph is the cell's STABLE glyph (only the head
+        # re-rolls in step), so unchanged cells produce identical specs
+        # frame-to-frame and the renderer's diff emits nothing for them.
         specs = []
         ap = specs.append
         for x in range(w):
@@ -101,7 +121,7 @@ def _draw(w, h):
             if b is None:
                 ap(" ")
                 continue
-            ch = GLYPHS[choice_i(_NG)]
+            ch = GLYPHS[grow[x]]
             if b > 0.92:
                 ap((ch, _WHITE, -1, BOLD))
             elif b > 0.5:
@@ -114,7 +134,7 @@ def _draw(w, h):
 
 ROWS = 22
 
-app = App("matrix", inline=True, fps=16)
+app = App("matrix", inline=True, fps=12)
 app.state(paused=False)
 
 
