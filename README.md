@@ -301,6 +301,8 @@ each (CI-friendly, no TTY needed).
 - `breakout.py` — Breakout/Arkanoid with bricks, comet trail, particles.
 - `life.py` — Conway's Game of Life with heat-aging palettes + patterns.
 - `sorts.py` — five sorting algorithms racing side by side.
+- `maze.py` — watch a maze carve itself (recursive backtracker) then a BFS
+  flood-solve it; **click to set the start cell, right-click the goal**.
 
 **Graphics & sims** (`animate` / `App` render loops):
 
@@ -312,6 +314,11 @@ each (CI-friendly, no TTY needed).
 - `fps.py` — a Wolfenstein-style textured raycaster with a minimap.
 - `mandelbrot.py` — a zooming coloured Mandelbrot. `matrix.py` — digital rain.
 - `canvas.py` — the `Canvas` drawing surface: lines, rects, a live plot.
+- `clock.py` — a live analog clock drawn on the `Canvas` (hands, ticks, arc).
+- `gravity.py` — an n-body gravity sandbox; **mouse-hover crosshair, click to
+  spawn an orbiting burst** at the exact pixel.
+- `boids.py` — Reynolds flocking; **the mouse leads or scatters the flock**
+  (precise, viewport-bounds hit-testing — no hardcoded offsets).
 
 **Dashboards & data:**
 
