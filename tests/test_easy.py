@@ -113,6 +113,30 @@ def test_T_color_object_still_works():
     assert "c" in out
 
 
+def test_row_tuple_cells_identical_to_row_of_T():
+    # row() accepts (text, fg[, bg[, attrs]]) tuple cells directly and must
+    # render byte-identically to the equivalent row of T objects.
+    from maya_py import DIM
+    a = row(T("svc").fg("sky"), c("OK", "green"), T("5ms").dim,
+            T("100").fg("gold"), gap=2)
+    b_ = row(("svc", "sky"), ("OK", "green"), ("5ms", None, None, DIM),
+             ("100", "gold"), gap=2)
+    assert maya.to_string(a, 60) == maya.to_string(b_, 60)
+
+
+def test_row_mixes_tuple_and_nested_elements():
+    # A built Element / nested box child forces the general (box) path; the
+    # tuple cells still render. This must NOT raise.
+    out = maya.to_string(
+        row(("left", "sky"), col(T("a"), T("b")), gap=1), 30)
+    assert "left" in out and "a" in out and "b" in out
+
+
+def test_col_tuple_cells_stack():
+    out = maya.to_string(col(("top", "sky"), ("bot", "red")), 20)
+    assert "top" in out and "bot" in out and out.count("\n") >= 1
+
+
 def test_trow_byte_identical_to_row_of_T():
     from maya_py import trow, DIM
     a = row(T("svc").fg("sky"), c("OK", "green"), T("5ms").dim,
@@ -120,6 +144,15 @@ def test_trow_byte_identical_to_row_of_T():
     b_ = trow(("svc", "sky"), ("OK", "green"), ("5ms", None, None, DIM),
               ("100", "gold"), gap=2)
     assert maya.to_string(a, 60) == maya.to_string(b_, 60)
+
+
+def test_trow_aliases_row():
+    # trow/tcol are back-compat aliases — same result as row/col with tuples.
+    from maya_py import trow, tcol
+    assert (maya.to_string(trow(("x", "sky"), ("y", "red")), 20)
+            == maya.to_string(row(("x", "sky"), ("y", "red")), 20))
+    assert (maya.to_string(tcol(("x", "sky"), ("y", "red")), 20)
+            == maya.to_string(col(("x", "sky"), ("y", "red")), 20))
 
 
 def test_trow_plain_strings():

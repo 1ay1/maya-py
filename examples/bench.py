@@ -24,7 +24,7 @@ import time
 import statistics
 
 import maya_py as maya
-from maya_py import col, row, trow, card, field, b, c, hr, T, DIM
+from maya_py import col, row, card, field, b, c, hr, T, DIM
 
 
 # ── workload parameters ──────────────────────────────────────────────────────
@@ -88,16 +88,17 @@ def maya_render(tree, width):
 
 
 def maya_build_fast(data):
-    """Same tree, built via the zero-allocation `trow` fast path: each table
-    row's styled cells are passed as (text, color) specs and cross the
-    boundary ONCE, with no throwaway T object per cell. Byte-identical output
-    to maya_build — this is the speed door for hot redraw loops."""
+    """Same tree, same `row`/`col` API — just passing each table cell as a
+    (text, color[, bg, attrs]) TUPLE spec instead of a `T(...)` object. row()
+    flattens the tuple cells in one pass and crosses the boundary ONCE, with
+    no throwaway T per cell. Byte-identical output to maya_build; this is the
+    drop-in speed door for hot redraw loops (no new function to learn)."""
     table_rows = [
-        trow((d["name"], "sky"),
-             (d["status"][0], d["status"][1]),
-             (d["latency"], None, None, DIM),
-             (d["rps"], "gold"),
-             gap=2)
+        row((d["name"], "sky"),
+            (d["status"][0], d["status"][1]),
+            (d["latency"], None, None, DIM),
+            (d["rps"], "gold"),
+            gap=2)
         for d in data
     ]
     return card(
@@ -245,9 +246,9 @@ def main():
     print(f"    →  {verdict}\n")
 
     print("  maya-py breakdown:")
-    print(f"    build  T+row API (Python)   {fmt_us(maya_build_only)}")
-    print(f"    build  trow fast path       {fmt_us(maya_build_fast_only)}"
-          f"  (zero T objects, same output)")
+    print(f"    build  row(T(...))  styled  {fmt_us(maya_build_only)}")
+    print(f"    build  row((text,color))    {fmt_us(maya_build_fast_only)}"
+          f"  (tuple cells, zero T, same output)")
     print(f"    render (native layout+diff) {fmt_us(maya_render_only)}")
     pct = maya_build_only / (maya_build_only + maya_render_only) * 100
     print(f"    →  Python boundary is {pct:.0f}% of maya-py's time\n")

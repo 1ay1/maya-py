@@ -531,20 +531,25 @@ Three levers close most of the Python-side gap:
    pure Python and makes a *single* boundary crossing when the element is
    built (4.8× faster than the naive one-call-per-`.bold` approach).
 
-2. **`trow` / `tcol` skip the `T` objects entirely.** In a hot redraw path
-   (tables, lists, dashboards) the throwaway `T` per cell is the dominant
-   build cost. Pass `(text, fg[, bg[, attrs]])` specs instead and the whole
-   row crosses the boundary once — byte-identical output, ~17% less build
-   time on a 30-row table:
+2. **Pass styled cells as tuples to skip the `T` objects.** `row`/`col`
+   accept `(text, fg[, bg[, attrs]])` tuple specs directly — in a hot redraw
+   path (tables, lists, dashboards) the throwaway `T` per cell is the
+   dominant build cost, and the tuple form flattens the whole row in one
+   boundary crossing. Byte-identical output, same API:
 
    ```python
-   from maya_py import trow, DIM
+   from maya_py import row, T, c, DIM
 
-   # friendly (reads nicer for one-off UI):
+   # reads nicer for one-off UI:
    row(T(name).fg("sky"), c(status, color), T(latency).dim, gap=2)
-   # fast (same output, zero T allocations — use in per-frame loops):
-   trow((name, "sky"), (status, color), (latency, None, None, DIM), gap=2)
+   # faster (tuple cells, zero T allocations — use in per-frame loops):
+   row((name, "sky"), (status, color), (latency, None, None, DIM), gap=2)
    ```
+
+   You can mix both, and any built Element / nested box / component child
+   transparently falls back to the general path — so `row(sidebar,
+   grow(main))` still works. (`trow`/`tcol` are kept as back-compat aliases;
+   new code can just use `row`/`col`.)
 
 3. **`memo` caches unchanged sub-trees.** In a live app, wrap builders whose
    inputs rarely change — the hot frame then does *no* Python tree
@@ -564,10 +569,10 @@ Three levers close most of the Python-side gap:
 **Bottom line:** building a UI in Python always costs Python calls, but the
 thing that actually matters in a terminal — the per-frame redraw — is now
 *faster than a hand-tuned pure-Python renderer*: maya's native layout + paint
-renders the cached tree in ~24µs vs ~70µs for the bespoke string-builder in
+renders the cached tree in ~25µs vs ~70µs for the bespoke string-builder in
 `examples/bench.py`, while still doing real flexbox, wrapping, and a
-partial-frame diff. `memo` + `trow` let the steady-state frame skip Python
-almost entirely.
+partial-frame diff. `memo` + tuple-cell `row`/`col` let the steady-state frame
+skip Python almost entirely.
 
 ## License
 

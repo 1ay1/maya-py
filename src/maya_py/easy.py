@@ -230,8 +230,23 @@ def c(s: Any, col: Any) -> T: return T(s).fg(col)
 
 
 # ── element coercion ─────────────────────────────────────────────────────────
+def _spec_element(x):
+    """Build a styled-text Element from a ``(text, fg[, bg[, attrs]])`` tuple
+    cell, or None if ``x`` isn't such a spec. Lets row/col mix tuple cells
+    with nested Elements: when the fused path bails (a nested box is present)
+    the per-child path still understands the tuple cells."""
+    if (type(x) is tuple or type(x) is list) and x and type(x[0]) is str:
+        ln = len(x)
+        fg = _resolve_col(x[1]) if ln > 1 else -1
+        bg = _resolve_col(x[2]) if ln > 2 else -1
+        at = x[3] if ln > 3 else 0
+        return _maya.styled_text(x[0], fg, bg, at)
+    return None
+
+
 def _el(x: Any) -> Element:
-    """Turn str / T / Element (or anything with .element()) into an Element.
+    """Turn str / T / Element / (text, color) tuple (or anything with
+    .element()) into an Element.
 
     Ordered by frequency: built children are mostly ``T`` (from b()/c()/fg())
     and already-built ``Element`` boxes, so those are tested first with
@@ -245,6 +260,10 @@ def _el(x: Any) -> Element:
         return x
     if tx is str:
         return _maya.text(x)
+    if tx is tuple or tx is list:
+        e = _spec_element(x)
+        if e is not None:
+            return e
     # slower fallbacks (subclasses, None, duck-typed .element())
     if isinstance(x, Element):
         return x
@@ -387,25 +406,41 @@ _OVERFLOW = {"visible": _maya.Overflow.Visible, "hidden": _maya.Overflow.Hidden,
 
 
 def _stack(children, direction, g, gr):
-    # Try the fused fast path: every child a plain-int T → build the flat
-    # [s,fg,bg,a,...] list in one pass and cross once via styled_text_row.
+    # Fused fast path: build the flat [s,fg,bg,a,...] list in ONE pass and
+    # cross once via styled_text_row — no per-cell Element, no per-cell
+    # boundary crossing. A child qualifies for the fast path when it is:
+    #   • a tuple/list spec  (text, fg[, bg[, attrs]])   ← zero allocations
+    #   • a fresh T with plain-int fg/bg                 ← throwaway T
+    #   • a bare str                                     ← unstyled cell
+    # The moment ANY child is a built Element / nested box / component, we
+    # fall back to the general per-child path (box_simple) — those can't be
+    # flattened into a text row.
     flat = []
     ext = flat.extend
     n = 0
-    ok = True
     for x in children:
-        if type(x) is not T:
-            ok = False
-            break
-        fg = x._fg
-        bg = x._bg
-        if type(fg) is not int or type(bg) is not int:
-            ok = False
-            break
-        ext((x._s, fg, bg, x._attrs))
+        tx = type(x)
+        if (tx is tuple or tx is list) and x and type(x[0]) is str:
+            ln = len(x)
+            fg = _resolve_col(x[1]) if ln > 1 else -1
+            bg = _resolve_col(x[2]) if ln > 2 else -1
+            at = x[3] if ln > 3 else 0
+            ext((x[0], fg, bg, at))
+        elif tx is T:
+            fg = x._fg
+            bg = x._bg
+            if type(fg) is not int or type(bg) is not int:
+                break          # Color-object T → slow path
+            ext((x._s, fg, bg, x._attrs))
+        elif tx is str:
+            ext((x, -1, -1, 0))
+        else:
+            break              # Element / box / component → slow path
         n += 1
-    if ok and n:
-        return _maya.styled_text_row(flat, n, direction, g, gr)
+    else:
+        # Loop completed without `break` → every child was flattenable.
+        if n:
+            return _maya.styled_text_row(flat, n, direction, g, gr)
     return _maya.box_simple(_children(children), direction, g, gr)
 
 
@@ -447,51 +482,16 @@ def _resolve_col(c) -> int:
     return _rgb_int(c)
 
 
-def _tstack(specs, direction, g, gr):
-    # Build the flat [s,fg,bg,a,...] list straight from lightweight specs,
-    # never allocating a T per cell. Each spec is one of:
-    #   "text"                       plain, no style
-    #   (text, fg)                   fg only
-    #   (text, fg, bg)               fg + bg
-    #   (text, fg, bg, attrs)        full
-    # fg/bg are palette names, packed ints, or None. attrs is the bitmask.
-    flat = []
-    ext = flat.extend
-    n = 0
-    for sp in specs:
-        if type(sp) is str:
-            ext((sp, -1, -1, 0))
-        else:
-            ln = len(sp)
-            s = sp[0]
-            fg = _resolve_col(sp[1]) if ln > 1 else -1
-            bg = _resolve_col(sp[2]) if ln > 2 else -1
-            at = sp[3] if ln > 3 else 0
-            ext((s if type(s) is str else str(s), fg, bg, at))
-        n += 1
-    if not n:
-        return _maya.box_simple([], direction, g, gr)
-    return _maya.styled_text_row(flat, n, direction, g, gr)
-
-
 def trow(*specs, gap=-1, grow=-1.0) -> Element:
-    """Fastest horizontal row of styled cells — NO intermediate ``T`` objects.
-
-    Each cell is a plain string or a ``(text, fg[, bg[, attrs]])`` tuple; the
-    whole row builds in a single C++ crossing. Use this in hot redraw paths
-    (tables, lists, dashboards) where ``row(T(...).fg(...), ...)`` would
-    allocate a throwaway ``T`` per cell:
-
-        trow((name, "sky"), (status, color), (latency, None, None, DIM), gap=2)
-
-    For one-off UI, ``row(T(...)...)`` reads nicer; this is the speed door.
-    """
-    return _tstack(specs, 0, gap, float(grow))
+    """Alias for ``row`` kept for back-compat — ``row`` now takes the same
+    ``(text, fg[, bg[, attrs]])`` tuple-cell specs at identical speed, so new
+    code can just use ``row(...)``."""
+    return _stack(specs, 0, gap, float(grow))
 
 
 def tcol(*specs, gap=-1, grow=-1.0) -> Element:
-    """Vertical counterpart of :func:`trow` — styled cells, zero ``T`` objects."""
-    return _tstack(specs, 1, gap, float(grow))
+    """Alias for ``col`` kept for back-compat (see :func:`trow`)."""
+    return _stack(specs, 1, gap, float(grow))
 
 
 # Attribute bitmask constants for trow/tcol specs (match make_styled_text).
@@ -594,12 +594,12 @@ def sides(*, top=True, right=True, bottom=True, left=True):
 def field(label: str, value: Any, *, label_color="slate", value_color=None) -> Element:
     """A 'Label: value' row with a dim label."""
     # Fast path: a plain string/number value (the common case) builds the
-    # whole row in one crossing via trow — no per-cell T objects.
+    # whole row in one crossing via tuple-cell specs — no per-cell T objects.
     tv = type(value)
     if tv is str or tv is int or tv is float:
-        return trow((label + ":", label_color),
-                    (value if tv is str else str(value), value_color),
-                    gap=1)
+        return row((label + ":", label_color),
+                   (value if tv is str else str(value), value_color),
+                   gap=1)
     val = value if isinstance(value, (T, Element)) else T(str(value))
     if value_color is not None and isinstance(val, T):
         val = val.fg(value_color)
