@@ -69,9 +69,15 @@ MAYA_PY_STATIC_CXX = "ON"
 # bootstraps a modern GCC inside the container before building.
 [tool.cibuildwheel]
 build-frontend = "build"
-# Skip targets we can't realistically build maya on (32-bit, musl, PyPy).
-skip = ["*-musllinux*", "pp*", "*_i686", "*-win32"]
-test-command = "python -c \"import maya_py; print(maya_py.to_string(maya_py.card('ok'), 20))\""
+# Skip targets we can't realistically build maya on (32-bit, musl). PyPy and
+# win32 aren't enabled in the first place, so listing them as skips just emits
+# a cibuildwheel "selector matches a group that wasn't enabled" warning.
+skip = ["*-musllinux*", "*_i686"]
+# Smoke test the installed wheel. We must NOT print the rendered box-drawing
+# output directly: Windows' default console codec is cp1252, which can't encode
+# │╭╰ etc. and raises UnicodeEncodeError. Assert the render produced a
+# non-empty string and print only ASCII.
+test-command = "python -c \"import maya_py; s = maya_py.to_string(maya_py.card('ok'), 20); assert isinstance(s, str) and s.strip(); print('maya_py import + render OK', len(s), 'chars')\""
 
 [tool.cibuildwheel.linux]
 # Use the glibc-2.28 image; the .so will demand at most that glibc.
