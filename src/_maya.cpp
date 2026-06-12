@@ -550,14 +550,24 @@ PYBIND11_MODULE(_maya, m) {
               thread_local std::vector<layout::LayoutNode> layout_nodes;
               thread_local Canvas canvas{1, 1, &pool};
               thread_local int last_width = -1;
+              thread_local int last_used_rows = 0;   // rows touched last call
 
               constexpr int kInitH = 120;   // covers the common < 2-screen case
               if (width != last_width || canvas.height() < kInitH) {
                   canvas.resize(width, kInitH);
                   last_width = width;
+                  last_used_rows = canvas.height();   // full clear after resize
               }
               canvas.set_style_pool(&pool);
-              canvas.clear();
+              // Clear only the rows the previous render actually wrote (plus a
+              // small margin) instead of the whole kInitH-row grid — most
+              // frames use a fraction of the canvas, so a full clear() wastes
+              // cycles zeroing blank rows. clear_rows(n) caps at height().
+              {
+                  int n = last_used_rows + 4;
+                  if (n > canvas.height()) n = canvas.height();
+                  canvas.clear_rows(n);
+              }
               render_tree(e, canvas, pool, theme::dark, layout_nodes,
                           /*auto_height=*/true);
 
@@ -572,20 +582,40 @@ PYBIND11_MODULE(_maya, m) {
                       rows = content_height(canvas);
                   }
               }
-              if (rows < 0) return {};
+              if (rows < 0) { last_used_rows = 0; return {}; }
+              last_used_rows = rows + 1;
 
+              // Encode straight from the packed cell buffer. Two wins over
+              // the old get(x,y) loop:
+              //  (1) last_content_col(y) gives each row's trimmed extent
+              //      in O(1) (maya maintains it incrementally) — no need to
+              //      emit width trailing blanks then rescan-and-trim them.
+              //  (2) reading the row pointer + masking the low 32 bits
+              //      (Cell::character) skips get()'s bounds check and the
+              //      full Cell::unpack (style/link/width fields we discard).
+              const uint64_t* cells = canvas.cells();
+              const int cw = canvas.width();
               std::string result;
               result.reserve(static_cast<std::size_t>((width + 1) * (rows + 1)));
               for (int y = 0; y <= rows; ++y) {
-                  std::size_t row_start = result.size();
-                  for (int x = 0; x < width; ++x) {
-                      char32_t ch = canvas.get(x, y).character;
+                  int last = canvas.last_content_col(y);
+                  if (last > width - 1) last = width - 1;
+                  const uint64_t* rowp = cells + static_cast<std::size_t>(y) * cw;
+                  // Match the old trim semantics: drop trailing cells whose
+                  // CHARACTER is a space, regardless of style. last_content_col
+                  // counts a styled (e.g. bg-coloured) space as content, but
+                  // to_string emits characters only, so a trailing styled
+                  // space is indistinguishable from a plain one and must be
+                  // trimmed identically.
+                  while (last >= 0) {
+                      char32_t c = static_cast<char32_t>(rowp[last] & 0xFFFFFFFFu);
+                      if (c == U' ' || c == U'\0') --last; else break;
+                  }
+                  for (int x = 0; x <= last; ++x) {
+                      char32_t ch = static_cast<char32_t>(rowp[x] & 0xFFFFFFFFu);
                       if (ch == U'\0') ch = U' ';
                       detail::encode_utf8(ch, result);
                   }
-                  std::size_t end = result.size();
-                  while (end > row_start && result[end - 1] == ' ') --end;
-                  result.resize(end);
                   if (y < rows) result += '\n';
               }
               return result;

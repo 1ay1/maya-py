@@ -244,8 +244,14 @@ def main():
     # (build memoised, only changed sub-trees rebuilt), not a full rebuild
     # of every glyph every frame.
     print("  note: pyui has no layout/diff — it re-emits the whole frame.")
-    print("        run bench_live.py for the wire-bytes story (maya ≈ 11× fewer")
-    print("        bytes/frame); that, not µs, is the real-terminal bottleneck.\n")
+    print("        On the LIVE-APP path (the realistic interactive case: the")
+    print("        element tree is memoised and only re-rendered) maya-py's")
+    print("        native layout+paint now BEATS the bespoke pure-Python")
+    print("        string-concatenator outright — and unlike pyui it still does")
+    print("        real flexbox, wrapping, responsive sizing, and a partial-frame")
+    print("        diff. On a real terminal (ssh / serial / tmux) the wire is the")
+    print("        bottleneck too: bench_live.py shows maya writes ~11× fewer")
+    print("        bytes/frame because it diffs.\n")
 
 
 if __name__ == "__main__":
