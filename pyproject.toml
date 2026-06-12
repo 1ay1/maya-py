@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "maya-py"
-version = "0.1.4"
+version = "0.1.5"
 description = "Python bindings for the maya C++26 TUI framework"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -42,6 +42,11 @@ Issues = "https://github.com/1ay1/maya-py/issues"
 minimum-version = "0.10"
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["src/maya_py"]
+# maya is pulled in via add_subdirectory, so its own install() rules (headers,
+# libmaya.a, cmake export files) would otherwise be packaged into the wheel
+# root. End users only need the maya_py/ Python package + the self-contained
+# _maya extension; drop the C++ build artifacts so the wheel stays lean.
+wheel.exclude = ["include/**", "lib/**"]
 
 [tool.scikit-build.cmake]
 version = ">=3.28"
