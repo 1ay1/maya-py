@@ -156,9 +156,13 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../maya-src/CMakeLists.txt")
     message(STATUS "maya_py: using local maya at ../maya-src")
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../maya-src" maya_build)
 else()
+    # Pinned to a specific maya commit (not a moving `master`) so release
+    # wheels are reproducible. This commit includes the terminal-color-depth
+    # downgrade fix (RGB → 256/16 on terminals without truecolor, e.g. macOS
+    # Terminal.app). Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        master)
+        GIT_TAG        d9bc0ca03b0a39ebfe7afcdd8ee1ae9e76d8cfae)
     FetchContent_MakeAvailable(maya)
 endif()
 

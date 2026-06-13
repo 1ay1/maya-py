@@ -118,3 +118,34 @@ jobs:
           # Don't fail the whole release if a re-run hits an already-uploaded
           # file (e.g. re-tagging the same version).
           skip-existing: true
+
+  # Publish the Intel-mac (x86_64) wheels to PyPI when they're ready, WITHOUT
+  # gating the main publish above. The macos-13 runner pool is scarce and can
+  # queue for a long time; this separate job depends only on the non-blocking
+  # Intel build, so Apple-Silicon/Linux/Windows users get their release on time
+  # while Intel-mac wheels land on PyPI shortly after the build finishes.
+  # skip-existing dedupes against anything the main job already uploaded, and
+  # continue-on-error means a runner-queue timeout (no Intel artifact) can't
+  # turn the release red.
+  publish_pypi_macos_intel:
+    name: publish intel-mac wheels to PyPI (non-blocking)
+    needs: [build_wheels_macos_intel]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    continue-on-error: true
+    environment:
+      name: pypi
+      url: https://pypi.org/project/maya-py/
+    permissions:
+      id-token: write   # OIDC token for PyPI Trusted Publishing (no secret)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: wheels-macos-13
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
