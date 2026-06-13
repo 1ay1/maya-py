@@ -50,7 +50,6 @@ from ._maya import (
     hstack,
     zstack,
     blank,
-    nothing,
     # rendering
     render_to_string,
     live,
@@ -73,6 +72,11 @@ from ._maya import (
     mouse_button,
     mouse_kind,
     is_mouse,
+    # event data accessors
+    event_char,
+    pasted,
+    resize_size,
+    string_width,
 )
 
 # ── MVU runtime (the full Program model, same as C++ run<P>) ────────────
@@ -105,6 +109,7 @@ __all__ = [
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
     "mouse_clicked", "mouse_released", "mouse_moved", "scrolled_up",
     "scrolled_down", "mouse_pos", "mouse_button", "mouse_kind", "is_mouse",
+    "event_char", "pasted", "resize_size", "string_width",
     "Round", "Single", "Double", "BoldBorder", "Classic", "Dashed",
     "SingleDouble", "DoubleSingle", "Arrow",
     "Row", "Column", "RowReverse", "ColumnReverse",
@@ -214,10 +219,12 @@ def print(element, *args, width: int | None = None, **kwargs):  # noqa: A001
 from .easy import (  # noqa: E402
     T, b, i, u, dim as _dim_markup, c, color,
     col, row, trow, tcol, card, field, hr, spacer, memo,
-    center, stack, component, nothing as _nothing_easy, grow,
+    center, stack, component, nothing, grow,
     pct, cells, auto, sides,
     BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE,
     show, to_string, App, animate,
+    gradient_at, fmt_duration,
+    text_input, textarea,
 )
 
 # Note: `easy.dim` is a markup helper (dim("x") -> styled T); the bare `dim`
@@ -232,6 +239,8 @@ __all__ += [
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "animate",
+    "gradient_at", "fmt_duration",
+    "text_input", "textarea",
 ]
 
 # ── Widgets (maya's native renderers) ────────────────────────────────
@@ -263,5 +272,19 @@ __all__ += [
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]
 
+# ── Pixel rendering (half-block) ─────────────────────────────────────
+from .pixels import halfblock, PixelField, pixel_canvas  # noqa: E402
 
-__version__ = "0.1.4"
+__all__ += ["halfblock", "PixelField", "pixel_canvas"]
+
+
+# Single-source the version from installed package metadata so it can't drift
+# from pyproject.toml. The fallback covers running straight from a source tree
+# (PYTHONPATH=src, no install) and is bumped at release time.
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("maya-py")
+    del _pkg_version
+except Exception:  # PackageNotFoundError or metadata missing (source checkout)
+    __version__ = "0.2.0"

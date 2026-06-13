@@ -34,6 +34,7 @@ Three ideas:
 
 from __future__ import annotations
 
+import time as _time
 from typing import Any, Callable
 
 from . import _maya
@@ -691,6 +692,34 @@ _MOUSE_BTN = {
 }
 
 
+def text_input(placeholder: str = "", *, password: bool = False,
+               multiline: bool = False):
+    """An interactive text field — a real maya ``Input`` widget hosted in
+    Python (cursor, UTF-8 editing, history, password masking). Register it
+    with ``app.focus(...)`` so it receives keystrokes, read ``.value``, and
+    drop it straight into a view.
+
+        name = text_input("your name…")
+        app.focus(name)
+
+        @app.view
+        def view(s): return col("Name:", name, f"hello {name.value}")
+
+    ``name.value`` (read/write), ``name.clear()``, ``name.on_submit(fn)`` (Enter),
+    ``name.on_change(fn)``.
+    """
+    inp = _maya._widgets.Input(password=password, multiline=multiline)
+    if placeholder:
+        inp.set_placeholder(placeholder)
+    return inp
+
+
+def textarea(placeholder: str = ""):
+    """A multi-line :func:`text_input` (Enter inserts a newline; Ctrl/Shift-Enter
+    submits)."""
+    return text_input(placeholder, multiline=True)
+
+
 class App:
     """An interactive maya app with zero event-loop boilerplate.
 
@@ -714,21 +743,38 @@ class App:
     """
 
     def __init__(self, title: str = "", *, inline: bool = True,
-                 mouse: bool = False, fps: int = 0, quit_on_ctrl_c: bool = True):
+                 mouse: bool = False, fps: int = 0, quit_on_ctrl_c: bool = True,
+                 quit_keys: tuple[str, ...] = (), **state):
         self.title = title
         self.inline = inline
         self.mouse = mouse
         self.fps = fps
         self.quit_on_ctrl_c = quit_on_ctrl_c
+        self.quit_keys = tuple(quit_keys)
         self._state = _State()
         self._bindings: list[tuple[Callable[[Any], bool], Callable]] = []
         self._view: Callable[[Any], Any] | None = None
         self._any: list[Callable] = []
+        self._frames: list[Callable] = []               # per-frame tick handlers
+        self._last_frame_t: float | None = None
         self._clicks: list[tuple[Any, Callable]] = []   # (button|None, fn)
         self._scrolls: list[Callable] = []
         self._mouse_any: list[Callable] = []
+        self._pastes: list[Callable] = []
+        self._resizes: list[Callable] = []
+        self._focusable: list = []                      # widgets receiving keys
+        self._focus_idx: int = -1
         self._running = True
         self._ctrl_c_bound = False  # set if the user binds ctrl+c themselves
+        # Initial state passed straight to the constructor: App("counter", n=0).
+        if state:
+            self._state.__dict__.update(state)
+        # quit_keys=("q","esc") auto-binds those keys to stop() — no need to
+        # hand-write the quit handler every app.
+        for k in self.quit_keys:
+            m = self._matcher(k)
+            self._bindings.append((lambda ev, m=m: m(ev),
+                                   lambda s: self.stop()))
 
     # -- state ---------------------------------------------------------------
     def state(self, **kw) -> _State:
@@ -758,6 +804,23 @@ class App:
     def on_key(self, fn):
         """Decorator: call ``fn(state, event)`` for every key event."""
         self._any.append(fn)
+        return fn
+
+    def on_frame(self, fn):
+        """Decorator: call ``fn(state, dt)`` once per frame, BEFORE the view
+        renders, where ``dt`` is seconds since the previous frame. Put your
+        animation / simulation step here so ``view(state)`` stays a pure
+        function of state.
+
+            @app.on_frame
+            def tick(s, dt): s.t += dt
+
+        Registering a frame handler turns on continuous redraw: if ``fps`` was
+        left at 0 (event-driven), it defaults to 30.
+        """
+        self._frames.append(fn)
+        if self.fps <= 0:
+            self.fps = 30
         return fn
 
     # -- mouse bindings ------------------------------------------------------
@@ -794,6 +857,47 @@ class App:
         self.mouse = True
         self._mouse_any.append(fn)
         return fn
+
+    def on_paste(self, fn):
+        """Decorator: call ``fn(state, text)`` on a bracketed paste. (A focused
+        text widget also receives the paste automatically.)"""
+        self._pastes.append(fn)
+        return fn
+
+    def on_resize(self, fn):
+        """Decorator: call ``fn(state, cols, rows)`` when the terminal resizes."""
+        self._resizes.append(fn)
+        return fn
+
+    # -- focus / interactive widgets -----------------------------------------
+    def focus(self, *widgets):
+        """Register interactive widgets (``text_input`` / ``textarea`` / any
+        object with ``handle(event)`` + ``focused``) to receive keystrokes.
+
+        The focused widget gets each key first; Tab / Shift-Tab cycle focus;
+        keys a widget doesn't consume fall through to your ``@app.on`` bindings.
+        Returns the first widget for convenience.
+        """
+        self._focusable = list(widgets)
+        self._focus_idx = 0 if widgets else -1
+        for j, wdg in enumerate(self._focusable):
+            wdg.focused = (j == 0)
+        return widgets[0] if widgets else None
+
+    def _focused_widget(self):
+        if 0 <= self._focus_idx < len(self._focusable):
+            return self._focusable[self._focus_idx]
+        return None
+
+    def _cycle_focus(self, step: int) -> None:
+        n = len(self._focusable)
+        if n == 0:
+            return
+        cur = self._focused_widget()
+        if cur is not None:
+            cur.focused = False
+        self._focus_idx = (self._focus_idx + step) % n
+        self._focusable[self._focus_idx].focused = True
 
     def view(self, fn):
         """Decorator: register the view function ``fn(state) -> node``."""
@@ -847,6 +951,36 @@ class App:
                         fn(self._state, col, row)
             return self._running
 
+        # Paste: feed the focused widget, then notify on_paste handlers.
+        paste = _maya.pasted(ev)
+        if paste is not None:
+            cur = self._focused_widget()
+            if cur is not None:
+                cur.handle(ev)
+            for fn in self._pastes:
+                fn(self._state, paste)
+            return self._running
+
+        # Resize: notify on_resize handlers.
+        size = _maya.resize_size(ev)
+        if size is not None:
+            for fn in self._resizes:
+                fn(self._state, size[0], size[1])
+            return self._running
+
+        # Focused interactive widget gets keys first. Tab / Shift-Tab cycle
+        # focus; anything the widget doesn't consume falls through to bindings.
+        if self._focusable:
+            if _maya.key_special(ev, SpecialKey.Tab):
+                self._cycle_focus(+1)
+                return self._running
+            if _maya.key_special(ev, SpecialKey.BackTab):
+                self._cycle_focus(-1)
+                return self._running
+            cur = self._focused_widget()
+            if cur is not None and cur.handle(ev):
+                return self._running
+
         for fn in self._any:
             fn(self._state, ev)
         for match, fn in self._bindings:
@@ -856,6 +990,12 @@ class App:
         return self._running
 
     def _render(self) -> Element:
+        if self._frames:
+            now = _time.monotonic()
+            dt = 0.0 if self._last_frame_t is None else now - self._last_frame_t
+            self._last_frame_t = now
+            for fn in self._frames:
+                fn(self._state, dt)
         if self._view is None:
             return _maya.text("(no view registered)")
         return _el(self._view(self._state))
@@ -875,6 +1015,52 @@ class App:
             self._in_run = False
 
 
+# ── color + formatting utilities ─────────────────────────────────────────────
+def gradient_at(stops, t: float) -> tuple[int, int, int]:
+    """Interpolate a color across evenly-spaced ``stops`` at position ``t``.
+
+    ``stops`` is a list of (r, g, b) tuples; ``t`` is clamped to [0, 1]. Returns
+    an (r, g, b) int tuple — pass it straight to ``.fg()`` / ``.bg()`` or
+    ``halfblock``.
+
+        WARM = [(20, 20, 60), (200, 60, 40), (255, 220, 120)]
+        T("x").fg(gradient_at(WARM, heat))
+    """
+    n = len(stops)
+    if n == 0:
+        return (0, 0, 0)
+    if n == 1:
+        return tuple(stops[0])
+    t = 0.0 if t < 0.0 else (0.999999 if t > 1.0 else t)
+    seg = t * (n - 1)
+    i = int(seg)
+    f = seg - i
+    a, b2 = stops[i], stops[i + 1]
+    return tuple(int(a[k] + (b2[k] - a[k]) * f) for k in range(3))
+
+
+def fmt_duration(seconds: float, *, centis: bool = False) -> str:
+    """Format a duration as ``M:SS`` (or ``H:MM:SS`` past an hour).
+
+    ``centis=True`` appends hundredths: ``M:SS.CC`` — for stopwatches.
+
+        fmt_duration(83)            # "1:23"
+        fmt_duration(3725)          # "1:02:05"
+        fmt_duration(83.4, centis=True)  # "1:23.40"
+    """
+    seconds = max(0.0, float(seconds))
+    total = int(seconds)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        out = f"{h}:{m:02d}:{s:02d}"
+    else:
+        out = f"{m}:{s:02d}"
+    if centis:
+        out += f".{int((seconds - total) * 100):02d}"
+    return out
+
+
 # ── live animation (kept simple) ─────────────────────────────────────────────
 def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
     """Run an inline animation. ``render_fn(dt)`` returns a node each frame.
@@ -891,4 +1077,6 @@ __all__ = [
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "animate",
+    "gradient_at", "fmt_duration",
+    "text_input", "textarea",
 ]

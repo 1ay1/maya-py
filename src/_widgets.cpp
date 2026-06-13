@@ -6,9 +6,12 @@
 // ones as Python factory functions: pass simple Python values, get an Element
 // back — the SAME Element maya's own renderers produce.
 //
-// Interactive controls (Input, TextArea, List, Tree, Tabs navigation) need
-// the Program runtime + focus + signals, which can't cross into Python, so
-// only their static appearance is exposed where a public render path exists.
+// Interactive controls (Input, TextArea, ...) ALSO cross into Python: we host
+// the stateful C++ widget by value, keep its Signals/FocusNode entirely on the
+// C++ side, and expose only value/handle(event)/Element to Python — exactly how
+// ScrollState (below) already works. See PyInput for the pattern; App.focus()
+// routes events to the focused widget. (Earlier this file claimed interactive
+// widgets "can't cross into Python" — that was never true.)
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -63,17 +66,113 @@
 #include <maya/widget/canvas.hpp>
 #include <maya/widget/picker.hpp>
 #include <maya/widget/plan_view.hpp>  // TaskStatus
+#include <maya/widget/input.hpp>      // interactive text input / textarea
+
+#include "_pyevent.hpp"
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 #include <functional>
 
 namespace py = pybind11;
 using namespace maya;
 
+// ── Interactive text input ──────────────────────────────────────────────────
+// maya's Input<Cfg> is a real stateful widget (cursor, UTF-8 editing, history,
+// password masking) that participates in the runtime via Signals + a FocusNode.
+// The OLD binding claimed interactive controls "can't cross into Python" — but
+// ScrollState (bound below) already disproves that: the signals/focus stay
+// C++-side, only value/handle/Element cross. PyInput hosts the widget the same
+// way: feed it events with handle(), read .value, drop .element() in the view.
+//
+// Cfg is a compile-time template parameter, so we hold a variant over the three
+// useful instantiations (plain / password / multiline) and dispatch with visit.
+struct PyInput {
+    using Plain = Input<InputConfig{}>;
+    using Pass  = Input<InputConfig{.password = true}>;
+    using Multi = Input<InputConfig{.multiline = true}>;
+
+    std::variant<Plain, Pass, Multi> in_;
+    py::function on_submit_;
+    py::function on_change_;
+
+    static std::variant<Plain, Pass, Multi> make(bool password, bool multiline) {
+        if (password) return Pass{};
+        if (multiline) return Multi{};
+        return Plain{};
+    }
+
+    PyInput(bool password, bool multiline) : in_(make(password, multiline)) {
+        std::visit([&](auto& i) {
+            // Force-focus: we drive a single widget directly rather than via a
+            // FocusScope, so its handle() (which early-returns when unfocused)
+            // always processes keys. App.focus() toggles this for multi-widget
+            // Tab navigation.
+            i.focus_node().focused.set(true);
+            i.on_submit([this](std::string_view sv) { fire(on_submit_, sv); });
+            i.on_change([this](std::string_view sv) { fire(on_change_, sv); });
+        }, in_);
+    }
+
+    static void fire(py::function& f, std::string_view sv) {
+        if (f) { py::gil_scoped_acquire g; f(py::str(std::string(sv))); }
+    }
+
+    bool handle(const PyEvent& ev) {
+        if (auto* ke = std::get_if<KeyEvent>(&ev.ev))
+            return std::visit([&](auto& i) { return i.handle(*ke); }, in_);
+        if (auto* pe = std::get_if<PasteEvent>(&ev.ev)) {
+            std::visit([&](auto& i) { i.handle_paste(*pe); }, in_);
+            return true;
+        }
+        return false;
+    }
+
+    std::string value() const {
+        return std::visit([](auto& i) -> std::string { return i.value()(); }, in_);
+    }
+    void set_value(const std::string& v) {
+        std::visit([&](auto& i) { i.set_value(v); }, in_);
+    }
+    void clear() { std::visit([](auto& i) { i.clear(); }, in_); }
+    void set_placeholder(const std::string& p) {
+        std::visit([&](auto& i) { i.set_placeholder(p); }, in_);
+    }
+    bool focused() const {
+        return std::visit([](auto& i) { return i.focus_node().focused(); }, in_);
+    }
+    void set_focused(bool f) {
+        std::visit([&](auto& i) { i.focus_node().focused.set(f); }, in_);
+    }
+    Element build() const {
+        return std::visit([](auto& i) -> Element { return i.build(); }, in_);
+    }
+};
+
 void init_widgets(py::module_& m) {
     auto w = m.def_submodule("_widgets", "maya widget renderers");
+
+    // ── Input — interactive text field (single-line / password / multiline) ──
+    // The first real interactive widget hosted in Python: feed it App events
+    // with handle(), read .value, place .element() in the view.
+    py::class_<PyInput>(w, "Input")
+        .def(py::init<bool, bool>(),
+             py::arg("password") = false, py::arg("multiline") = false)
+        .def("handle", &PyInput::handle, py::arg("event"),
+             "Feed an App event (key or paste). Returns True if consumed.")
+        .def("clear", &PyInput::clear)
+        .def("element", &PyInput::build, "Render to an Element (box + cursor).")
+        .def("set_placeholder", &PyInput::set_placeholder, py::arg("text"))
+        .def("on_submit",
+             [](PyInput& self, py::function f) { self.on_submit_ = std::move(f); },
+             py::arg("fn"), "Call fn(text) when Enter is pressed.")
+        .def("on_change",
+             [](PyInput& self, py::function f) { self.on_change_ = std::move(f); },
+             py::arg("fn"), "Call fn(text) on every edit.")
+        .def_property("value", &PyInput::value, &PyInput::set_value)
+        .def_property("focused", &PyInput::focused, &PyInput::set_focused);
 
     // ── enums ───────────────────────────────────────────────────────────
     py::enum_<GaugeStyle>(w, "GaugeStyle")

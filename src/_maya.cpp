@@ -687,6 +687,39 @@ PYBIND11_MODULE(_maya, m) {
     m.def("any_key", [](const PyEvent& ev) { return maya::any_key(ev.ev); });
     m.def("resized", [](const PyEvent& ev) { return maya::resized(ev.ev); });
 
+    // event_char(ev) -> str | None : the typed character for a plain key press
+    // (a single printable codepoint, with no Ctrl/Alt/Super held). Returns None
+    // for special keys (arrows, Enter, ...) and modified combos. This is the
+    // primitive that makes text entry possible from Python.
+    m.def("event_char", [](const PyEvent& ev) -> py::object {
+        if (auto* k = std::get_if<KeyEvent>(&ev.ev)) {
+            if (k->mods.ctrl || k->mods.alt || k->mods.super_) return py::none();
+            if (auto* ch = std::get_if<CharKey>(&k->key)) {
+                std::string s;
+                detail::encode_utf8(ch->codepoint, s);
+                return py::str(s);
+            }
+        }
+        return py::none();
+    });
+
+    // pasted(ev) -> str | None : bracketed-paste text (one event per paste).
+    m.def("pasted", [](const PyEvent& ev) -> py::object {
+        if (auto* p = std::get_if<PasteEvent>(&ev.ev)) return py::str(p->content);
+        return py::none();
+    });
+
+    // resize_size(ev) -> (cols, rows) | None : new terminal size on a resize.
+    m.def("resize_size", [](const PyEvent& ev) -> py::object {
+        if (auto* r = std::get_if<ResizeEvent>(&ev.ev))
+            return py::make_tuple(r->width.raw(), r->height.raw());
+        return py::none();
+    });
+
+    // string_width(s) -> int : display width in terminal columns (CJK/emoji
+    // count as 2). Use for manual alignment/truncation in component() callbacks.
+    m.def("string_width", [](const std::string& s) { return maya::string_width(s); });
+
     // ── Mouse predicates ──────────────────────────────────────────────────
     // Mouse events only arrive when run(mouse=True) / App(mouse=True).
     m.def("mouse_clicked",

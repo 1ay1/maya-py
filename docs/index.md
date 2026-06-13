@@ -82,4 +82,4 @@ app.run()
 
 ## Versions
 
-This manual documents maya-py **0.1.4**. The API is young and may change.
+This manual documents maya-py **0.2.0**. The API is young and may change.
