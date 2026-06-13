@@ -136,6 +136,18 @@ set(MAYA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(MAYA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
 
+# ── Disable C++ module dependency scanning ─────────────────────────────────
+# With Ninja + a C++20-or-later standard, CMake 3.28+ scans every TU for
+# module dependencies, injecting `-fmodules-ts -fmodule-mapper=... -fdeps-
+# format=p1689r5` into each GCC compile. Neither maya nor this extension uses
+# C++ modules, so the scan buys us nothing — and on macOS it is actively
+# fatal: under -fmodules-ts, Homebrew GCC mis-preprocesses the system SDK's
+# <string.h> (Annex K block), failing with "'rsize_t' has not been declared"
+# deep inside Apple's _string.h. Turn scanning off for every target in this
+# build (set BEFORE the targets are created so maya's subdir inherits it).
+# Harmless on Linux/Windows, which were never hitting the SDK quirk.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
 include(FetchContent)
 
 # ── maya ──────────────────────────────────────────────────────────────────
@@ -176,11 +188,13 @@ set_property(TARGET maya PROPERTY POSITION_INDEPENDENT_CODE ON)
 # gcc-toolset-14. Harmless on newer compilers.
 set_property(TARGET maya PROPERTY INTERFACE_COMPILE_FEATURES "")
 set_property(TARGET maya PROPERTY COMPILE_FEATURES "")
-set_target_properties(maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
+set_target_properties(maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON
+    CXX_SCAN_FOR_MODULES OFF)
 
 # ── the extension ─────────────────────────────────────────────────────────
 pybind11_add_module(_maya src/_maya.cpp src/_widgets.cpp src/_program.cpp)
-set_target_properties(_maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
+set_target_properties(_maya PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON
+    CXX_SCAN_FOR_MODULES OFF)
 target_link_libraries(_maya PRIVATE maya::maya)
 
 # ── MSVC / Windows build hygiene ───────────────────────────────────────────
