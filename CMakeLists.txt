@@ -157,12 +157,13 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../maya-src/CMakeLists.txt")
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../maya-src" maya_build)
 else()
     # Pinned to a specific maya commit (not a moving `master`) so release
-    # wheels are reproducible. This commit includes the terminal-color-depth
-    # downgrade fix (RGB → 256/16 on terminals without truecolor, e.g. macOS
-    # Terminal.app). Bump deliberately when pulling in new maya changes.
+    # wheels are reproducible. Includes: truecolor→256/16 color downgrade,
+    # blocking-writer fix for print() wide-frame truncation, Zed terminal
+    # full-row repaint, and DEC-2026 sync close. Bump deliberately when pulling
+    # in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        d9bc0ca03b0a39ebfe7afcdd8ee1ae9e76d8cfae)
+        GIT_TAG        155a1b06e075b39da72c71694389910808614096)
     FetchContent_MakeAvailable(maya)
 endif()
 

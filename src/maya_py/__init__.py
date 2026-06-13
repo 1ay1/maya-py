@@ -219,7 +219,7 @@ def print(element, *args, width: int | None = None, **kwargs):  # noqa: A001
 from .easy import (  # noqa: E402
     T, b, i, u, dim as _dim_markup, c, color,
     col, row, trow, tcol, card, field, hr, spacer, memo,
-    center, stack, component, nothing, grow,
+    center, stack, component, nothing, grow, when,
     pct, cells, auto, sides,
     BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE,
     show, to_string, App, animate,
@@ -235,7 +235,7 @@ dim_text = _dim_markup
 __all__ += [
     "T", "b", "i", "u", "dim_text", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
-    "center", "stack", "component", "grow",
+    "center", "stack", "component", "grow", "when",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "animate",
@@ -287,4 +287,4 @@ try:
     __version__ = _pkg_version("maya-py")
     del _pkg_version
 except Exception:  # PackageNotFoundError or metadata missing (source checkout)
-    __version__ = "0.2.0"
+    __version__ = "0.2.1"

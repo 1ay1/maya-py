@@ -49,6 +49,7 @@ from maya_py import T, card, col, row, App, memo   # etc.
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `col` | `col(*children, **opts) -> Element` | Vertical stack. |
+| `when` | `when(cond, then, else_=nothing()) -> node` | Conditional element — `then` if truthy else `else_`; branches may be lazy callables. |
 | `row` | `row(*children, **opts) -> Element` | Horizontal stack. |
 | `card` | `card(*children, title=None, **opts) -> Element` | Bordered padded box (defaults `pad=1`, round border). |
 | `field` | `field(label, value, *, label_color="slate", value_color=None) -> Element` | `Label: value` row. |
@@ -78,7 +79,7 @@ See [Layout](layout.md#keyword-options).
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
-| `App` | `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), **state)` | Interactive app; `**state` seeds state, `quit_keys` auto-binds quit. |
+| `App` | `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), model=None, keys=None, **state)` | Interactive app. `model=` uses your object as state; `keys={k: fn}` binds keys declaratively; `**state`/`quit_keys` as before. |
 | `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
 | `App.s` | property | The live state bag. |
 | `App.on` | `@app.on(*keys)` | Bind keys to `fn(state)`. |

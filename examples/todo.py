@@ -1,54 +1,56 @@
-"""A tiny menu app — arrow keys + enter, built with the App API.
+"""A tiny todo app — the whole thing is the UI, nothing is plumbing.
 
-  ↑/↓  move    space  toggle    q  quit
+State is a plain object with methods; keys bind straight to them; the view is
+one declarative expression. Conditional styling lives inline (`.opt`, `.fg(...
+if ... else None)`), so there's no breaking out into `if` branches.
+
+  ↑/↓  move    space  toggle    q/Esc  quit
 """
-from maya_py import App, card, row, col, T, b, dim_text, c
+from maya_py import App, card, col, row, T, memo
 
-app = App("todo", inline=True)
-app.state(
-    items=["Buy milk", "Write code", "Ship it", "Sleep"],
-    done=[False, True, False, False],
-    cursor=0,
+
+class Todo:
+    def __init__(self):
+        self.items = [("Buy milk", False), ("Write code", True),
+                      ("Ship it", False), ("Sleep", False)]
+        self.cursor = 0
+
+    def move(self, d):
+        self.cursor = (self.cursor + d) % len(self.items)
+
+    def toggle(self):
+        text, done = self.items[self.cursor]
+        self.items[self.cursor] = (text, not done)
+
+
+@memo
+def todo_row(text, done, focused):
+    return row(
+        T("›" if focused else " ").fg("sky"),
+        T("[x]" if done else "[ ]").fg("green" if done else "slate"),
+        T(text).fg("sky" if focused else None).opt(dim=done, strike=done),
+        gap=1,
+    )
+
+
+app = App(
+    "todo", inline=True, quit_keys=("q", "esc"), model=Todo(),
+    keys={
+        "up":    lambda s: s.move(-1),
+        "down":  lambda s: s.move(+1),
+        "space": lambda s: s.toggle(),
+        "enter": lambda s: s.toggle(),
+    },
 )
-
-
-@app.on("up")
-def up(s):
-    s.cursor = (s.cursor - 1) % len(s.items)
-
-
-@app.on("down")
-def down(s):
-    s.cursor = (s.cursor + 1) % len(s.items)
-
-
-@app.on("space", "enter")
-def toggle(s):
-    s.done[s.cursor] = not s.done[s.cursor]
-
-
-@app.on("q", "esc")
-def quit_(s):
-    app.stop()
 
 
 @app.view
 def view(s):
-    rows = []
-    for idx, (text, done) in enumerate(zip(s.items, s.done)):
-        mark = c("[x]", "green") if done else dim_text("[ ]")
-        label = T(text)
-        if done:
-            label = label.dim.strike
-        if idx == s.cursor:
-            label = T(text).fg("sky").bold
-            rows.append(row(c("›", "sky"), mark, label, gap=1))
-        else:
-            rows.append(row(" ", mark, label, gap=1))
     return card(
-        b("Todo").fg("gold"),
-        col(*rows),
-        dim_text("↑/↓ move   space toggle   q quit"),
+        T("Todo").bold.fg("gold"),
+        col(*[todo_row(text, done, i == s.cursor)
+              for i, (text, done) in enumerate(s.items)]),
+        T("↑/↓ move · space toggle · q quit").dim,
         title="todo",
         gap=0,
     )

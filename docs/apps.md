@@ -39,7 +39,27 @@ app.run()                           # 5. go
 | `fps` | `0` | `0` = event-driven (render only after input). `>0` = continuous render at N fps. A frame handler (`@app.on_frame`) bumps this to 30 automatically. |
 | `quit_on_ctrl_c` | `True` | Ctrl-C quits unless you bind it yourself. |
 | `quit_keys` | `()` | Keys that auto-quit, e.g. `quit_keys=("q", "esc")` — saves writing the quit handler. |
+| `model` | `None` | Use your own object as the state — handlers mutate it and call its methods (instead of the attribute bag). |
+| `keys` | `None` | Declarative `{key: fn(state)}` map, an alternative to `@app.on` decorators. |
 | `**state` | — | Initial state, folded straight in: `App("counter", n=0)`. |
+
+A model + declarative keys keeps a whole app declarative — state is a normal
+class, bindings call its methods:
+
+```python
+class Todo:
+    items = [("Buy milk", False), ("Ship it", False)]
+    cursor = 0
+    def move(self, d): self.cursor = (self.cursor + d) % len(self.items)
+    def toggle(self):
+        t, done = self.items[self.cursor]; self.items[self.cursor] = (t, not done)
+
+app = App("todo", quit_keys=("q", "esc"), model=Todo(), keys={
+    "up":    lambda s: s.move(-1),
+    "down":  lambda s: s.move(+1),
+    "space": lambda s: s.toggle(),
+})
+```
 
 ## State
 

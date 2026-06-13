@@ -153,6 +153,10 @@ class T:
 
     # -- colors (resolve to packed int in pure Python) ------------------------
     def fg(self, c: Any) -> "T":
+        # None is a no-op so conditional colour reads cleanly:
+        #   T(x).fg("sky" if focused else None)
+        if c is None:
+            return self
         # Common case: a palette name. Inline the dict hit to skip both the
         # isinstance(Color) test and the _rgb_int call frame entirely.
         if type(c) is str:
@@ -164,12 +168,37 @@ class T:
         return self
 
     def bg(self, c: Any) -> "T":
+        if c is None:
+            return self
         if type(c) is str:
             hit = _PALETTE.get(c)
             self._bg = hit if hit is not None else _rgb_int(c)
         else:
             self._bg = c if isinstance(c, Color) else _rgb_int(c)
         self._cache = None
+        return self
+
+    # -- conditional attributes ----------------------------------------------
+    def opt(self, *, bold: bool = False, dim: bool = False, italic: bool = False,
+            underline: bool = False, strike: bool = False,
+            inverse: bool = False) -> "T":
+        """Apply attributes conditionally — only the truthy ones take effect.
+
+            T(text).fg("sky" if focused else None).opt(dim=done, strike=done)
+
+        Lets a dynamic label express its style in one declarative chain instead
+        of reassigning through ``if`` branches.
+        """
+        a = self._attrs
+        if bold: a |= _BOLD
+        if dim: a |= _DIM
+        if italic: a |= _ITALIC
+        if underline: a |= _UNDERLINE
+        if strike: a |= _STRIKE
+        if inverse: a |= _INVERSE
+        if a != self._attrs:
+            self._attrs = a
+            self._cache = None
         return self
 
     # -- composition ----------------------------------------------------------
@@ -557,6 +586,27 @@ def nothing() -> Element:
     return _maya.nothing()
 
 
+def when(cond: Any, then: Any, else_: Any = None) -> Any:
+    """Conditional element — ``then`` when ``cond`` is truthy, else ``else_``
+    (or :func:`nothing` when omitted). Keeps conditionals inside the view tree
+    instead of breaking out into ``if`` statements:
+
+        col(
+            header(s),
+            when(s.error, callout(s.error, kind="error")),
+            when(s.loading, spinner("loading…"), else_=results(s)),
+        )
+
+    ``then`` / ``else_`` may be elements or zero-arg callables; a callable for
+    the un-taken branch is never invoked, so wrap an expensive branch in a
+    ``lambda`` to skip building it.
+    """
+    branch = then if cond else else_
+    if branch is None:
+        return nothing()
+    return branch() if callable(branch) else branch
+
+
 def grow(child: Any, factor: float = 1.0, **opts) -> Element:
     """Wrap a child so it expands to fill available space along the main axis.
 
@@ -744,14 +794,17 @@ class App:
 
     def __init__(self, title: str = "", *, inline: bool = True,
                  mouse: bool = False, fps: int = 0, quit_on_ctrl_c: bool = True,
-                 quit_keys: tuple[str, ...] = (), **state):
+                 quit_keys: tuple[str, ...] = (), model: Any = None,
+                 keys: "dict[str, Callable] | None" = None, **state):
         self.title = title
         self.inline = inline
         self.mouse = mouse
         self.fps = fps
         self.quit_on_ctrl_c = quit_on_ctrl_c
         self.quit_keys = tuple(quit_keys)
-        self._state = _State()
+        # State is either your own object (`model=Todo()`) — handlers mutate it
+        # and call its methods — or a plain attribute bag seeded from **kwargs.
+        self._state = model if model is not None else _State()
         self._bindings: list[tuple[Callable[[Any], bool], Callable]] = []
         self._view: Callable[[Any], Any] | None = None
         self._any: list[Callable] = []
@@ -767,7 +820,8 @@ class App:
         self._running = True
         self._ctrl_c_bound = False  # set if the user binds ctrl+c themselves
         # Initial state passed straight to the constructor: App("counter", n=0).
-        if state:
+        # (Ignored when a model is supplied — the model owns its own fields.)
+        if state and model is None:
             self._state.__dict__.update(state)
         # quit_keys=("q","esc") auto-binds those keys to stop() — no need to
         # hand-write the quit handler every app.
@@ -775,6 +829,12 @@ class App:
             m = self._matcher(k)
             self._bindings.append((lambda ev, m=m: m(ev),
                                    lambda s: self.stop()))
+        # Declarative key → action map, an alternative to @app.on decorators:
+        #   App("todo", keys={"up": lambda s: s.move(-1), "space": lambda s: s.toggle()})
+        if keys:
+            for k, fn in keys.items():
+                m = self._matcher(k)
+                self._bindings.append((lambda ev, m=m: m(ev), fn))
 
     # -- state ---------------------------------------------------------------
     def state(self, **kw) -> _State:
@@ -1073,7 +1133,7 @@ def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
-    "center", "stack", "component", "nothing", "grow",
+    "center", "stack", "component", "nothing", "grow", "when",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "animate",

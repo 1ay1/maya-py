@@ -40,7 +40,20 @@ They're chainable and order-independent: `T("x").bold.italic` == `T("x").italic.
 | `.bg(color)` | Background color |
 
 `color` is anything the [color resolver](#colors) accepts (a name, hex, tuple,
-int, or `Color`).
+int, or `Color`). **`None` is a no-op**, so conditional colour reads cleanly:
+`T(x).fg("sky" if focused else None)`.
+
+### Conditional attributes — `.opt(**flags)`
+
+Apply attributes conditionally — only the truthy ones take effect — so a dynamic
+label styles itself in one declarative chain instead of reassigning through `if`
+branches:
+
+```python
+T(text).fg("sky" if focused else None).opt(dim=done, strike=done, bold=focused)
+```
+
+`.opt(bold=, dim=, italic=, underline=, strike=, inverse=)`.
 
 ### Concatenation
 
