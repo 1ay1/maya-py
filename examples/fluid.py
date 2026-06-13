@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
-from _halfblock import halfblock
+from maya_py import halfblock, gradient_at
 
 PALETTES = [
     ("aurora", [(10, 20, 40), (20, 120, 160), (60, 220, 180), (200, 255, 220)]),
@@ -26,14 +26,6 @@ PALETTES = [
     ("violet", [(15, 5, 30), (90, 30, 160), (200, 80, 230), (255, 220, 255)]),
 ]
 
-
-def _grad(pal, t):
-    t = max(0.0, min(0.999, t))
-    seg = t * (len(pal) - 1)
-    i = int(seg)
-    f = seg - i
-    a, bcol = pal[i], pal[i + 1]
-    return tuple(int(a[k] + (bcol[k] - a[k]) * f) for k in range(3))
 
 
 app = App("fluid", inline=True, fps=30, mouse=True)
@@ -111,7 +103,7 @@ def field(s):
             crow = []
             for x in range(s.pw):
                 d = s.dye[base + x]
-                crow.append(_grad(pal, d) if d > 0.02 else _grad(pal, 0.0))
+                crow.append(gradient_at(pal, d) if d > 0.02 else gradient_at(pal, 0.0))
             grid.append(crow)
         return halfblock(grid)
     return component(draw, grow=1)

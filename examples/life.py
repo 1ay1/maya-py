@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, T, component
-from _halfblock import halfblock
+from maya_py import halfblock
 
 GRADIENT = [
     (100, 255, 120), (0, 220, 220), (40, 120, 255),

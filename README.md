@@ -211,17 +211,13 @@ inside `@app.on_key` / `@app.on_mouse`. Don't do both — that double-scrolls.
 ```python
 from maya_py import App, card, b
 
-app = App("counter")
-app.state(n=0)
+app = App("counter", n=0, quit_keys=("q", "esc"))   # state + quit in the constructor
 
 @app.on("+", "=")
 def inc(s): s.n += 1
 
 @app.on("-")
 def dec(s): s.n -= 1
-
-@app.on("q", "esc")
-def quit(s): app.stop()
 
 @app.view
 def view(s):
@@ -233,6 +229,28 @@ app.run()
 Key names: single chars (`"q"`, `"+"`), `"up"/"down"/"left"/"right"`,
 `"enter"`, `"esc"`, `"space"`, `"tab"`, `"ctrl+c"`, `"alt+x"`, etc. Handlers
 get the state object; the view re-renders every frame.
+
+### Text input
+
+Real interactive `Input` widgets — type into them, `Tab` between them, read
+`.value`. Register them with `app.focus(...)` and drop them in the view:
+
+```python
+from maya_py import App, text_input, col
+
+app = App("search")
+query = text_input("type to filter…")
+app.focus(query)
+
+@app.view
+def view(s):
+    return col(query, f"searching: {query.value}")
+
+app.run()
+```
+
+`text_input(password=True)` masks, `textarea()` is multi-line. `@query.on_submit`
+fires on Enter. An animation tick is `@app.on_frame def tick(s, dt): ...`.
 
 ### Mouse: clicks, scroll, drag
 

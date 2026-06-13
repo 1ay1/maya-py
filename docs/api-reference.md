@@ -78,14 +78,20 @@ See [Layout](layout.md#keyword-options).
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
-| `App` | `App(title="", *, inline=True, mouse=False, fps=0)` | Interactive app. |
+| `App` | `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), **state)` | Interactive app; `**state` seeds state, `quit_keys` auto-binds quit. |
 | `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
 | `App.s` | property | The live state bag. |
 | `App.on` | `@app.on(*keys)` | Bind keys to `fn(state)`. |
 | `App.on_key` | `@app.on_key` | Catch-all `fn(state, event)`. |
+| `App.on_frame` | `@app.on_frame` | Per-frame tick `fn(state, dt)` before view (enables redraw). |
+| `App.on_paste` | `@app.on_paste` | `fn(state, text)` on bracketed paste. |
+| `App.on_resize` | `@app.on_resize` | `fn(state, cols, rows)` on terminal resize. |
+| `App.focus` | `app.focus(*widgets)` | Register interactive widgets; focused one gets keys, Tab cycles. |
 | `App.view` | `@app.view` | Register `fn(state) -> node`. |
 | `App.run` | `app.run()` | Start the loop (blocks). |
 | `App.stop` | `app.stop()` | Request exit. |
+| `text_input` | `text_input(placeholder="", *, password=False, multiline=False)` | Interactive text field (a hosted maya `Input`). `.value`, `.clear()`, `.on_submit(fn)`, `.on_change(fn)`. |
+| `textarea` | `textarea(placeholder="")` | Multi-line `text_input`. |
 
 **Key names** for `on`: chars (`"q"`, `"+"`); names (`"up"`, `"down"`,
 `"left"`, `"right"`, `"enter"`/`"return"`, `"esc"`/`"escape"`, `"tab"`,
@@ -170,7 +176,23 @@ tuple / `Color` everywhere.
 | `alt` | `alt(ev, "x") -> bool` | Alt + char. |
 | `any_key` | `any_key(ev) -> bool` | Any key event. |
 | `resized` | `resized(ev) -> bool` | Terminal resize. |
+| `event_char` | `event_char(ev) -> str \| None` | The typed character (printable, no Ctrl/Alt), else `None`. |
+| `pasted` | `pasted(ev) -> str \| None` | Bracketed-paste text, else `None`. |
+| `resize_size` | `resize_size(ev) -> (cols, rows) \| None` | New terminal size on a resize event. |
 | `Event` | class | Opaque event object. |
+
+---
+
+## Utilities
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `string_width` | `string_width(s) -> int` | Display width in terminal columns (CJK/emoji = 2). |
+| `gradient_at` | `gradient_at(stops, t) -> (r,g,b)` | Interpolate a color across evenly-spaced `(r,g,b)` stops at `t` ∈ [0,1]. |
+| `fmt_duration` | `fmt_duration(seconds, *, centis=False) -> str` | Format `M:SS` / `H:MM:SS` (`.CC` with `centis`). |
+| `halfblock` | `halfblock(grid, *, bg=(0,0,0)) -> Element` | Render a 2-D pixel grid as upper-half-block (`▀`) cells (2 px tall each). |
+| `PixelField` | `PixelField(bg=(0,0,0))` | Resize-managing pixel buffer: `.resize(w,h)`, `.clear()`, `.set(x,y,color)`, `.render()`. |
+| `pixel_canvas` | `pixel_canvas(draw, *, bg=(0,0,0), grow=1)` | Size-aware element handing `draw(field, w, h)` a sized `PixelField`. |
 
 ---
 

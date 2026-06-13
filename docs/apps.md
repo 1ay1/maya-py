@@ -29,22 +29,28 @@ def view(s):
 app.run()                           # 5. go
 ```
 
-## `App(title="", *, inline=True, mouse=False, fps=0)`
+## `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), **state)`
 
 | Argument | Default | Meaning |
 |----------|---------|---------|
 | `title` | `""` | Terminal window title (OSC 0). |
 | `inline` | `True` | `True` = inline mode (lives in scrollback, Claude-Code style). `False` = fullscreen alt-screen. |
 | `mouse` | `False` | Enable mouse event reporting. |
-| `fps` | `0` | `0` = event-driven (render only after input). `>0` = continuous render at N fps (for animations driven by wall-clock). |
+| `fps` | `0` | `0` = event-driven (render only after input). `>0` = continuous render at N fps. A frame handler (`@app.on_frame`) bumps this to 30 automatically. |
+| `quit_on_ctrl_c` | `True` | Ctrl-C quits unless you bind it yourself. |
+| `quit_keys` | `()` | Keys that auto-quit, e.g. `quit_keys=("q", "esc")` — saves writing the quit handler. |
+| `**state` | — | Initial state, folded straight in: `App("counter", n=0)`. |
 
 ## State
 
-### `app.state(**kw)`
+### Constructor / `app.state(**kw)`
 
-Seeds initial state and returns the state object. Call once at setup.
+Seed initial state either in the constructor or with `app.state(...)` (both
+return the state object). The constructor form is shortest:
 
 ```python
+app = App("todo", items=["a", "b"], cursor=0)   # state in the constructor
+# — or —
 app.state(count=0, items=["a", "b"], cursor=0)
 ```
 
@@ -109,7 +115,70 @@ def log(s, ev):
 ```
 
 You get the raw `Event` object; match it with the
-[event predicates](low-level.md#events) (`key`, `ctrl`, etc.) if needed.
+[event predicates](low-level.md#events) (`key`, `ctrl`, etc.) if needed. The
+typed character is available with `maya.event_char(ev)` (returns the printable
+character, or `None` for special/modified keys).
+
+### `@app.on_frame`
+
+Decorator for a per-frame tick `fn(state, dt)`, called **before** the view
+renders, where `dt` is seconds since the previous frame. Put your animation or
+simulation step here so `view(state)` stays a pure function of state. Adding a
+frame handler turns on continuous redraw (defaults `fps` to 30 if it was 0).
+
+```python
+@app.on_frame
+def tick(s, dt):
+    s.t += dt
+    s.particles = step(s.particles, dt)
+```
+
+### `@app.on_paste` / `@app.on_resize`
+
+```python
+@app.on_paste
+def paste(s, text):        # bracketed paste; a focused text widget also gets it
+    s.buffer += text
+
+@app.on_resize
+def resize(s, cols, rows): # terminal size changed
+    s.cols = cols
+```
+
+## Text input & focus
+
+Real maya `Input` widgets, hosted in Python. Create one with `text_input()`
+(or `textarea()`), register it with `app.focus(...)` so it receives keystrokes,
+read `.value`, and drop it straight into a view — it renders itself (box +
+cursor).
+
+```python
+from maya_py import App, text_input, col
+
+app = App("search")
+query = text_input("type to filter…")
+app.focus(query)                 # focused widget gets keys; Tab cycles fields
+
+@query.on_submit                 # Enter
+def go(text): app.s.results = search(text)
+
+@app.view
+def view(s):
+    return col(query, results_list(s))   # query.value is the live text
+```
+
+| Call | Meaning |
+|------|---------|
+| `text_input(placeholder="", *, password=False, multiline=False)` | A single-line field (or password / multiline). |
+| `textarea(placeholder="")` | Multi-line input (Enter = newline, Ctrl/Shift-Enter = submit). |
+| `app.focus(*widgets)` | Register interactive widgets; the focused one gets keys, **Tab** / **Shift-Tab** cycle. Keys a widget ignores fall through to your `@app.on` bindings. |
+| `inp.value` | Read/write the text. |
+| `inp.clear()` | Empty it. |
+| `inp.on_submit(fn)` / `inp.on_change(fn)` | Callbacks `fn(text)` on Enter / every edit. |
+
+These are the same `Input` widgets maya uses in C++ — their cursor/editing
+state lives on the C++ side; only `value` / `handle` / the rendered element
+cross into Python. See [`examples/login.py`](../examples/login.py).
 
 ## Mouse
 

@@ -31,7 +31,7 @@ from maya_py import (
     App, T, b, col, row, card, dim_text, component, badge, grow,
     scroll_state, viewport,
 )
-from _halfblock import halfblock
+from maya_py import halfblock
 
 # Flock colour by heading (hue wheel) so flocks moving together share a colour.
 def hue(h, s=0.7, v=1.0):

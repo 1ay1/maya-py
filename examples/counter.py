@@ -4,8 +4,8 @@
 """
 from maya_py import App, card, b, dim_text
 
-app = App("counter", inline=True)
-app.state(n=0)
+# State goes straight in the constructor; quit_keys auto-binds q/Esc to quit.
+app = App("counter", n=0, quit_keys=("q", "esc"))
 
 
 @app.on("+", "=")
@@ -21,11 +21,6 @@ def dec(s):
 @app.on("r")
 def reset(s):
     s.n = 0
-
-
-@app.on("q", "esc")
-def quit_(s):
-    app.stop()
 
 
 @app.view

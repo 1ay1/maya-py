@@ -31,7 +31,7 @@ from maya_py import (
     App, T, b, col, row, card, dim_text, component, badge, grow,
     scroll_state, viewport,
 )
-from _halfblock import halfblock
+from maya_py import halfblock
 
 # The field fills the WHOLE terminal in fullscreen mode. Each half-block cell
 # is 2 pixels tall, so an H-cell box becomes a (2H)-pixel field. These are

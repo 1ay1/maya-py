@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "src"))
 
 import maya_py as maya
 
-SKIP = {"smoke_all", "_halfblock", "bench", "bench_live"}
+SKIP = {"smoke_all", "bench", "bench_live"}
 
 mods = sorted(
     f[:-3] for f in os.listdir(HERE)

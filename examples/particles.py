@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
-from _halfblock import halfblock
+from maya_py import halfblock, gradient_at
 
 GRAV = 0.06
 MAX_P = 1200
@@ -30,14 +30,6 @@ PALETTES = [
     ("toxic", [(220, 255, 180), (140, 240, 90), (60, 180, 50), (20, 90, 30)]),
 ]
 
-
-def _grad(pal, t):
-    t = max(0.0, min(0.999, t))
-    seg = t * (len(pal) - 1)
-    i = int(seg)
-    f = seg - i
-    a, b = pal[i], pal[i + 1]
-    return tuple(int(a[k] + (b[k] - a[k]) * f) for k in range(3))
 
 
 app = App("particles", inline=True, fps=30, mouse=True)
@@ -107,7 +99,7 @@ def field(s):
             x, y = int(p[0]), int(p[1])
             if 0 <= x < pw and 0 <= y < ph:
                 age_t = 1.0 - p[4] / p[5]
-                grid[y][x] = _grad(pal, age_t)
+                grid[y][x] = gradient_at(pal, age_t)
         return halfblock(grid)
     return component(draw, grow=1)
 

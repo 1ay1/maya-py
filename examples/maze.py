@@ -26,7 +26,7 @@ from maya_py import (
     App, T, b, col, row, card, dim_text, component, badge, grow,
     scroll_state, viewport,
 )
-from _halfblock import halfblock
+from maya_py import halfblock
 
 # colours — walls are dark, carved passages are BRIGHT so the maze is visible.
 WALL = (18, 20, 30)         # dark background between corridors

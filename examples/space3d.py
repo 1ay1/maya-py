@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, component
-from _halfblock import halfblock
+from maya_py import halfblock
 
 PW, PH = 80, 64
 

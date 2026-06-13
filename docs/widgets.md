@@ -60,7 +60,9 @@ col(
 
 ## Controls
 
-Rendered in whatever state you pass — no focus required.
+Rendered in whatever state you pass — no focus required. (For an **interactive**
+text field that handles its own keystrokes, see `text_input` / `textarea` in
+[Apps → Text input & focus](apps.md#text-input--focus).)
 
 | Function | Signature | Renders |
 |----------|-----------|---------|
