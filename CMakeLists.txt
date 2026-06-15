@@ -159,11 +159,12 @@ else()
     # Pinned to a specific maya commit (not a moving `master`) so release
     # wheels are reproducible. Includes: truecolor→256/16 color downgrade,
     # blocking-writer fix for print() wide-frame truncation, Zed terminal
-    # full-row repaint, and DEC-2026 sync close. Bump deliberately when pulling
-    # in new maya changes.
+    # full-row repaint, DEC-2026 sync close, and the live()/animate() writer
+    # residue drain that bounds memory under tty backpressure. Bump
+    # deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        155a1b06e075b39da72c71694389910808614096)
+        GIT_TAG        5a9d391006d6925b2ab7180f3bb84587483a8946)
     FetchContent_MakeAvailable(maya)
 endif()
 
