@@ -249,7 +249,7 @@ For the `attrs` slot of a tuple cell (and for low-level `styled_text`), use the
 exported integer constants, OR-ed together:
 
 ```python
-from maya_py import BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE
+from maya_py import row, BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE
 
 row(("HEADER", "gold", None, BOLD | UNDERLINE))
 ```

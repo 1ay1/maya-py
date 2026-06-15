@@ -450,7 +450,7 @@ PgUp/PgDn, Home/End and (with `mouse=True`) the wheel and scrollbar drag to
 every on-screen scroll state **with no handler code of yours**.
 
 ```python
-from maya_py import App, card, col, viewport, scrollbar, scroll_state
+from maya_py import App, card, col, row, viewport, scrollbar, scroll_state
 
 LINES = [f"line {i:03d}" for i in range(200)]
 
@@ -462,9 +462,14 @@ CONTENT = col(*LINES)              # built once
 
 @app.view
 def view(st):
+    # viewport + scrollbar sit side by side, so wrap them in a `row`.
+    # `card` is a column — putting them straight into it stacks the
+    # scrollbar *below* the content instead of beside it.
     return card(
-        viewport(CONTENT, st.s, height=st.vh, grow=1),
-        scrollbar(st.s, st.vh, thumb_color="sky"),
+        row(
+            viewport(CONTENT, st.s, height=st.vh, grow=1),
+            scrollbar(st.s, st.vh, thumb_color="sky"),
+        ),
         title="log",
     )
 

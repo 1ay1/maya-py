@@ -171,7 +171,7 @@ A 2-D heatmap. `grid` is rows of floats; each cell colour-interpolates from
 ```python
 from maya_py import heatmap, show
 show(heatmap([[0, 2, 4], [1, 3, 5], [6, 4, 2]],
-             low="navy", high="orange",
+             low="#1e3a8a", high="orange",   # color: name / "#rrggbb" / (r,g,b)
              x_labels=["a", "b", "c"], y_labels=["x", "y", "z"]))
 ```
 
@@ -645,8 +645,8 @@ A vertical event timeline. Each event is a dict
 ```python
 from maya_py import timeline, TaskStatus, show
 show(timeline([
-    {"label": "Fetch", "detail": "GET /api", "duration": 0.4, "status": "completed"},
-    {"label": "Parse", "duration": 0.1, "status": TaskStatus.InProgress},
+    {"label": "Fetch", "detail": "GET /api", "duration": "0.4s", "status": "completed"},
+    {"label": "Parse", "duration": "0.1s", "status": TaskStatus.InProgress},
     {"label": "Render", "status": "pending"},
 ]))
 ```
@@ -957,8 +957,10 @@ from maya_py import button, ButtonVariant, scrollbar, scroll_state, ScrollbarSty
 button("Ship it", variant=ButtonVariant.Primary)
 
 st = ScrollbarStyle.neon()
-st.thumb_color = "magenta"
-scrollbar(scroll_state(), 20, style=st)
+# override the preset's thumb color via the scrollbar() kwarg, which resolves
+# name / "#rrggbb" / (r,g,b). (Setting st.thumb_color directly needs a Color
+# object, e.g. maya_py.Color.rgb(...), so prefer the kwarg.)
+scrollbar(scroll_state(), 20, style=st, thumb_color="magenta")
 ```
 
 ---
