@@ -312,6 +312,57 @@ app.run()
 or `@app.on_click()`), whereas `@app.on_scroll` / `@app.on_mouse` are bare
 decorators.
 
+#### Coordinates are frame-relative — even inline
+
+`mouse_pos(ev)` and the `col`/`row` passed to `on_click` are **relative to your
+UI's top-left**, not the terminal's. In `inline=True` mode your app is drawn
+partway down the terminal, but maya translates the raw (absolute) mouse position
+into frame-relative coordinates for you (it learns the frame's top row via a
+one-time cursor-position query at startup). So a click on the first cell of your
+view reports `(1, 1)` whether the app is at the top of the screen or 20 rows
+down — exactly like fullscreen mode.
+
+Clicks and scrolls that land **outside** your frame (in the surrounding
+scrollback) are dropped — your handlers only fire for events on the rendered UI.
+
+#### Mouse capture vs. native terminal scroll: `set_mouse()`
+
+There's one unavoidable trade-off: **while mouse reporting is on, the terminal
+hands the scroll wheel to your app instead of scrolling its own scrollback.**
+That's how terminal mouse protocols work (the wheel is reported as a mouse
+button) — it's not specific to maya, and it can't be worked around while capture
+is on. So in inline mode, an app with mouse enabled means the user can't scroll
+the terminal's history until the app exits (capture is always released on exit).
+
+When that matters, toggle capture at runtime:
+
+| Member | Role |
+|--------|------|
+| `app.set_mouse(on)` | Turn mouse capture on/off **while running** (call from a handler). Off → the wheel goes back to the terminal (native scrollback works); on → clicks/drag/wheel are captured again. |
+| `app.mouse_active` | `bool` — the current capture state. |
+
+```python
+from maya_py import App, card, col, b
+
+app = App("toggle", mouse=True, quit_keys=("q",))
+
+@app.on("m")
+def toggle(s):
+    app.set_mouse(not app.mouse_active)   # flip between clicks and terminal scroll
+
+@app.view
+def view(s):
+    state = "ON (clicks)" if app.mouse_active else "OFF (terminal scroll)"
+    return col(b(f"mouse: {state}"), card("m = toggle · q = quit"))
+
+app.run()
+```
+
+If your app simply doesn't need the mouse, **don't enable it** (the default is
+`mouse=False`) and native terminal scroll just works. `set_mouse()` is the
+runtime escape hatch for apps that want both, on demand. Full example:
+[examples/mouse.py](https://github.com/1ay1/maya-py/blob/master/examples/mouse.py).
+
 ---
 
 ## 5. Key name syntax

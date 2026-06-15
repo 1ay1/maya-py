@@ -96,6 +96,8 @@ See [Layout](layout.md#keyword-options).
 | `App.on_paste` | `@app.on_paste` | `fn(state, text)` on bracketed paste. |
 | `App.on_resize` | `@app.on_resize` | `fn(state, cols, rows)` on terminal resize. |
 | `App.focus` | `app.focus(*widgets)` | Register interactive widgets; focused one gets keys, Tab cycles. |
+| `App.set_mouse` | `app.set_mouse(on)` | Toggle mouse capture at runtime (call from a handler). Off → native terminal scroll; on → clicks captured. See [Apps](apps.md). |
+| `App.mouse_active` | `bool` | Current mouse-capture state. |
 | `App.view` | `@app.view` | Register `fn(state) -> node`. |
 | `App.run` | `app.run()` | Start the loop (blocks). |
 | `App.stop` | `app.stop()` | Request exit. |

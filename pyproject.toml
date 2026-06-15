@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "maya-py"
-version = "0.2.2"
+version = "0.2.3"
 description = "Python bindings for the maya C++26 TUI framework"
 readme = "README.md"
 requires-python = ">=3.9"

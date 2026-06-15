@@ -213,6 +213,15 @@ Set `mouse=True`, then use `@app.on_click` / `@app.on_scroll` / `@app.on_mouse`,
 or the predicates: `is_mouse(ev)`, `mouse_clicked/released/moved(ev)`,
 `mouse_button(ev)`, `mouse_pos(ev)` (1-based `(col, row)`), `scrolled_up/down(ev)`.
 
+Coordinates are **frame-relative**: even in inline mode (where the app sits
+partway down the terminal) a click on your top-left cell reports `(1, 1)`, and
+clicks/scrolls outside the frame are dropped. The trade-off is structural:
+**while mouse capture is on, the terminal gives the scroll wheel to your app, so
+its own scrollback stops scrolling** until the app exits — that's the terminal
+mouse protocol, not maya. `app.set_mouse(on)` toggles capture at runtime so you
+can hand the wheel back to the terminal on demand (see [Apps](apps.md)); if an
+app doesn't need the mouse, leave `mouse=False` and native scroll just works.
+
 ### Paste & resize
 
 `@app.on_paste` delivers bracketed-paste text in one shot (don't reconstruct it

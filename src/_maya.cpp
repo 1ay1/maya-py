@@ -664,6 +664,9 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("max_width") = 0, py::arg("cursor") = false);
 
     m.def("quit", &maya::quit);
+    // Runtime mouse-capture toggle (see maya::set_mouse). Call from an App
+    // handler to hand the wheel back to the terminal (off) or recapture it (on).
+    m.def("set_mouse", &maya::set_mouse, py::arg("on"));
 
     // ── Event (opaque) + predicates ───────────────────────────────────────
     // maya's Event is std::variant<KeyEvent, MouseEvent, ...>. pybind11/stl.h

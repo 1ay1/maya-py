@@ -819,6 +819,9 @@ class App:
         self._focus_idx: int = -1
         self._running = True
         self._ctrl_c_bound = False  # set if the user binds ctrl+c themselves
+        # Live mouse-capture state. maya enables capture at startup when
+        # `self.mouse` is set; set_mouse() flips it at runtime.
+        self.mouse_active = mouse
         # Initial state passed straight to the constructor: App("counter", n=0).
         # (Ignored when a model is supplied — the model owns its own fields.)
         if state and model is None:
@@ -917,6 +920,22 @@ class App:
         self.mouse = True
         self._mouse_any.append(fn)
         return fn
+
+    def set_mouse(self, on: bool) -> None:
+        """Turn terminal mouse reporting on/off **while the app is running**.
+
+        Call from a handler. Disabling hands the scroll wheel back to the
+        terminal (native scrollback works again) at the cost of in-app
+        clicks; enabling re-captures them. Mouse capture and native terminal
+        scroll are mutually exclusive — this is the switch between them.
+
+            @app.on("ctrl+m")
+            def toggle(s): app.set_mouse(not app.mouse_active)
+        """
+        # Route through maya's runtime toggle so it stays in sync with the
+        # terminal-restore on exit (rather than writing the escape ourselves).
+        _maya.set_mouse(bool(on))
+        self.mouse_active = on
 
     def on_paste(self, fn):
         """Decorator: call ``fn(state, text)`` on a bracketed paste. (A focused
@@ -1067,6 +1086,7 @@ class App:
             raise RuntimeError("App.run() is already running (cannot nest)")
         self._in_run = True
         self._running = True
+        self.mouse_active = self.mouse   # reflect what maya enables at startup
         try:
             _maya.run(self._event, self._render,
                       title=self.title, inline_mode=self.inline,
