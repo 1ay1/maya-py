@@ -198,7 +198,7 @@ def view(s):
 
 These are the same `Input` widgets maya uses in C++ — their cursor/editing
 state lives on the C++ side; only `value` / `handle` / the rendered element
-cross into Python. See [`examples/login.py`](../examples/login.py).
+cross into Python. See [`examples/login.py`](https://github.com/1ay1/maya-py/blob/master/examples/login.py).
 
 ## Mouse
 

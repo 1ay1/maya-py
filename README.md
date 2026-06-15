@@ -22,18 +22,18 @@ That's the whole program. Strings *are* UI — no manual element wrapping.
 
 ## Documentation
 
-A full reference manual lives in [`docs/`](docs/index.md):
+A full reference manual lives in [`docs/`](https://1ay1.github.io/maya-py/):
 
-- [Getting Started](docs/getting-started.md) — install, first UI, first app.
-- [Text & Style](docs/text-and-style.md) — `T`, markup helpers, colors.
-- [Layout](docs/layout.md) — `col`, `row`, `card`, `field`, `hr`, options.
-- [Apps](docs/apps.md) — the `App` class, key bindings, state, the view.
-- [Widgets](docs/widgets.md) — 44 native renderers: charts, controls, agent UI, scrolling.
-- [Rendering](docs/rendering.md) — `show`, `to_string`, `animate`, `run`.
-- [Performance](docs/performance.md) — `memo`, the boundary tax, benchmarks.
-- [API Reference](docs/api-reference.md) — every public symbol.
-- [Low-Level API](docs/low-level.md) — primitives and the native binding.
-- [Distribution](docs/distribution.md) — standalone wheels for old machines.
+- [Getting Started](https://1ay1.github.io/maya-py/getting-started/) — install, first UI, first app.
+- [Text & Style](https://1ay1.github.io/maya-py/text-and-style/) — `T`, markup helpers, colors.
+- [Layout](https://1ay1.github.io/maya-py/layout/) — `col`, `row`, `card`, `field`, `hr`, options.
+- [Apps](https://1ay1.github.io/maya-py/apps/) — the `App` class, key bindings, state, the view.
+- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 44 native renderers: charts, controls, agent UI, scrolling.
+- [Rendering](https://1ay1.github.io/maya-py/rendering/) — `show`, `to_string`, `animate`, `run`.
+- [Performance](https://1ay1.github.io/maya-py/performance/) — `memo`, the boundary tax, benchmarks.
+- [API Reference](https://1ay1.github.io/maya-py/api-reference/) — every public symbol.
+- [Low-Level API](https://1ay1.github.io/maya-py/low-level/) — primitives and the native binding.
+- [Distribution](https://1ay1.github.io/maya-py/distribution/) — standalone wheels for old machines.
 
 ## The 30-second tour
 

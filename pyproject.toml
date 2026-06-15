@@ -34,7 +34,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/1ay1/maya-py"
 Repository = "https://github.com/1ay1/maya-py"
-Documentation = "https://github.com/1ay1/maya-py/blob/master/docs/index.md"
+Documentation = "https://1ay1.github.io/maya-py/"
 Issues = "https://github.com/1ay1/maya-py/issues"
 "maya (upstream)" = "https://github.com/1ay1/maya"
 

@@ -180,5 +180,5 @@ assert c.update(m0, "inc") == {"count": 1}
 assert c.update({"count": 5}, "reset") == {"count": 0}
 ```
 
-See [`examples/counter_program.py`](../examples/counter_program.py) for a
+See [`examples/counter_program.py`](https://github.com/1ay1/maya-py/blob/master/examples/counter_program.py) for a
 complete runnable program and `tests/test_program.py` for the test suite.
