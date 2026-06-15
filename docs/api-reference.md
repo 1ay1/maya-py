@@ -76,7 +76,7 @@ See [Layout](layout.md#keyword-options).
 | `zstack` | `zstack(*layers) -> Element` | Overlay layers on the same cell box (later layers on top). |
 | `sides` | `sides(*, top=True, right=True, bottom=True, left=True) -> BorderSides` | Pick which border sides to draw. |
 | `text` | `text(content, style=None, wrap=TextWrap.Wrap) -> Element` | Styled text leaf. |
-| `styled_text` | `styled_text(content, fg=-1, bg=-1, attrs=0, wrap=…) -> Element` | Fast styled text from raw scalars. |
+| `styled_text` | `styled_text(content, fg=-1, bg=-1, attrs=0, wrap=…) -> Element` | Fast styled text from raw scalars. Native-only: call as `maya_py._maya.styled_text` (not re-exported at the top level). |
 | `blank` | `blank() -> Element` | One-row spacer element. |
 
 ---
