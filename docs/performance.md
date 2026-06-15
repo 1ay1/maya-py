@@ -26,20 +26,37 @@ A 30-row dashboard, rendered to a string repeatedly:
 
 | path | per render |
 |------|-----------|
-| maya-py (build + render) | ~340 µs |
-| tuned pure-Python equivalent | ~68 µs |
+| maya-py (build + render) | ~145 µs |
+| tuned pure-Python equivalent | ~70 µs |
 
-Breakdown of maya-py's 340 µs:
+Breakdown of maya-py's ~145 µs:
 
-- ~210 µs **Build** (Python + pybind11)
-- ~115 µs **Render** (native)
+- ~100 µs **Build** (Python + pybind11)
+- ~24 µs **Render** (native)
 
-So **~65% of the time is the Python boundary, not maya.** For pure one-shot
-string output, a well-written pure-Python renderer (e.g. Rich) can beat
-maya-py, because it skips the marshalling.
+So **~80% of the time is the Python boundary, not maya** — the native
+render itself is only ~24 µs. For pure one-shot string output a well-written
+pure-Python renderer (e.g. Rich) can still edge maya-py out (~2×), because it
+skips the marshalling — but the gap is much smaller than it used to be.
 
-**Takeaway:** if all you do is render static output once, maya-py's advantage
-is small or negative. Its strength is elsewhere.
+**Takeaway:** if all you do is render static output *once*, a bespoke
+pure-Python renderer is marginally faster. Its strength is elsewhere — see the
+live-app path below, where maya-py now wins outright.
+
+### The live-app path (tree cached, re-render only)
+
+The realistic interactive case: the element tree is memoised (see [`memo`](#memo))
+and a frame only re-renders. There the Build cost is gone and you pay just
+maya's native render:
+
+| path | per frame |
+|------|-----------|
+| maya-py (cached tree, re-render) | ~24 µs |
+| pure-Python (must rebuild every frame) | ~70 µs |
+
+**maya-py is ~2.9× faster here** — and unlike the pure-Python concatenator it
+still does real flexbox layout, wrapping, responsive sizing, and a partial-frame
+diff.
 
 ## Benchmark 2: live redraw (where maya wins)
 

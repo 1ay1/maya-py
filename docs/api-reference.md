@@ -19,7 +19,7 @@ from maya_py import T, card, col, row, App, memo   # etc.
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
-| `T` | `T(s="")` | Fluent styled string. Properties: `.bold .dim .italic .underline .strike .inverse`. Methods: `.fg(color) .bg(color) .element()`. Concat with `+`. |
+| `T` | `T(s="")` | Fluent styled string. Properties: `.bold .dim .italic .underline .strike .inverse`. Methods: `.fg(color) .bg(color) .opt(**flags) .element()`. `.opt` applies attributes conditionally (`.opt(dim=done, strike=done)`); `.fg`/`.bg` accept `None` to no-op. Concat with `+`. |
 | `b` | `b(s) -> T` | Bold markup shortcut. |
 | `i` | `i(s) -> T` | Italic shortcut. |
 | `u` | `u(s) -> T` | Underline shortcut. |
@@ -39,6 +39,7 @@ from maya_py import T, card, col, row, App, memo   # etc.
 | `rgb` | `rgb(r,g,b) -> Color` | Truecolor. |
 | `hex` | `hex(0xRRGGBB) -> Color` | Color from hex int. |
 | `style` | `style(*, fg, bg, bold, dim, italic, underline, strikethrough, inverse) -> Style` | Build a Style from kwargs. |
+| `BOLD` `DIM` `ITALIC` `UNDERLINE` `STRIKE` `INVERSE` | `int` bitflags | Attribute bits for `styled_text(..., attrs=…)`; OR them together (e.g. `BOLD | UNDERLINE`). |
 
 ---
 
@@ -55,6 +56,11 @@ from maya_py import T, card, col, row, App, memo   # etc.
 | `field` | `field(label, value, *, label_color="slate", value_color=None) -> Element` | `Label: value` row. |
 | `hr` | `hr(width=40, char="─", col="slate") -> Element` | Horizontal rule. |
 | `spacer` | `spacer() -> Element` | One-row blank gap. |
+| `center` | `center(*children, **opts) -> Element` | Center children on both axes. |
+| `tcol` | `tcol(*specs, gap=-1, grow=-1.0) -> Element` | Table-like column with aligned cells. |
+| `trow` | `trow(*specs, gap=-1, grow=-1.0) -> Element` | Table-like row with aligned cells. |
+| `component` | `component(render_fn, *, grow=None, width=None, height=None) -> Element` | Size-aware element; `render_fn(w, h)` runs with the resolved cell box. |
+| `pct` | `pct(value) -> Dimension` | Percentage dimension for `width`/`height` (e.g. `width=pct(50)`). |
 
 **Shared `opts`** for `col`/`row`/`card`: `gap`, `pad`, `border`,
 `border_color`, `title`, `bg`, `align`, `justify`, `width`, `height`, `grow`.
@@ -67,6 +73,8 @@ See [Layout](layout.md#keyword-options).
 | `box` | `box(*children, **opts) -> Element` | Flex container (raw kwargs). |
 | `vstack` | `vstack(*children, **opts) -> Element` | `box` with `direction=Column`. |
 | `hstack` | `hstack(*children, **opts) -> Element` | `box` with `direction=Row`. |
+| `zstack` | `zstack(*layers) -> Element` | Overlay layers on the same cell box (later layers on top). |
+| `sides` | `sides(*, top=True, right=True, bottom=True, left=True) -> BorderSides` | Pick which border sides to draw. |
 | `text` | `text(content, style=None, wrap=TextWrap.Wrap) -> Element` | Styled text leaf. |
 | `styled_text` | `styled_text(content, fg=-1, bg=-1, attrs=0, wrap=…) -> Element` | Fast styled text from raw scalars. |
 | `blank` | `blank() -> Element` | One-row spacer element. |
@@ -93,6 +101,8 @@ See [Layout](layout.md#keyword-options).
 | `App.stop` | `app.stop()` | Request exit. |
 | `text_input` | `text_input(placeholder="", *, password=False, multiline=False)` | Interactive text field (a hosted maya `Input`). `.value`, `.clear()`, `.on_submit(fn)`, `.on_change(fn)`. |
 | `textarea` | `textarea(placeholder="")` | Multi-line `text_input`. |
+| `Program` | `Program(init, update, view, subscribe=None)` | Elm-style MVU app (alternative to `App`). See [Program](program.md). |
+| `run_program` | `run_program(init, update, view, subscribe=None, *, title="", inline=False, mouse=False, fps=0)` | Run an MVU program from plain functions. See [Program](program.md). |
 
 **Key names** for `on`: chars (`"q"`, `"+"`); names (`"up"`, `"down"`,
 `"left"`, `"right"`, `"enter"`/`"return"`, `"esc"`/`"escape"`, `"tab"`,
@@ -104,6 +114,8 @@ See [Layout](layout.md#keyword-options).
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `run` | `run(event_fn, render_fn, *, title="", inline_mode=False, mouse=False, fps=0)` | Interactive loop. `event_fn(ev)->bool`. |
+| `Cmd` | class | MVU command (side effect) returned from `update`. Constructors: `none`, `quit`, `batch`, `after`, `task`, `set_title`, `write_clipboard`, … See [Program](program.md). |
+| `Sub` | class | MVU subscription (input source). Constructors: `none`, `batch`, `on_key`, `on_mouse`, `every`, `on_animation_frame`, … See [Program](program.md). |
 
 ---
 
@@ -160,7 +172,6 @@ tuple / `Color` everywhere.
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `print` | `print(element, *, width=None)` | Render Element; falls through to builtin print for non-Elements. |
-| `print_element` | `print_element(element, width=None)` | Raw render-to-stdout. |
 | `render_to_string` | `render_to_string(element, width=80) -> str` | Raw string render. |
 | `live` | `live(render_fn, fps=30, max_width=0, cursor=False)` | Raw animation loop; `render_fn(dt)->Element`. |
 | `quit` | `quit()` | Stop the current loop. |
@@ -180,6 +191,15 @@ tuple / `Color` everywhere.
 | `event_char` | `event_char(ev) -> str \| None` | The typed character (printable, no Ctrl/Alt), else `None`. |
 | `pasted` | `pasted(ev) -> str \| None` | Bracketed-paste text, else `None`. |
 | `resize_size` | `resize_size(ev) -> (cols, rows) \| None` | New terminal size on a resize event. |
+| `is_mouse` | `is_mouse(ev) -> bool` | Any mouse event (move / press / release / wheel). |
+| `mouse_clicked` | `mouse_clicked(ev) -> bool` | A mouse button press. |
+| `mouse_released` | `mouse_released(ev) -> bool` | A mouse button release. |
+| `mouse_moved` | `mouse_moved(ev) -> bool` | Pointer movement. |
+| `scrolled_up` | `scrolled_up(ev) -> bool` | Wheel scrolled up. |
+| `scrolled_down` | `scrolled_down(ev) -> bool` | Wheel scrolled down. |
+| `mouse_pos` | `mouse_pos(ev) -> (col, row) \| None` | 1-based cell position (top-left is `(1, 1)`), else `None`. |
+| `mouse_button` | `mouse_button(ev) -> MouseButton \| None` | Button involved, else `None`. |
+| `mouse_kind` | `mouse_kind(ev) -> MouseEventKind \| None` | `Press` / `Release` / `Move`, else `None`. |
 | `Event` | class | Opaque event object. |
 
 ---
@@ -212,11 +232,17 @@ See [Performance](performance.md).
 | Enum | Values |
 |------|--------|
 | `FlexDirection` | `Row` `Column` `RowReverse` `ColumnReverse` |
+| `FlexWrap` | `NoWrap` `Wrap` `WrapReverse` |
+| `Overflow` | `Visible` `Hidden` `Scroll` |
 | `Align` | `Start` `Center` `End` `Stretch` `Baseline` |
 | `Justify` | `Start` `Center` `End` `SpaceBetween` `SpaceAround` `SpaceEvenly` |
 | `BorderStyle` | `None_` `Single` `Double` `Round` `Bold` `SingleDouble` `DoubleSingle` `Classic` `Arrow` `Dashed` |
+| `BorderTextPos` | `Top` `Bottom` |
+| `BorderTextAlign` | `Start` `Center` `End` |
 | `TextWrap` | `Wrap` `TruncateEnd` `TruncateMiddle` `TruncateStart` `NoWrap` |
 | `SpecialKey` | `Up` `Down` `Left` `Right` `Home` `End` `PageUp` `PageDown` `Tab` `BackTab` `Backspace` `Delete` `Insert` `Enter` `Escape` `F1`–`F12` |
+| `MouseButton` | `None_` `Left` `Middle` `Right` `ScrollUp` `ScrollDown` `ScrollLeft` `ScrollRight` |
+| `MouseEventKind` | `Press` `Release` `Move` |
 | `GaugeStyle` | `Arc` `Bar` |
 | `ColumnAlign` | `Left` `Center` `Right` |
 | `ButtonVariant` | `Default` `Primary` `Danger` `Ghost` |
@@ -248,6 +274,8 @@ See [Performance](performance.md).
 | `Style` | Text style descriptor (see [styling](#text--styling)). |
 | `Color` | A color value (see [styling](#text--styling)). |
 | `Event` | An input event (see [events](#events-low)). |
+| `Dimension` | A size value (`auto` / fixed / percent). Build percents with `pct(…)`; pass to `width`/`height`. |
+| `BorderSides` | Which border sides to draw. Build with `sides(…)` or use `BorderSides.all` / `.none` / `.horizontal` / `.vertical` / `.top` / `.right` / `.bottom` / `.left`. |
 
 ---
 

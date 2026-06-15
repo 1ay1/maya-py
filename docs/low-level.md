@@ -204,7 +204,7 @@ maya.Row = FlexDirection.Row         maya.Column = FlexDirection.Column
 
 | Function | Notes |
 |----------|-------|
-| `print_element(element, width=None)` | the raw render-to-stdout binding (`show` wraps it) |
+| `print(element, *, width=None)` | render an Element to stdout (falls through to builtin `print` for non-Elements; `show` wraps it) |
 | `render_to_string(element, width=80)` | raw string render (`to_string` wraps it) |
 | `live(render_fn, fps=30, max_width=0, cursor=False)` | raw animation loop (`animate` wraps it) |
 | `run(event_fn, render_fn, ...)` | the interactive loop (`App` wraps it) |

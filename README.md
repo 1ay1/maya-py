@@ -401,7 +401,7 @@ release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.1.3 \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.2.1 \
   maya-py
 ```
 
@@ -409,7 +409,7 @@ Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install https://github.com/1ay1/maya-py/releases/download/v0.1.3/maya_py-0.1.3-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.2.1/maya_py-0.2.1-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 </details>
@@ -439,7 +439,7 @@ toolchain and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/download/v0.1.3/maya_py-0.1.3.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.2.1/maya_py-0.2.1.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes
@@ -516,17 +516,18 @@ Honest numbers from `examples/bench.py` and `examples/bench_live.py`
 (30-row dashboard, this machine — yours will differ):
 
 **Rendering to a string (one-shot output).** Here a tuned pure-Python
-renderer *wins* — building the element tree in Python and crossing pybind11
-costs more than maya's native render saves:
+renderer still edges ahead — building the element tree in Python and crossing
+pybind11 costs more than maya's native render saves:
 
 | path | per render |
 |------|-----------|
-| maya-py (build + render) | ~340 µs |
-| pure-Python equivalent | ~68 µs |
+| maya-py (build + render) | ~145 µs |
+| pure-Python equivalent | ~70 µs |
 
-~65% of maya-py's time is the Python tree construction + boundary crossing,
-not maya. So **if you only render static output, a pure-Python lib like Rich
-will likely be faster.**
+~80% of maya-py's time is the Python tree construction + boundary crossing,
+not maya — the native render itself is only ~24 µs. So **if you only render
+static output once, a pure-Python lib like Rich is still a touch faster** (now
+~2×, down from ~5×).
 
 **Live redraw to a terminal (what maya is built for).** When you redraw a
 frame and only part changed, maya's SIMD cell-diff emits *only the changed
