@@ -44,6 +44,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - How It Works (Concepts): concepts.md
   - Text & Style: text-and-style.md
   - Layout: layout.md
   - Apps: apps.md

@@ -25,6 +25,7 @@ That's the whole program. Strings *are* UI — no manual element wrapping.
 A full reference manual lives in [`docs/`](https://1ay1.github.io/maya-py/):
 
 - [Getting Started](https://1ay1.github.io/maya-py/getting-started/) — install, first UI, first app.
+- [How It Works (Concepts)](https://1ay1.github.io/maya-py/concepts/) — the mental model: render pipeline, runtimes, performance, pitfalls.
 - [Text & Style](https://1ay1.github.io/maya-py/text-and-style/) — `T`, markup helpers, colors.
 - [Layout](https://1ay1.github.io/maya-py/layout/) — `col`, `row`, `card`, `field`, `hr`, options.
 - [Apps](https://1ay1.github.io/maya-py/apps/) — the `App` class, key bindings, state, the view.
