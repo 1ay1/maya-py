@@ -161,12 +161,14 @@ else()
     # blocking-writer fix for print() wide-frame truncation, Zed terminal
     # full-row repaint, DEC-2026 sync close, the live()/animate() writer
     # residue drain that bounds memory under tty backpressure, inline-mode
-    # mouse coordinate translation + out-of-frame suppression, and the
-    # maya::set_mouse() runtime capture toggle. Bump deliberately when
-    # pulling in new maya changes.
+    # mouse coordinate translation + out-of-frame suppression, the
+    # maya::set_mouse() runtime capture toggle, and terminal restoration on
+    # fatal signals/crashes (SIGHUP/TERM/QUIT/SEGV/...) + cooked-termios
+    # restore in the emergency path. Bump deliberately when pulling in new
+    # maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        819d72ff3ac412c3799e6fa93031d41becdfc71b)
+        GIT_TAG        c5f8c30c606b334a8e9f8f47276ce04bb8565e2f)
     FetchContent_MakeAvailable(maya)
 endif()
 
