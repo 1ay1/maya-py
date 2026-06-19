@@ -167,14 +167,16 @@ else()
     # restore in the emergency path, and the safe_break_len() incomplete-CSI
     # fix (a bare "\x1b[" at a buffer boundary is no longer treated as a
     # complete sequence, so the non-blocking writer never splits a CSI across
-    # the wire), the engine's CI / sanitizer / libFuzzer harnesses, and the
+    # the wire), the engine's CI / sanitizer / libFuzzer harnesses, the
     # terminal SIGINT-restore fix (the tty is now put back even when SIGINT
     # reaches a maya app by a route other than a raw-mode keystroke, while the
-    # host's KeyboardInterrupt handler still fires via the chained re-raise).
+    # host's KeyboardInterrupt handler still fires via the chained re-raise),
+    # and the markdown emphasis O(n^2)->O(n) fix (pathological inputs like
+    # `*a*a*a...` no longer blow up the inline parser).
     # Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        766334b3d091db80b4f5f9b391bbc5a8946057a9)
+        GIT_TAG        7baae921a7f8dcfd74c86c6311254fe9a511aa9d)
     FetchContent_MakeAvailable(maya)
 endif()
 
