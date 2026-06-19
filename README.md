@@ -387,6 +387,15 @@ pip install maya-py
 That's it — the wheel already contains the compiled extension, and pip picks
 the right one for your OS / architecture / Python automatically.
 
+Then scaffold a runnable app and go:
+
+```bash
+maya new myapp     # writes myapp.py — a working counter app
+python myapp.py    # run it (q / Esc to quit)
+```
+
+(`maya new`, `maya demo`, `maya version` also work as `python -m maya_py ...`.)
+
 > **Terminal note.** maya speaks ANSI/VT escapes + truecolor + UTF-8. On
 > Linux and macOS any modern terminal works. On **Windows use Windows
 > Terminal** (the default on Windows 11; free on Windows 10) or any VT-capable

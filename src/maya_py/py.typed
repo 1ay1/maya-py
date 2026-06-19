@@ -1,3 +1,5 @@
-# PEP 561 marker — maya_py ships inline type information (the .pyi stubs in
-# this package). Presence of this file tells mypy / pyright to trust the
-# package's annotations instead of treating it as untyped.
+# PEP 561 marker — maya_py ships inline type information. Presence of this file
+# tells mypy / pyright / Pylance to trust this package's annotations: the native
+# extension is described by the hand-maintained _maya.pyi stub, and the pure
+# Python modules (easy.py, widgets.py, program.py, pixels.py) carry inline
+# annotations. Editors get completion + type-checking across the whole surface.

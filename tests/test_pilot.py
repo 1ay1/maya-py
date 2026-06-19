@@ -203,3 +203,68 @@ def test_pilot_context_manager():
         assert p.state.n == 2
         p.press("q")
         assert not p.running
+
+
+# ── friendly errors ──────────────────────────────────────────────────────────
+
+def test_unknown_color_suggests_nearest():
+    import pytest
+    from maya_py import T
+    with pytest.raises(ValueError) as ei:
+        T("x").fg("skyblue")
+    msg = str(ei.value)
+    assert "unknown color" in msg
+    assert "did you mean" in msg          # nearest-match hint
+    assert "sky" in msg                   # valid names listed
+
+
+def test_view_returning_none_names_the_view():
+    import pytest
+    from maya_py import App, col
+    app = App("x")
+
+    @app.view
+    def myview(s):
+        col("oops, forgot return")
+
+    with pytest.raises(TypeError) as ei:
+        app.test().render()
+    msg = str(ei.value)
+    assert "myview" in msg and "None" in msg and "return" in msg
+
+
+def test_view_returning_wrong_type_names_the_view():
+    import pytest
+    from maya_py import App
+    app = App("y")
+    app.view(lambda s: 42)
+    with pytest.raises(TypeError) as ei:
+        app.test().render()
+    assert "not renderable" in str(ei.value) or "renderable" in str(ei.value)
+
+
+# ── CLI scaffold ─────────────────────────────────────────────────────────────
+
+def test_cli_new_creates_runnable_app(tmp_path):
+    import os
+    from maya_py.__main__ import main
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        rc = main(["new", "My Cool App"])
+        assert rc == 0
+        f = tmp_path / "My_Cool_App.py"
+        assert f.exists()
+        body = f.read_text()
+        assert "App(" in body and "app.run()" in body
+        # second call refuses to overwrite
+        assert main(["new", "My Cool App"]) == 1
+    finally:
+        os.chdir(cwd)
+
+
+def test_cli_version_and_help():
+    from maya_py.__main__ import main
+    assert main(["version"]) == 0
+    assert main([]) == 0            # help
+    assert main(["bogus"]) == 2     # unknown command

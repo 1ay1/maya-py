@@ -48,6 +48,26 @@ def _pack(r: int, g: int, b: int) -> int:
     return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
 
 
+def _unknown_color_msg(value: Any) -> str:
+    """A helpful error for a bad color: nearest palette name + the full list.
+
+    Cold path only — we're about to raise, so the difflib call is free.
+    """
+    import difflib
+    names = sorted(n for n in _PALETTE if not n.startswith("#"))
+    msg = f"unknown color {value!r}"
+    if isinstance(value, str):
+        near = difflib.get_close_matches(value.strip().lower(), names, n=1, cutoff=0.5)
+        if near:
+            msg += f" — did you mean {near[0]!r}?"
+    msg += (
+        "\n  valid names: " + ", ".join(names)
+        + "\n  or pass: '#RRGGBB' / '#RGB', an (r,g,b) tuple, a 0xRRGGBB int, "
+        "or a maya.Color"
+    )
+    return msg
+
+
 _PALETTE: dict[str, int] = {
     "black": _pack(0, 0, 0), "white": _pack(235, 235, 235),
     "red": _pack(220, 80, 80), "green": _pack(80, 220, 120), "blue": _pack(90, 150, 250),
@@ -84,7 +104,7 @@ def _rgb_int(value: Any) -> int:
             packed = int(h, 16) & 0xFFFFFF
             _PALETTE[value] = packed   # memoise the literal for next frame
             return packed
-        raise ValueError(f"unknown color: {value!r}")
+        raise ValueError(_unknown_color_msg(value))
     if type(value) is int:
         return value & 0xFFFFFF
     if type(value) is tuple or type(value) is list:
@@ -1077,7 +1097,7 @@ class App:
                 fn(self._state, dt)
         if self._view is None:
             return _maya.text("(no view registered)")
-        return _el(self._view(self._state))
+        return _view_element(self._view, self._state)
 
     def run(self) -> None:
         """Start the event loop. Blocks until a handler calls ``stop()``
@@ -1209,7 +1229,7 @@ class Pilot:
         """Render the current view to a plain string (one text line per row,
         trailing blanks trimmed). The thing to assert against."""
         w = self.width if width is None else width
-        el = _el(self.app._view(self.app._state)) if self.app._view \
+        el = _view_element(self.app._view, self.app._state) if self.app._view \
             else _maya.text("(no view registered)")
         return _maya.render_to_string(el, w)
 
@@ -1221,6 +1241,26 @@ class Pilot:
 
 def app_running(app: "App") -> bool:
     return getattr(app, "_running", True)
+
+
+def _view_element(view_fn: Callable, state: Any) -> Element:
+    """Call a view function and coerce its result, with an error that names the
+    real culprit (the view) instead of a generic 'not a renderable child'."""
+    result = view_fn(state)
+    if result is None:
+        raise TypeError(
+            f"view function {getattr(view_fn, '__name__', 'view')!r} returned "
+            "None — it must return a node (a string, a T, or a maya element "
+            "like col(...)/card(...)). Did you forget a `return`?"
+        )
+    try:
+        return _el(result)
+    except TypeError as exc:
+        raise TypeError(
+            f"view function {getattr(view_fn, '__name__', 'view')!r} returned "
+            f"{type(result).__name__} ({result!r:.60}), which is not renderable. "
+            "Return a string, a T, or a maya element (col/row/card/box/text/...)."
+        ) from exc
 
 
 # ── color + formatting utilities ─────────────────────────────────────────────

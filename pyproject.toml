@@ -38,6 +38,10 @@ Documentation = "https://1ay1.github.io/maya-py/"
 Issues = "https://github.com/1ay1/maya-py/issues"
 "maya (upstream)" = "https://github.com/1ay1/maya"
 
+[project.scripts]
+# `maya new myapp`, `maya demo`, `maya version` — same as `python -m maya_py`.
+maya = "maya_py.__main__:main"
+
 [tool.scikit-build]
 minimum-version = "0.10"
 build-dir = "build/{wheel_tag}"
