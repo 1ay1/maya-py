@@ -512,16 +512,18 @@ PYTHONPATH=src python examples/agent_session.py
 ## Install
 
 **The wheels are standalone — no compiler needed.** maya-py ships precompiled
-binary wheels for CPython 3.9–3.14 on **Linux** (x86_64 + aarch64), **macOS**
-(universal2 — Apple Silicon *and* Intel in one wheel, macOS 11+), and
-**Windows** (x64), so on a normal machine you just:
+binary wheels for CPython 3.9–3.14 on **Linux** (x86_64; aarch64 configured)
+and **Windows** (x64), so on a normal machine you just:
 
 ```bash
 pip install maya-py
 ```
 
 That's it — the wheel already contains the compiled extension, and pip picks
-the right one for your OS / architecture / Python automatically.
+the right one for your OS / architecture / Python automatically. On **macOS**
+(Apple Silicon) there's no prebuilt wheel yet — `pip` builds from source, which
+just needs Homebrew GCC (`brew install gcc`); see [No matching
+wheel?](#no-matching-wheel-build-from-the-sdist) below.
 
 Then scaffold a runnable app and go:
 
@@ -547,7 +549,7 @@ release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.2.1 \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.2.5 \
   maya-py
 ```
 
@@ -555,7 +557,7 @@ Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install https://github.com/1ay1/maya-py/releases/download/v0.2.1/maya_py-0.2.1-cp313-cp313-manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.2.5/maya_py-0.2.5-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 </details>
@@ -568,24 +570,26 @@ none at all), because:
 - it **statically links libstdc++/libgcc**, so it doesn't need the host's
   (old) C++ runtime — it depends only on baseline `libc`/`libm`.
 
-The macOS wheel targets macOS 11.0+ and uses the system `libc++`; the Windows
-wheel links the UCRT present on every Windows 10+ machine. Nothing on your
-machine is compiled at install time, so your system compiler is irrelevant.
+The Windows wheel links the UCRT present on every Windows 10+ machine. Nothing
+on your machine is compiled at install time, so your system compiler is
+irrelevant.
 
 ### No matching wheel? Build from the sdist
 
-If no prebuilt wheel matches your platform/Python, install the source
-distribution — this compiles the extension locally and needs a C++23-capable
-toolchain and CMake ≥ 3.28:
+If no prebuilt wheel matches your platform/Python — notably **macOS** — install
+the source distribution; this compiles the extension locally and needs a
+C++23-capable toolchain and CMake ≥ 3.28:
 
 - **Linux:** GCC ≥ 14 or Clang ≥ 18
-- **macOS:** AppleClang ≥ 15 (Xcode 15 — `xcode-select --install`)
+- **macOS:** Homebrew GCC (`brew install gcc`) — AppleClang is rejected
+  (it misses C++23 library bits maya needs); CMake auto-picks the `gcc-*`
+  driver
 - **Windows:** Visual Studio 2022 ≥ 17.10 (MSVC `cl` ≥ 19.40), "Desktop
   development with C++" workload
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/download/v0.2.1/maya_py-0.2.1.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.2.5/maya_py-0.2.5.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes

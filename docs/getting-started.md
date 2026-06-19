@@ -24,15 +24,17 @@ pip install maya-py
 That's the whole story for most people. maya is a C++26 engine, but you don't
 need a compiler: **maya-py ships prebuilt, self-contained binary wheels** (the
 native engine is statically linked into the extension), so `pip install` drops
-in a ready-to-run package on Linux and macOS. If you want the details — how the
-standalone wheels are built and which platforms are covered — see
+in a ready-to-run package on Linux (x86-64) and Windows (x64). On macOS
+(Apple Silicon) `pip` builds from source — fast, and it just needs Homebrew
+GCC (`brew install gcc`). If you want the details — how the standalone wheels
+are built and which platforms are covered — see
 **[Distribution & Standalone Wheels](distribution.md)**.
 
 Check it imported:
 
 ```python
 import maya_py
-print(maya_py.__version__)   # 0.2.2
+print(maya_py.__version__)   # 0.2.5
 ```
 
 You write maya UIs with one import line. Everything in this tutorial comes

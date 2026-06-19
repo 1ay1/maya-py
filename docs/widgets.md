@@ -43,17 +43,19 @@ the reasoning, counted from `widgets.py`'s `__all__`:
 | charts & meters | sparkline, gauge, progress, bar_chart, line_chart, heatmap, flame_chart, waterfall | 8 |
 | controls | checkbox, toggle, radio, select, slider, button | 6 |
 | text & labels | badge, divider, spinner, callout, status_banner, breadcrumb, tabs, gradient, link, title_chip, model_badge, file_ref, markdown | 13 |
-| structure & nav | table, tree, list_view, menu, disclosure, key_help, calendar, timeline, picker | 9 |
-| agent UI | thinking, todo_list, toast, inline_diff | 4 |
+| structure & nav | table, tree, list_view, menu, disclosure, key_help, calendar, timeline, picker, popup, overlay | 11 |
+| agent UI | thinking, todo_list, toast, inline_diff, tool_call, plan_view, phase_chip, context_window, context_gauge, diff_view, git_graph, git_status, user_message, assistant_message, system_banner, shortcut_row | 16 |
 | graphics | image, canvas | 2 |
 | scrolling | viewport, scrollbar | 2 |
-| **Total** | | **44** |
+| **Total** | | **58** |
 
 What is **not** counted: the `Canvas` class is an imperative *drawing surface*,
 not a presentational renderer (it ultimately emits the same half-block paint as
 `canvas(...)`); and `scroll_state()` / `scroll_handle(...)` are *state helpers*,
 not renderers — they produce/route a `ScrollState`, they don't return an
-`Element`. The eight enums (`GaugeStyle`, `ColumnAlign`, …) are option types.
+`Element`. The widget enums (`GaugeStyle`, `ColumnAlign`, `ButtonVariant`,
+`TaskStatus`, `ToastLevel`, `TodoItemStatus`, `TodoListStatus`, `PopupStyle`,
+`BannerLevel`, `ToolCallStatus`, `ToolCallKind`) are option types.
 Layout primitives (`card`, `row`, `col`, `tcol`/`trow`, …) live in
 [layout.md](layout.md), not here.
 
@@ -687,9 +689,10 @@ show(picker(
 
 ## Agent UI
 
-These four match the visual language of a coding agent (thinking traces, task
-lists, notifications, edits). See
-[examples/agent.py](https://github.com/1ay1/maya-py/blob/master/examples/agent.py).
+These match the visual language of a coding agent — thinking traces, task
+lists, tool calls, message bubbles, git status, context budgets. See
+[examples/agent.py](https://github.com/1ay1/maya-py/blob/master/examples/agent.py)
+and [examples/widgets_gallery.py](https://github.com/1ay1/maya-py/blob/master/examples/widgets_gallery.py).
 
 ### `thinking`
 
@@ -763,6 +766,145 @@ show(inline_diff("the quick brown fox",
                  "the slow brown dog",
                  label="edit"))
 ```
+
+### `tool_call`
+
+```python
+tool_call(name: str, *, kind="other", description: str = "", status="pending",
+          elapsed: float = 0.0, expanded: bool = False, content=None) -> Element
+```
+
+An agent tool-call card. `kind` is `read` / `edit` / `execute` / `search` /
+`delete` / `move` / `fetch` / `think` / `agent` / `other` (or a `ToolCallKind`);
+`status` is `pending` / `running` / `completed` / `failed` / `confirmation` (or
+a `ToolCallStatus`). `content` is an optional Element shown when `expanded`.
+
+```python
+from maya_py import tool_call, show
+show(tool_call("Read", kind="read", description="src/auth.py",
+               status="completed", elapsed=1.2))
+```
+
+### `plan_view`
+
+```python
+plan_view(tasks: Sequence[Any]) -> Element
+```
+
+A task checklist. Each task is a string (pending) or a `(label, status)` tuple;
+status is `pending` / `in_progress` / `completed` (or a `TaskStatus`).
+
+```python
+from maya_py import plan_view, show
+show(plan_view([("Audit widgets", "completed"),
+                ("Write docs", "in_progress"),
+                "Ship it"]))
+```
+
+### `phase_chip`
+
+```python
+phase_chip(verb: str, *, glyph: str = "", color=None, breathing: bool = False,
+           frame: int = 0, verb_width: int = 10, elapsed: float = -1.0) -> Element
+```
+
+A status chip for the current agent phase ("Thinking", "Running", …). `breathing`
++ `frame` animate a pulse; `elapsed >= 0` appends a timer.
+
+### `context_gauge`
+
+```python
+context_gauge(used: int, max: int, *, cells: int = 10, show_bar: bool = True) -> Element
+```
+
+A compact token-budget meter (`used/max`) with a threshold-coloured bar.
+
+### `context_window`
+
+```python
+context_window(segments: Sequence[Any], *, max_tokens: int = 200000, width: int = 0,
+               show_labels: bool = True, show_percent: bool = True) -> Element
+```
+
+A segmented context-budget bar. Each segment is a `(label, tokens)` /
+`(label, tokens, color)` tuple or a dict; segments fill toward `max_tokens`.
+
+### `diff_view`
+
+```python
+diff_view(path: str, diff: str, *, show_border: bool = True,
+          show_line_numbers: bool = True) -> Element
+```
+
+Renders a unified-diff string (`@@ … @@` hunks, `+`/`-` lines) with syntax
+colouring under a `path` header.
+
+### `git_graph`
+
+```python
+git_graph(commits: Sequence[Any], *, max_branches: int = 0, show_hash: bool = True,
+          show_author: bool = False, show_time: bool = True) -> Element
+```
+
+An ASCII commit graph. Each commit is a dict
+`{hash, message, author, time, branch, is_merge, is_head}` or the matching tuple.
+
+### `git_status`
+
+```python
+git_status(*, branch: str = "", ahead: int = 0, behind: int = 0, modified: int = 0,
+           staged: int = 0, untracked: int = 0, deleted: int = 0, conflicts: int = 0,
+           compact: bool = True, changed_files: Sequence[str] = ()) -> Element
+```
+
+A git-status summary (branch, ahead/behind, dirty counts). `compact` renders a
+single line; otherwise an expanded list including `changed_files`.
+
+### `user_message` / `assistant_message`
+
+```python
+user_message(content) -> Element
+assistant_message(content) -> Element
+```
+
+Chat bubbles: `user_message` is a bordered user turn, `assistant_message` a
+padded reply block. `content` is text or an Element.
+
+### `system_banner`
+
+```python
+system_banner(message: str, *, level="info", dismissable: bool = False) -> Element
+```
+
+A full-width system notice rule. `level` is `info` / `success` / `warning` /
+`error` (or a `BannerLevel`).
+
+### `shortcut_row`
+
+```python
+shortcut_row(bindings: Sequence[Any], *, color=None) -> Element
+```
+
+A width-adaptive keybinding hint row. `bindings` is a list of `(key, label)` or
+`(key, label, key_color, priority)` tuples; lower-priority bindings degrade or
+drop first when space runs out.
+
+```python
+from maya_py import shortcut_row, show
+show(shortcut_row([("q", "quit"), ("/", "search"), ("?", "help")]))
+```
+
+### `popup` / `overlay`
+
+```python
+popup(content: str, *, style="info") -> Element
+overlay(base, over, *, present: bool = True) -> Element
+```
+
+`popup` is a floating notice box (`style`: `info` / `warning` / `error`, or a
+`PopupStyle`). `overlay` z-stacks `over` on top of `base` for a modal layer;
+with `present=False` only `base` renders — the toggle you flip to show/hide a
+modal.
 
 ---
 
@@ -945,6 +1087,10 @@ Values copied from source:
 | `ToastLevel` | `Info`, `Success`, `Warning`, `Error` | `toast` message level |
 | `TodoItemStatus` | `Pending`, `InProgress`, `Completed` | `todo_list` item status |
 | `TodoListStatus` | `Pending`, `Running`, `Done`, `Failed` | `todo_list` card status |
+| `PopupStyle` | `Info`, `Warning`, `Error` | `popup(style=)` |
+| `BannerLevel` | `Info`, `Success`, `Warning`, `Error` | `system_banner(level=)` |
+| `ToolCallStatus` | `Pending`, `Running`, `Completed`, `Failed`, `Confirmation` | `tool_call(status=)` |
+| `ToolCallKind` | `Read`, `Edit`, `Execute`, `Search`, `Delete`, `Move`, `Fetch`, `Think`, `Agent`, `Other` | `tool_call(kind=)` |
 | `ScrollbarStyle` | `line`, `block`, `slim`, `heavy`, `double_line`, `dotted`, `dashed`, `braille`, `ascii`, `shadow`, `minimal`, `neon`, `retro`, `danger`, `pixel` | `scrollbar(style=)` |
 
 `ScrollbarStyle` members are factory functions returning a configured style

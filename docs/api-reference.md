@@ -137,14 +137,18 @@ tuple / `Color` everywhere.
 `markdown`
 
 **Structure & nav:** `table` `tree` `list_view` `menu` `disclosure` `key_help`
-`calendar` `timeline` `picker`
+`calendar` `timeline` `picker` `popup` `overlay`
 
-**Agent UI:** `thinking` `todo_list` `toast` `inline_diff`
+**Agent UI:** `thinking` `todo_list` `toast` `inline_diff` `tool_call`
+`plan_view` `phase_chip` `context_window` `context_gauge` `diff_view`
+`git_graph` `git_status` `user_message` `assistant_message` `system_banner`
+`shortcut_row`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
-`ToastLevel` `TodoItemStatus` `TodoListStatus`
+`ToastLevel` `TodoItemStatus` `TodoListStatus` `PopupStyle` `BannerLevel`
+`ToolCallStatus` `ToolCallKind`
 
 ## Scrolling
 
@@ -252,6 +256,10 @@ See [Performance](performance.md).
 | `ToastLevel` | `Info` `Success` `Warning` `Error` |
 | `TodoItemStatus` | `Pending` `InProgress` `Completed` |
 | `TodoListStatus` | `Pending` `Running` `Done` `Failed` |
+| `PopupStyle` | `Info` `Warning` `Error` |
+| `BannerLevel` | `Info` `Success` `Warning` `Error` |
+| `ToolCallStatus` | `Pending` `Running` `Completed` `Failed` `Confirmation` |
+| `ToolCallKind` | `Read` `Edit` `Execute` `Search` `Delete` `Move` `Fetch` `Think` `Agent` `Other` |
 
 ### Enum shortcuts (top-level)
 
