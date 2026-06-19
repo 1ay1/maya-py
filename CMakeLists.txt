@@ -172,11 +172,15 @@ else()
     # reaches a maya app by a route other than a raw-mode keystroke, while the
     # host's KeyboardInterrupt handler still fires via the chained re-raise),
     # and the markdown emphasis O(n^2)->O(n) fix (pathological inputs like
-    # `*a*a*a...` no longer blow up the inline parser).
+    # `*a*a*a...` no longer blow up the inline parser), and the macOS
+    # sigemptyset macro fix (`::sigemptyset` -> `sigemptyset`; the sig*set()
+    # functions are macros on Darwin, so the `::` qualifier broke the GCC
+    # build with "expected id-expression before '('" — this unblocks the
+    # Apple-Silicon wheels).
     # Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        7baae921a7f8dcfd74c86c6311254fe9a511aa9d)
+        GIT_TAG        29bd2e0d45bd8df199565a1597042799f7b45bf4)
     FetchContent_MakeAvailable(maya)
 endif()
 

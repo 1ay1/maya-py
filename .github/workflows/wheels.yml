@@ -18,15 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Reliable, fast-scheduling runners that GATE the PyPI publish:
-        # Linux (manylinux) + Windows x64. These two cover the bulk of
-        # installs and build maya cleanly with their toolchains. macOS is a
-        # SEPARATE non-blocking job (build_wheels_macos) because maya's signal
-        # code uses `::sigemptyset`/`::sigaction`, which Homebrew GCC can't
-        # compile on macOS (those names are macros there). Per-OS build
-        # details live in pyproject.toml's [tool.cibuildwheel.*] tables; the
-        # env below is Linux-scoped.
-        os: [ubuntu-latest, windows-2022]
+        # Runners that GATE the PyPI publish. maya builds cleanly on all three:
+        # Linux (manylinux, gcc-toolset-14), Windows x64 (MSVC), and macOS
+        # arm64 / Apple Silicon (Homebrew GCC). Per-OS build details live in
+        # pyproject.toml's [tool.cibuildwheel.*] tables; the env below is
+        # Linux-scoped.
+        os: [ubuntu-latest, windows-2022, macos-14]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,30 +44,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
-
-  # macOS arm64 (Apple Silicon) wheels. NON-BLOCKING: maya's emergency-signal
-  # handler calls `::sigemptyset`/`::sigaction`, but on macOS those POSIX names
-  # are MACROS, so the `::` global-scope qualifier fails to compile under
-  # Homebrew GCC ("expected id-expression before '(' token"). Until that's
-  # fixed upstream, the macOS build is best-effort: it doesn't gate the PyPI
-  # publish (Linux/Windows users ship on time), and macOS users build from
-  # source. continue-on-error keeps a macOS failure from turning the run red.
-  build_wheels_macos:
-    name: wheels on macos-14 (arm64, non-blocking)
-    runs-on: macos-14
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.1
-        env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-14
           path: ./wheelhouse/*.whl
 
   build_sdist:
@@ -122,31 +95,4 @@ jobs:
           packages-dir: dist
           # Don't fail the whole release if a re-run hits an already-uploaded
           # file (e.g. re-tagging the same version).
-          skip-existing: true
-
-  # Publish the macOS arm64 wheels when/if they build, WITHOUT gating the main
-  # publish above. Depends only on the non-blocking macOS build; skip-existing
-  # dedupes against anything already on PyPI, and continue-on-error means a
-  # macOS build failure can't turn the release red.
-  publish_pypi_macos:
-    name: publish macOS wheels to PyPI (non-blocking)
-    needs: [build_wheels_macos]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    continue-on-error: true
-    environment:
-      name: pypi
-      url: https://pypi.org/project/maya-py/
-    permissions:
-      id-token: write   # OIDC token for PyPI Trusted Publishing (no secret)
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: wheels-macos-14
-          merge-multiple: true
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist
           skip-existing: true

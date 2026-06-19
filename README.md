@@ -512,18 +512,16 @@ PYTHONPATH=src python examples/agent_session.py
 ## Install
 
 **The wheels are standalone — no compiler needed.** maya-py ships precompiled
-binary wheels for CPython 3.9–3.14 on **Linux** (x86_64; aarch64 configured)
-and **Windows** (x64), so on a normal machine you just:
+binary wheels for CPython 3.9–3.14 on **Linux** (x86_64; aarch64 configured),
+**Windows** (x64), and **macOS** (Apple Silicon / arm64), so on a normal
+machine you just:
 
 ```bash
 pip install maya-py
 ```
 
 That's it — the wheel already contains the compiled extension, and pip picks
-the right one for your OS / architecture / Python automatically. On **macOS**
-(Apple Silicon) there's no prebuilt wheel yet — `pip` builds from source, which
-just needs Homebrew GCC (`brew install gcc`); see [No matching
-wheel?](#no-matching-wheel-build-from-the-sdist) below.
+the right one for your OS / architecture / Python automatically.
 
 Then scaffold a runnable app and go:
 
@@ -549,7 +547,7 @@ release assets. Let pip pick the right wheel for your Python:
 
 ```bash
 pip install --find-links \
-  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.2.5 \
+  https://github.com/1ay1/maya-py/releases/expanded_assets/v0.2.6 \
   maya-py
 ```
 
@@ -557,13 +555,13 @@ Or install a specific `.whl` by direct URL:
 
 ```bash
 # e.g. CPython 3.13 on x86_64 Linux
-pip install https://github.com/1ay1/maya-py/releases/download/v0.2.5/maya_py-0.2.5-cp313-cp313-manylinux_2_28_x86_64.whl
+pip install https://github.com/1ay1/maya-py/releases/download/v0.2.6/maya_py-0.2.6-cp313-cp313-manylinux_2_28_x86_64.whl
 ```
 
 </details>
 
-The Linux wheel works even on machines with a **very old C++ toolchain** (or
-none at all), because:
+The Linux and macOS wheels work even on machines with a **very old C++
+toolchain** (or none at all), because:
 
 - the wheel is built inside a `manylinux_2_28` container, so it targets
   glibc 2.28 (2019) and runs on that-or-newer distros;
@@ -576,8 +574,8 @@ irrelevant.
 
 ### No matching wheel? Build from the sdist
 
-If no prebuilt wheel matches your platform/Python — notably **macOS** — install
-the source distribution; this compiles the extension locally and needs a
+If no prebuilt wheel matches your platform/Python, install the source
+distribution; this compiles the extension locally and needs a
 C++23-capable toolchain and CMake ≥ 3.28:
 
 - **Linux:** GCC ≥ 14 or Clang ≥ 18
@@ -589,7 +587,7 @@ C++23-capable toolchain and CMake ≥ 3.28:
 
 ```bash
 pip install \
-  https://github.com/1ay1/maya-py/releases/download/v0.2.5/maya_py-0.2.5.tar.gz
+  https://github.com/1ay1/maya-py/releases/download/v0.2.6/maya_py-0.2.6.tar.gz
 ```
 
 The compile pulls maya in via CMake `FetchContent` and takes ~1–2 minutes

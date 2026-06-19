@@ -84,19 +84,18 @@ The `wheels` workflow then:
 1. enables `gcc-toolset-14` and builds the wheel inside `manylinux_2_28` for
    each CPython (3.9–3.14),
 2. runs `auditwheel` to tag + bundle,
-3. builds the Windows (x64) wheels and the sdist,
+3. builds the Windows (x64) and macOS (Apple Silicon / arm64) wheels and the
+   sdist,
 4. attaches all artifacts to the GitHub Release (the `release` job has
    `contents: write`, so this is automatic),
 5. **publishes to PyPI** via Trusted Publishing (OIDC, no stored token) —
-   gated on the Linux + Windows builds, with `skip-existing` so re-tagging a
-   version is safe.
+   gated on the Linux + Windows + macOS builds, with `skip-existing` so
+   re-tagging a version is safe.
 
-The macOS (Apple Silicon) wheel runs as a **separate, non-blocking job**: maya's
-emergency-signal handler calls `::sigemptyset`/`::sigaction`, and on macOS those
-POSIX names are *macros*, so the `::` global-scope qualifier doesn't compile
-under Homebrew GCC. Until that's fixed upstream the macOS wheel is best-effort
-— it doesn't gate the Linux/Windows publish, and macOS users build from source
-(`pip` runs CMake, which auto-picks Homebrew GCC).
+All three platforms (Linux, Windows, macOS arm64) build in the same matrix and
+gate the publish. macOS builds with **Homebrew GCC** — `pip` / cibuildwheel
+auto-picks it via the pre-`project()` block in `CMakeLists.txt`, since
+AppleClang lags upstream LLVM on the C++23/26 bits maya uses.
 
 Users just `pip install maya-py`; `pip` picks the matching wheel automatically.
 
@@ -114,14 +113,14 @@ user back to the prebuilt wheel.
 |----------|-------|-------|
 | Linux x86-64 | ✅ via CI | `manylinux_2_28`, glibc ≥ 2.28, CPython 3.9–3.14 |
 | Windows x64 | ✅ via CI | VS 2022 (MSVC), UCRT-linked, CPython 3.9–3.14 |
+| macOS arm64 | ✅ via CI | Apple Silicon, Homebrew GCC, CPython 3.9–3.14 |
 | Linux aarch64 | ⚙️ configured | same image; slower CI (emulated/native) |
-| macOS arm64 | ⚙️ source-only | Homebrew GCC can't compile maya's `::sigemptyset` (macro on macOS); wheel job is non-blocking, users build from source |
 | musl (Alpine) | ❌ skipped | maya's toolchain story on musl is untested |
 
 ## Summary
 
-- Users: `pip install maya-py` — precompiled on Linux/Windows, no compiler,
-  works on old machines; macOS builds from source via Homebrew GCC.
+- Users: `pip install maya-py` — precompiled on Linux, Windows, and macOS
+  (Apple Silicon), no compiler, works on old machines.
 - The `.so` is self-contained (static C++ runtime, old-glibc target).
 - Source builds need GCC 14+ / Clang 18+, and say so clearly if your compiler
   is too old.
