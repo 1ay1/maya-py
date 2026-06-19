@@ -228,7 +228,10 @@ app.run()
 ```
 
 Key names: single chars (`"q"`, `"+"`), `"up"/"down"/"left"/"right"`,
-`"enter"`, `"esc"`, `"space"`, `"tab"`, `"ctrl+c"`, `"alt+x"`, etc. Handlers
+`"enter"`, `"esc"`, `"space"`, `"tab"`/`"shift+tab"`, `"home"/"end"`,
+`"pgup"/"pgdn"`, `"insert"/"delete"`, `"f1"`–`"f12"`, and modifier prefixes
+`"ctrl+s"`, `"alt+x"`, `"shift+a"`. A **typo'd key spec raises** with a
+did-you-mean hint instead of silently never firing. Handlers
 get the state object; the view re-renders every frame.
 
 ### Text input

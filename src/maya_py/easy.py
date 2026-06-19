@@ -809,11 +809,16 @@ _SPECIAL = {
     "left": SpecialKey.Left, "right": SpecialKey.Right,
     "enter": SpecialKey.Enter, "return": SpecialKey.Enter,
     "esc": SpecialKey.Escape, "escape": SpecialKey.Escape,
-    "tab": SpecialKey.Tab, "backtab": SpecialKey.BackTab,
+    "tab": SpecialKey.Tab, "backtab": SpecialKey.BackTab, "shifttab": SpecialKey.BackTab,
     "space": None,  # handled as ' '
-    "backspace": SpecialKey.Backspace, "delete": SpecialKey.Delete,
+    "backspace": SpecialKey.Backspace, "delete": SpecialKey.Delete, "del": SpecialKey.Delete,
+    "insert": SpecialKey.Insert, "ins": SpecialKey.Insert,
     "home": SpecialKey.Home, "end": SpecialKey.End,
     "pageup": SpecialKey.PageUp, "pagedown": SpecialKey.PageDown,
+    "pgup": SpecialKey.PageUp, "pgdn": SpecialKey.PageDown, "pgdown": SpecialKey.PageDown,
+    "f1": SpecialKey.F1, "f2": SpecialKey.F2, "f3": SpecialKey.F3, "f4": SpecialKey.F4,
+    "f5": SpecialKey.F5, "f6": SpecialKey.F6, "f7": SpecialKey.F7, "f8": SpecialKey.F8,
+    "f9": SpecialKey.F9, "f10": SpecialKey.F10, "f11": SpecialKey.F11, "f12": SpecialKey.F12,
 }
 
 # friendly mouse-button names → MouseButton enum
@@ -822,6 +827,25 @@ _MOUSE_BTN = {
     "right": _maya.MouseButton.Right,
     "middle": _maya.MouseButton.Middle,
 }
+
+
+def _unknown_key_msg(spec: str, base: str) -> str:
+    """A helpful error for a bad key spec: nearest named key + what's valid.
+
+    Cold path only — we're about to raise.
+    """
+    import difflib
+    names = sorted(_SPECIAL)
+    msg = f"unknown key spec {spec!r}"
+    near = difflib.get_close_matches(base, names, n=1, cutoff=0.5)
+    if near:
+        msg += f" — did you mean {near[0]!r}?"
+    msg += (
+        "\n  a key is a single char ('q', '+', '?'), a named key ("
+        + ", ".join(names)
+        + "), or those with a ctrl+/alt+/shift+ prefix (e.g. 'ctrl+s', 'alt+x')."
+    )
+    return msg
 
 
 def text_input(placeholder: str = "", *, password: bool = False,
@@ -1095,6 +1119,13 @@ class App:
         self._focusable = list(widgets)
         self._focus_idx = 0 if widgets else -1
         for j, wdg in enumerate(self._focusable):
+            if not (hasattr(wdg, "handle") and hasattr(wdg, "focused")):
+                raise TypeError(
+                    f"focus() expects interactive widgets (text_input()/textarea() "
+                    f"or any object with .handle(event) + .focused), but argument "
+                    f"{j} is {type(wdg).__name__} ({wdg!r:.40}). Did you pass a "
+                    "string or an element instead of a widget?"
+                )
             wdg.focused = (j == 0)
         return widgets[0] if widgets else None
 
@@ -1124,21 +1155,73 @@ class App:
 
     # -- internals -----------------------------------------------------------
     def _matcher(self, k: str) -> Callable[[Any], bool]:
-        key = k.lower()
-        if key == "space":
-            return lambda ev: _maya.key(ev, " ")
-        if key in _SPECIAL and _SPECIAL[key] is not None:
-            sk = _SPECIAL[key]
+        """Compile a key spec into a predicate, or raise on a bad spec.
+
+        Accepts modifier prefixes (``ctrl+``/``alt+``/``shift+``, any order)
+        followed by a single character or a named key (``up``, ``enter``, ``f5``,
+        ``space``, …). A typo or unsupported combo raises a helpful error — the
+        old behavior silently built a binding that never fired.
+        """
+        if not isinstance(k, str) or k == "":
+            raise ValueError(f"key spec must be a non-empty string, got {k!r}")
+
+        # Split modifier prefixes off the front (but keep a lone '+' as a key).
+        ctrl = alt = shift = False
+        rest = k
+        while True:
+            low = rest.lower()
+            if low.startswith("ctrl+") and len(rest) > 5:
+                ctrl, rest = True, rest[5:]
+            elif low.startswith("alt+") and len(rest) > 4:
+                alt, rest = True, rest[4:]
+            elif low.startswith("shift+") and len(rest) > 6:
+                shift, rest = True, rest[6:]
+            elif (low.startswith("super+") or low.startswith("cmd+")) and "+" in rest:
+                raise ValueError(
+                    f"key spec {k!r}: the super/cmd modifier isn't matchable from "
+                    "Python yet — use ctrl/alt, or bind the bare key."
+                )
+            else:
+                break
+
+        base = rest.lower()
+
+        # shift+tab is the one meaningful shift+special combo — it's BackTab.
+        if shift and base == "tab":
+            return lambda ev: _maya.key_special(ev, SpecialKey.BackTab)
+
+        # shift+<letter> can't be told apart from the letter by the predicates
+        # (terminals deliver an uppercase char), so map it to the upper-case key.
+        if shift and len(rest) == 1 and rest.isalpha():
+            shift = False
+            rest = rest.upper()
+            base = rest.lower()
+
+        # A named special key.
+        if base in _SPECIAL:
+            sk = _SPECIAL[base]
+            if sk is None:  # "space"
+                if ctrl:
+                    return lambda ev: _maya.ctrl(ev, " ")
+                return lambda ev: _maya.key(ev, " ")
+            if alt or shift:
+                raise ValueError(
+                    f"key spec {k!r}: modifiers on the named key {base!r} aren't "
+                    "matchable — bind the plain key (e.g. 'up', 'enter', 'f5')."
+                )
             return lambda ev: _maya.key_special(ev, sk)
-        if key.startswith("ctrl+") and len(key) == 6:
-            ch = key[5]
-            return lambda ev: _maya.ctrl(ev, ch)
-        if key.startswith("alt+") and len(key) == 5:
-            ch = key[4]
-            return lambda ev: _maya.alt(ev, ch)
-        # single character (use original case so '+' etc. survive)
-        ch = k
-        return lambda ev: _maya.key(ev, ch)
+
+        # A single character, optionally with ctrl/alt.
+        if len(rest) == 1:
+            ch = rest
+            if ctrl:
+                return lambda ev: _maya.ctrl(ev, ch.lower())
+            if alt:
+                return lambda ev: _maya.alt(ev, ch.lower())
+            return lambda ev: _maya.key(ev, ch)
+
+        # Anything else is a typo / unsupported spec — fail loudly with a hint.
+        raise ValueError(_unknown_key_msg(k, base))
 
     def _event(self, ev) -> bool:
         # Ctrl-C arrives as a key event (raw mode disables tty signals), so a

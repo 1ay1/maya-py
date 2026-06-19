@@ -482,3 +482,69 @@ def test_pure_program_passes_strict_silently():
     p = _Counter().test()                # strict=True by default
     p.send("inc", "inc", "reset", "dec")
     assert p.model == {"count": -1}
+
+
+# ── key-spec validation (no more silent dead bindings) ────────────────────────
+
+def test_typo_key_spec_raises_with_hint():
+    import pytest
+    with pytest.raises(ValueError) as ei:
+        App("a").on("uppp")(lambda s: None)
+    msg = str(ei.value)
+    assert "unknown key spec" in msg and "did you mean 'up'" in msg
+
+
+def test_typo_modifier_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        App("a").on("ctrl+shft+x")(lambda s: None)   # 'shft' typo — was silent
+
+
+def test_empty_key_spec_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        App("a").on("")(lambda s: None)
+
+
+def test_new_named_keys_fire():
+    # F-keys, insert, pgup aliases were silently dead before.
+    for spec, sent in [("f1", "f1"), ("f12", "f12"), ("insert", "insert"),
+                       ("pgup", "pageup"), ("del", "delete")]:
+        app = App("a", n=0)
+        app.on(spec)(lambda s: setattr(s, "n", 1))
+        app.test().press(sent)
+        assert app.s.n == 1, f"{spec!r} did not fire"
+
+
+def test_shift_tab_and_shift_letter():
+    app = App("a", n=0)
+    app.on("shift+tab")(lambda s: setattr(s, "n", 1))
+    app.test().press("backtab")
+    assert app.s.n == 1
+
+    app2 = App("b", n=0)
+    app2.on("shift+a")(lambda s: setattr(s, "n", 1))
+    app2.test().press("A")            # shift+letter -> uppercase key
+    assert app2.s.n == 1
+
+
+def test_multi_modifier_ctrl_shift():
+    app = App("a", n=0)
+    app.on("ctrl+shift+x")(lambda s: setattr(s, "n", 1))
+    app.test().press("x", ctrl=True, shift=True)
+    assert app.s.n == 1               # was a silent dead binding before
+
+
+def test_case_insensitive_modifier_prefix():
+    app = App("a", n=0)
+    app.on("CTRL+S")(lambda s: setattr(s, "n", 1))
+    app.test().press("s", ctrl=True)
+    assert app.s.n == 1
+
+
+def test_focus_non_widget_raises_clear_error():
+    import pytest
+    with pytest.raises(TypeError) as ei:
+        App("a").focus("not a widget")
+    msg = str(ei.value)
+    assert "focus()" in msg and "widget" in msg
