@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "maya-py"
-version = "0.2.4"
+version = "0.2.5"
 description = "Python bindings for the maya C++26 TUI framework"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -129,12 +129,12 @@ environment = { CC = "gcc", CXX = "g++" }
 # needs). before-all installs GCC via Homebrew; the env points CC/CXX at the
 # versioned driver so CMake's compiler probe picks GCC.
 #
-# Homebrew GCC is single-arch, so we build a NATIVE wheel per runner (arm64 on
-# macos-14, x86_64 on a macos-13 runner) rather than a universal2 fat binary —
-# GCC can't emit universal2. Run the matrix on both runner archs to cover Intel
-# + Apple Silicon. MAYA_PY_STATIC_CXX bakes libstdc++/libgcc into the .so so the
-# wheel doesn't chase the builder's Homebrew libstdc++ at load time; delocate
-# vendors any remaining dylibs.
+# Homebrew GCC is single-arch, so we build a NATIVE arm64 wheel on the
+# macos-14 (Apple Silicon) runner rather than a universal2 fat binary — GCC
+# can't emit universal2. Intel-mac users build from source (CMakeLists
+# auto-picks Homebrew GCC). MAYA_PY_STATIC_CXX bakes libstdc++/libgcc into
+# the .so so the wheel doesn't chase the builder's Homebrew libstdc++ at load
+# time; delocate vendors any remaining dylibs.
 [tool.cibuildwheel.macos]
 before-all = "brew install gcc || true"
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", CC = "gcc-15", CXX = "g++-15", MAYA_PY_STATIC_CXX = "ON" }

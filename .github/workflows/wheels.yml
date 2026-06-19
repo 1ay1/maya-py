@@ -45,29 +45,6 @@ jobs:
           name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
-  # Intel-mac (x86_64) wheels. The GitHub macos-13 runner pool is scarce and
-  # can queue 30-60+ min, so this is a SEPARATE, NON-BLOCKING job: the PyPI
-  # publish does NOT wait on it (see publish_pypi `needs`). When it does
-  # finish its wheels attach to the GitHub Release; Intel-mac users otherwise
-  # build from source (CMakeLists auto-picks Homebrew GCC). `|| true` keeps a
-  # runner-queue timeout from failing the overall run.
-  build_wheels_macos_intel:
-    name: wheels on macos-13 (intel, non-blocking)
-    runs-on: macos-13
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.1
-        env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-13
-          path: ./wheelhouse/*.whl
-
   build_sdist:
     name: source distribution
     runs-on: ubuntu-latest
@@ -117,35 +94,4 @@ jobs:
           packages-dir: dist
           # Don't fail the whole release if a re-run hits an already-uploaded
           # file (e.g. re-tagging the same version).
-          skip-existing: true
-
-  # Publish the Intel-mac (x86_64) wheels to PyPI when they're ready, WITHOUT
-  # gating the main publish above. The macos-13 runner pool is scarce and can
-  # queue for a long time; this separate job depends only on the non-blocking
-  # Intel build, so Apple-Silicon/Linux/Windows users get their release on time
-  # while Intel-mac wheels land on PyPI shortly after the build finishes.
-  # skip-existing dedupes against anything the main job already uploaded, and
-  # continue-on-error means a runner-queue timeout (no Intel artifact) can't
-  # turn the release red.
-  publish_pypi_macos_intel:
-    name: publish intel-mac wheels to PyPI (non-blocking)
-    needs: [build_wheels_macos_intel]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    continue-on-error: true
-    environment:
-      name: pypi
-      url: https://pypi.org/project/maya-py/
-    permissions:
-      id-token: write   # OIDC token for PyPI Trusted Publishing (no secret)
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: wheels-macos-13
-          merge-multiple: true
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist
           skip-existing: true
