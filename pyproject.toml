@@ -56,6 +56,36 @@ MAYA_NATIVE_TUNING = "OFF"
 MAYA_PY_STATIC_CXX = "ON"
 
 # ============================================================================
+# ruff — linter + formatter (CI lint job in .github/workflows/ci.yml)
+# ============================================================================
+# The codebase predates ruff, so we enable a pragmatic subset rather than the
+# full ALL set: pyflakes (F) catches real bugs (undefined names, unused
+# imports), pycodestyle errors (E) minus line-length, bugbear (B) for common
+# footguns, and isort (I). Examples lean on demo-friendly patterns (star math,
+# globals) so a few rules are relaxed there.
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = ["build", "_deps"]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "B", "UP"]
+ignore = [
+    "E501",   # line length — many docstrings/tables exceed 100 intentionally
+    "E741",   # ambiguous var names (l/w/h are natural in layout code)
+    "B008",   # function call in default arg (used deliberately for Style defaults)
+    "UP038",  # isinstance tuple form — keep explicit for clarity
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Examples are teaching code: allow module-level mutable globals, star-ish
+# math helpers, and unused loop vars used for clarity.
+"examples/**" = ["E402", "F841", "B007", "E731"]
+"scripts/**" = ["E402", "E731"]
+"tests/**" = ["E402", "F841"]
+"src/maya_py/__init__.py" = ["F401", "E402"]  # re-export hub
+
+# ============================================================================
 # cibuildwheel — produce STANDALONE binary wheels
 # ============================================================================
 # These wheels are precompiled: installing one runs NO compiler on the user's

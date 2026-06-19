@@ -1,0 +1,95 @@
+name: ci
+
+# Build the native extension and RUN THE TEST SUITE on every push / PR.
+# wheels.yml only builds distributables; this workflow is the correctness
+# gate — pytest (incl. the PTY-driven mouse/program tests), the headless
+# example smoke render, and the golden-frame regression check.
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # maya is C++23 → need GCC >= 14 (Linux) / Homebrew GCC (macOS).
+      - name: Install toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-14 cmake ninja-build
+          echo "CC=gcc-14"  >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+
+      - name: Install toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install gcc@14 cmake ninja || true
+          echo "CC=gcc-14"  >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+
+      - name: Build the extension in place
+        run: |
+          python -m pip install --upgrade pip pybind11 pytest
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja \
+            -DMAYA_PY_STATIC_CXX=OFF
+          cmake --build build -j
+          cp build/_maya*.so src/maya_py/ 2>/dev/null || \
+            cp build/_maya*.dylib src/maya_py/ 2>/dev/null || true
+          ls -la src/maya_py/_maya* 
+
+      - name: Import check
+        env:
+          PYTHONPATH: src
+        run: python -c "import maya_py as m; print('import OK', m.__version__)"
+
+      - name: Run pytest
+        env:
+          PYTHONPATH: src
+          # The PTY tests spawn a child app; give them a benign TERM.
+          TERM: xterm-256color
+        run: python -m pytest tests/ -q --maxfail=1
+
+      - name: Headless example smoke render
+        env:
+          PYTHONPATH: src
+        run: python examples/smoke_all.py
+
+      - name: Golden-frame regression
+        env:
+          PYTHONPATH: src
+        run: python scripts/check_golden.py
+
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: python -m pip install ruff
+      - name: ruff check
+        run: ruff check src/ tests/ scripts/ examples/
+      - name: ruff format --check
+        run: ruff format --check src/ scripts/

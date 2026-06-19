@@ -1,0 +1,3 @@
+# PEP 561 marker — maya_py ships inline type information (the .pyi stubs in
+# this package). Presence of this file tells mypy / pyright to trust the
+# package's annotations instead of treating it as untyped.
