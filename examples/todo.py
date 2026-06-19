@@ -6,7 +6,7 @@ if ... else None)`), so there's no breaking out into `if` branches.
 
   ↑/↓  move    space  toggle    q/Esc  quit
 """
-from maya_py import App, card, col, row, T, memo
+from maya_py import App, card, For, row, T, memo
 
 
 class Todo:
@@ -46,10 +46,11 @@ app = App(
 
 @app.view
 def view(s):
+    # For(...) maps the list into rows declaratively — note the two-param
+    # renderer gets (index, item) so it can highlight the cursor row.
     return card(
         T("Todo").bold.fg("gold"),
-        col(*[todo_row(text, done, i == s.cursor)
-              for i, (text, done) in enumerate(s.items)]),
+        For(s.items, lambda i, it: todo_row(it[0], it[1], i == s.cursor)),
         T("↑/↓ move · space toggle · q quit").dim,
         title="todo",
         gap=0,

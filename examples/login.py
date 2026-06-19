@@ -8,16 +8,18 @@ interactive widgets compose in Python exactly like in C++.
 """
 from maya_py import App, text_input, card, col, row, b, dim_text, T
 
-app = App("login", submitted=None)
+app = App("login", submitted=None, user="", passwd="")
 
-user = text_input("username")
-pw = text_input("password", password=True)
+# bind=(state, field) wires each input straight to a state field — the view
+# reads s.user / s.passwd directly and never touches widget.value.
+user = text_input("username", bind=(app.s, "user"))
+pw = text_input("password", password=True, bind=(app.s, "passwd"))
 app.focus(user, pw)          # user is focused first; Tab moves to pw
 
 
 @pw.on_submit
 def submit(_text):
-    app.s.submitted = user.value
+    app.s.submitted = app.s.user
 
 
 @app.on("esc")

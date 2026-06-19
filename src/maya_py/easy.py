@@ -635,6 +635,68 @@ def grow(child: Any, factor: float = 1.0, **opts) -> Element:
     return _box([child], direction=_maya.FlexDirection.Column, grow=factor, **opts)
 
 
+def For(items, render: Callable, *, into=col, empty: Any = None, **opts) -> Element:
+    """Declarative list rendering — map ``items`` through ``render`` into a box.
+
+    Replaces the ``col(*[row(...) for x in items])`` comprehension with a name
+    that reads like the JSX ``map`` / SwiftUI ``ForEach`` it is::
+
+        For(s.todos, lambda t: row(check(t.done), t.text))
+        For(s.rows, render_row, gap=1)              # extra opts go to the box
+        For(s.items, item_view, empty="(nothing here)")
+
+    ``render`` is called as ``render(item)`` or, if it takes two parameters,
+    ``render(index, item)`` — so you get the enumerate for free::
+
+        For(s.items, lambda i, x: row(T(f"{i+1}.").dim, x.name))
+
+    ``into`` is the container (``col`` by default, pass ``row`` for horizontal).
+    ``empty`` is shown when ``items`` is empty (a node or callable; defaults to
+    a zero-row :func:`nothing`). All other keyword opts pass to the container.
+    """
+    seq = list(items)
+    if not seq:
+        if empty is None:
+            return nothing()
+        return into(empty() if callable(empty) else empty, **opts)
+    # Pass the index too when render accepts two positional params.
+    two = False
+    try:
+        two = _arity2(render)
+    except (TypeError, ValueError):
+        two = False
+    if two:
+        kids = [render(i, x) for i, x in enumerate(seq)]
+    else:
+        kids = [render(x) for x in seq]
+    return into(*kids, **opts)
+
+
+def _arity2(fn) -> bool:
+    """True if ``fn`` takes (at least) two required positional params — used so
+    ``For`` can pass ``(index, item)`` to two-param renderers automatically.
+    """
+    import inspect
+    target = fn
+    if not (inspect.isfunction(target) or inspect.ismethod(target)):
+        call = getattr(type(target), "__call__", None)
+        if call is None:
+            return False
+        target = call
+    try:
+        params = inspect.signature(target).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    # signature() already drops a bound self/cls, so just count required
+    # positional params.
+    required = [
+        p for p in params
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+        and p.default is p.empty
+    ]
+    return len(required) >= 2
+
+
 # ── dimension sugar ─────────────────────────────────────────────────────────
 # width=/height=/etc already accept int, "N%", "auto", or a float in (0,1].
 # These build an explicit Dimension when you want to be unambiguous.
@@ -763,7 +825,8 @@ _MOUSE_BTN = {
 
 
 def text_input(placeholder: str = "", *, password: bool = False,
-               multiline: bool = False):
+               multiline: bool = False, value: str = "",
+               bind: "tuple | None" = None):
     """An interactive text field — a real maya ``Input`` widget hosted in
     Python (cursor, UTF-8 editing, history, password masking). Register it
     with ``app.focus(...)`` so it receives keystrokes, read ``.value``, and
@@ -777,10 +840,30 @@ def text_input(placeholder: str = "", *, password: bool = False,
 
     ``name.value`` (read/write), ``name.clear()``, ``name.on_submit(fn)`` (Enter),
     ``name.on_change(fn)``.
+
+    **Two-way binding.** Pass ``bind=(state, "field")`` and the widget mirrors
+    that attribute both ways: the field seeds the input's initial text, and
+    every keystroke writes back to ``state.field`` — so the view reads
+    ``s.field`` directly and never touches ``.value``::
+
+        app = App("form", name="")
+        name = text_input("your name…", bind=(app.s, "name"))
+        app.focus(name)
+        @app.view
+        def view(s): return col("Name:", name, f"hello {s.name}")
     """
     inp = _maya._widgets.Input(password=password, multiline=multiline)
     if placeholder:
         inp.set_placeholder(placeholder)
+    if bind is not None:
+        obj, attr = bind
+        seed = getattr(obj, attr, value)
+        if seed:
+            inp.value = str(seed)
+        # Mirror every edit back onto the bound attribute.
+        inp.on_change(lambda text, _o=obj, _a=attr: setattr(_o, _a, text))
+    elif value:
+        inp.value = str(value)
     return inp
 
 
@@ -868,6 +951,38 @@ class App:
     @property
     def s(self) -> _State:
         return self._state
+
+    def derive(self, fn):
+        """Decorator: expose a **computed** field on the state object.
+
+        ``fn(state)`` is installed as a read-only property named after the
+        function, so the view reads it like any other field — no recompute
+        boilerplate, no stale cache to invalidate (it's recomputed on access,
+        every frame)::
+
+            app = App("cart", items=[2.0, 3.5])
+
+            @app.derive
+            def total(s): return sum(s.items)
+
+            @app.view
+            def view(s): return card(f"Total: ${s.total:.2f}")
+
+        Works whether state is the default attribute bag or your own ``model=``
+        object (the property is attached to the state object's class). This is
+        SwiftUI's computed ``var`` / Solid's derived signal, spelled in one
+        decorator.
+        """
+        name = fn.__name__
+        state = self._state
+        cls = type(state)
+        if cls is _State:
+            # The shared attribute-bag class — give this app its own subclass so
+            # one app's derived fields don't leak onto another's state.
+            cls = type("_State", (_State,), {})
+            state.__class__ = cls
+        setattr(cls, name, property(lambda self, _f=fn: _f(self)))
+        return fn
 
     # -- bindings ------------------------------------------------------------
     def on(self, *keys: str):
@@ -1321,7 +1436,7 @@ def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
-    "center", "stack", "component", "nothing", "grow", "when",
+    "center", "stack", "component", "nothing", "grow", "when", "For",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "Pilot", "animate",

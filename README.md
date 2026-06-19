@@ -253,6 +253,48 @@ app.run()
 `text_input(password=True)` masks, `textarea()` is multi-line. `@query.on_submit`
 fires on Enter. An animation tick is `@app.on_frame def tick(s, dt): ...`.
 
+### Declarative state: `For`, `bind`, `@app.derive`
+
+The view is a pure function of state, so the whole UI reads top-to-bottom.
+Three helpers kill the last of the glue — list comprehensions, widget
+read-back, and recomputed fields:
+
+```python
+from maya_py import App, text_input, card, col, For
+
+app = App("cart", items=[("Pen", 2.0), ("Mug", 9.5)], name="")
+
+# 1) @app.derive — a computed field, recomputed on access (no stale cache):
+@app.derive
+def total(s): return sum(price for _, price in s.items)
+
+# 2) bind=(state, field) — the input mirrors a state field both ways, so the
+#    view reads s.name directly and never touches widget.value:
+name = text_input("your name…", bind=(app.s, "name"))
+app.focus(name)
+
+@app.view
+def view(s):
+    return card(
+        # 3) For(...) maps a list into a box — like SwiftUI ForEach / JSX map.
+        #    A two-param renderer gets (index, item) for free.
+        For(s.items, lambda it: col(f"{it[0]}  ${it[1]:.2f}")),
+        col("Name:", name, f"hello {s.name}"),
+        f"Total: ${s.total:.2f}",
+        title="cart",
+    )
+
+app.run()
+```
+
+- **`For(items, render, *, into=col, empty=None, **opts)`** — map a sequence
+  into a container. `render(item)` or `render(index, item)` (auto-detected).
+  `empty=` shows a fallback when the list is empty.
+- **`text_input(..., bind=(state, "field"))`** — two-way binding: the field
+  seeds the input and every keystroke writes back. No `.value` plumbing.
+- **`@app.derive`** — install `fn(state)` as a read-only computed property on
+  the state object. Works with the default state bag *and* `model=` objects.
+
 ### Mouse: clicks, scroll, drag
 
 Decorate handlers for mouse input — registering any of them auto-enables

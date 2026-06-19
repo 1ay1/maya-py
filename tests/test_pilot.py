@@ -268,3 +268,86 @@ def test_cli_version_and_help():
     assert main(["version"]) == 0
     assert main([]) == 0            # help
     assert main(["bogus"]) == 2     # unknown command
+
+
+# ── declarative helpers: For / bind / derive ─────────────────────────────────
+
+def test_for_maps_items_into_box():
+    from maya_py import For, T
+    out = maya.to_string(For([1, 2, 3], lambda x: T(f"item {x}")), 30)
+    assert "item 1" in out and "item 2" in out and "item 3" in out
+
+
+def test_for_two_param_renderer_gets_index():
+    from maya_py import For, T
+    out = maya.to_string(For(["a", "b"], lambda i, x: T(f"{i}:{x}")), 30)
+    assert "0:a" in out and "1:b" in out
+
+
+def test_for_empty_shows_fallback_and_nothing():
+    from maya_py import For
+    assert "none" in maya.to_string(For([], lambda x: x, empty="none"), 20)
+    # No empty= → a zero-row fragment (renders blank).
+    assert maya.to_string(For([], lambda x: x), 20).strip() == ""
+
+
+def test_input_bind_writes_back_to_state():
+    app = App("form", name="")
+    name = text_input("your name", bind=(app.s, "name"))
+    app.focus(name)
+    app.view(lambda s: col("Name:", name, f"hi {s.name}"))
+    p = app.test(width=30)
+    p.type("Ada")
+    assert app.s.name == "Ada"
+    assert "hi Ada" in p.render()
+    p.press("backspace")
+    assert app.s.name == "Ad"
+
+
+def test_input_bind_seeds_initial_value():
+    app = App("form", name="Grace")
+    name = text_input(bind=(app.s, "name"))
+    assert name.value == "Grace"
+
+
+def test_derive_exposes_computed_field():
+    app = App("cart", items=[2.0, 3.5])
+
+    @app.derive
+    def total(s):
+        return sum(s.items)
+
+    assert app.s.total == 5.5
+    app.s.items.append(4.0)
+    assert app.s.total == 9.5      # recomputed on access, no stale cache
+
+
+def test_derive_is_isolated_per_app():
+    a = App("a", x=1)
+    b = App("b", y=2)
+
+    @a.derive
+    def double(s):
+        return s.x * 2
+
+    @b.derive
+    def triple(s):
+        return s.y * 3
+
+    assert a.s.double == 2 and b.s.triple == 6
+    assert not hasattr(a.s, "triple")     # b's field must not leak onto a
+    assert not hasattr(b.s, "double")
+
+
+def test_derive_works_on_model_object():
+    class Cart:
+        def __init__(self):
+            self.items = [1, 2, 3]
+
+    app = App("m", model=Cart())
+
+    @app.derive
+    def count(s):
+        return len(s.items)
+
+    assert app.s.count == 3
