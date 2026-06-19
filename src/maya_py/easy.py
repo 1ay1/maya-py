@@ -1094,6 +1094,134 @@ class App:
         finally:
             self._in_run = False
 
+    # -- headless testing ----------------------------------------------------
+    def test(self, *, width: int = 80) -> "Pilot":
+        """Drive this app headlessly, with no terminal. Returns a :class:`Pilot`
+        that feeds synthetic events through the SAME ``_event`` / ``_render``
+        path the live loop uses, so tests exercise real handler + view logic.
+
+            app = make_app()
+            pilot = app.test()
+            pilot.press("+", "+", "+")
+            assert app.s.n == 3
+            assert "Count: 3" in pilot.render()
+
+        Use as a context manager to mirror startup/teardown::
+
+            with app.test() as p:
+                p.press("q")
+                assert not p.running
+        """
+        return Pilot(self, width=width)
+
+
+class Pilot:
+    """A headless driver for an :class:`App` — the in-process test harness.
+
+    No PTY, no real terminal: events are synthesized with the native
+    ``make_*`` factories and pushed straight through ``App._event``; frames
+    are rendered with :func:`to_string`. Everything an app handler can see
+    (key/mouse/paste/resize, focus, frame ticks) is reachable, deterministically.
+
+        pilot = app.test(width=60)
+        pilot.press("up", "space")     # arrow then toggle
+        pilot.type("hello")            # types each character
+        pilot.click(10, 4)             # left-click at col,row
+        pilot.scroll("down")
+        pilot.paste("clip text")
+        pilot.resize(120, 40)
+        pilot.tick(0.5)                # advance frame handlers by dt seconds
+        frame = pilot.render()         # current view as a plain string
+        assert pilot.running           # False once a handler called stop()
+    """
+
+    def __init__(self, app: "App", *, width: int = 80):
+        self.app = app
+        self.width = width
+        # Mirror App.run() startup so handlers see the same initial flags.
+        app._running = True
+        app.mouse_active = app.mouse
+        app._last_frame_t = None
+
+    # -- lifecycle -----------------------------------------------------------
+    @property
+    def running(self) -> bool:
+        """False once the app requested quit (stop() / quit key / Ctrl-C)."""
+        return app_running(self.app)
+
+    def __enter__(self) -> "Pilot":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        return None
+
+    # -- feeding events ------------------------------------------------------
+    def send(self, ev) -> "Pilot":
+        """Feed one raw maya Event (from a ``maya.make_*`` factory)."""
+        self.app._event(ev)
+        return self
+
+    def press(self, *keys: str, ctrl: bool = False, alt: bool = False,
+             shift: bool = False) -> "Pilot":
+        """Press one or more keys. Names ("up", "enter", "esc", "tab", "space")
+        or single chars ("a", "+"). Modifiers apply to every key in the call."""
+        for k in keys:
+            self.app._event(_maya.make_key(k, ctrl=ctrl, alt=alt, shift=shift))
+        return self
+
+    def type(self, text: str) -> "Pilot":  # noqa: A003
+        """Type a string, one character event at a time (text-input friendly)."""
+        for ch in text:
+            self.app._event(_maya.make_key(ch))
+        return self
+
+    def click(self, col: int, row: int, button: str = "left") -> "Pilot":
+        """Left/right/middle click (press then release) at a 1-based cell."""
+        self.app._event(_maya.make_mouse(col, row, button, "press"))
+        self.app._event(_maya.make_mouse(col, row, button, "release"))
+        return self
+
+    def scroll(self, direction: str = "down", col: int = 1, row: int = 1) -> "Pilot":
+        """Scroll the wheel "up" or "down" at a cell."""
+        self.app._event(_maya.make_scroll(direction, col, row))
+        return self
+
+    def paste(self, text: str) -> "Pilot":
+        """Deliver a bracketed paste."""
+        self.app._event(_maya.make_paste(text))
+        return self
+
+    def resize(self, cols: int, rows: int) -> "Pilot":
+        """Deliver a terminal-resize event (and adopt ``cols`` as render width)."""
+        self.width = cols
+        self.app._event(_maya.make_resize(cols, rows))
+        return self
+
+    def tick(self, dt: float = 1.0 / 30) -> "Pilot":
+        """Advance frame handlers (``@app.on_frame``) by ``dt`` seconds,
+        deterministically — no wall-clock dependency."""
+        for fn in self.app._frames:
+            fn(self.app._state, dt)
+        return self
+
+    # -- observing -----------------------------------------------------------
+    def render(self, width: int | None = None) -> str:
+        """Render the current view to a plain string (one text line per row,
+        trailing blanks trimmed). The thing to assert against."""
+        w = self.width if width is None else width
+        el = _el(self.app._view(self.app._state)) if self.app._view \
+            else _maya.text("(no view registered)")
+        return _maya.render_to_string(el, w)
+
+    @property
+    def state(self):
+        """The app's state object (same one handlers mutate)."""
+        return self.app._state
+
+
+def app_running(app: "App") -> bool:
+    return getattr(app, "_running", True)
+
 
 # ── color + formatting utilities ─────────────────────────────────────────────
 def gradient_at(stops, t: float) -> tuple[int, int, int]:
@@ -1156,7 +1284,7 @@ __all__ = [
     "center", "stack", "component", "nothing", "grow", "when",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
-    "show", "to_string", "App", "animate",
+    "show", "to_string", "App", "Pilot", "animate",
     "gradient_at", "fmt_duration",
     "text_input", "textarea",
 ]

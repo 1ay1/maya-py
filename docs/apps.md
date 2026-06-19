@@ -630,6 +630,55 @@ More: [counter.py](https://github.com/1ay1/maya-py/blob/master/examples/counter.
 
 ---
 
+## Testing apps headlessly (`app.test()` → `Pilot`)
+
+You can drive an app with no terminal at all. `app.test()` returns a **`Pilot`**
+that feeds synthetic events through the *same* handler + view path the live
+loop uses, and renders frames to a plain string you can assert on. No PTY, no
+threads, fully deterministic — ideal for unit tests and CI.
+
+```python
+from maya_py import App, card, b
+
+def build():
+    app = App("counter", n=0, quit_keys=("q",))
+    app.on("+")(lambda s: setattr(s, "n", s.n + 1))
+    app.view(lambda s: card(b(f"Count: {s.n}"), title="counter"))
+    return app
+
+def test_counter():
+    app = build()
+    p = app.test(width=40)
+    p.press("+", "+", "+")          # three increments
+    assert app.s.n == 3
+    assert "Count: 3" in p.render() # the actual rendered frame
+    p.press("q")
+    assert not p.running            # quit key took effect
+```
+
+The `Pilot` surface mirrors everything a real user can do — each method returns
+the pilot, so calls chain:
+
+| Method | What it does |
+|--------|--------------|
+| `press(*keys, ctrl=, alt=, shift=)` | Press named (`"up"`, `"enter"`, `"esc"`, `"tab"`, `"space"`) or single-char keys |
+| `type(text)` | Type a string one char-event at a time (for `text_input`) |
+| `click(col, row, button="left")` | Mouse press+release at a 1-based cell |
+| `scroll("up"\|"down", col, row)` | Wheel scroll |
+| `paste(text)` | Bracketed paste |
+| `resize(cols, rows)` | Terminal resize (also sets render width) |
+| `tick(dt=1/30)` | Advance `@app.on_frame` handlers by `dt` seconds, deterministically |
+| `send(ev)` | Feed a raw event from a `maya.make_*` factory |
+| `render(width=None)` | The current view as a string — the thing to assert on |
+| `.running` / `.state` | Quit flag / the app's state object |
+
+Under the hood these use synthetic-event factories you can also call directly
+— `maya.make_key("a", ctrl=True)`, `make_mouse`, `make_scroll`, `make_paste`,
+`make_resize` — which produce the exact same `Event` the live loop delivers, so
+every `key()` / `mouse_*()` predicate treats them as real input.
+
+---
+
 ## Where to go next
 
 - **[Program (MVU)](program.md)** — the pure, testable runtime; when state and

@@ -19,7 +19,9 @@
 
 #include <optional>
 #include <array>
+#include <cctype>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace py = pybind11;
@@ -676,6 +678,127 @@ PYBIND11_MODULE(_maya, m) {
     // through the key()/ctrl()/... predicates below), so wrap it in an opaque
     // struct that pybind treats as a plain registered class, not a variant.
     py::class_<PyEvent>(m, "Event");
+
+    // ── synthetic event factories (headless driving / testing) ───────────
+    // The native run() loop is the only place real Events come from. For
+    // in-process tests and a headless Pilot driver, these build the SAME
+    // PyEvent the loop would deliver, so every key()/ctrl()/mouse_* predicate
+    // and every App/Program handler treats them identically to live input.
+    auto mods_of = [](bool ctrl, bool alt, bool shift, bool super_) {
+        return maya::Modifiers{.ctrl = ctrl, .alt = alt,
+                               .shift = shift, .super_ = super_};
+    };
+    // first UTF-8 codepoint of s (0 if empty / malformed lead byte)
+    auto first_cp = [](const std::string& s) -> char32_t {
+        if (s.empty()) return 0;
+        unsigned char c0 = static_cast<unsigned char>(s[0]);
+        if (c0 < 0x80) return c0;
+        int n = (c0 >= 0xF0) ? 3 : (c0 >= 0xE0) ? 2 : (c0 >= 0xC0) ? 1 : 0;
+        char32_t cp = c0 & (0x3F >> n);
+        for (int k = 1; k <= n && k < static_cast<int>(s.size()); ++k)
+            cp = (cp << 6) | (static_cast<unsigned char>(s[k]) & 0x3F);
+        return cp;
+    };
+
+    // make_key("a") / make_key("enter", ctrl=True) -> Event
+    // A single printable char becomes a CharKey; a special-key NAME (matching
+    // SpecialKey, case-insensitive) becomes that SpecialKey.
+    m.def("make_key",
+          [first_cp, mods_of](const std::string& s, bool ctrl, bool alt,
+                              bool shift, bool super_) {
+              static const std::unordered_map<std::string, SpecialKey> kSpecial = {
+                  {"up", SpecialKey::Up}, {"down", SpecialKey::Down},
+                  {"left", SpecialKey::Left}, {"right", SpecialKey::Right},
+                  {"home", SpecialKey::Home}, {"end", SpecialKey::End},
+                  {"pageup", SpecialKey::PageUp}, {"pagedown", SpecialKey::PageDown},
+                  {"tab", SpecialKey::Tab}, {"backtab", SpecialKey::BackTab},
+                  {"backspace", SpecialKey::Backspace}, {"delete", SpecialKey::Delete},
+                  {"insert", SpecialKey::Insert}, {"enter", SpecialKey::Enter},
+                  {"escape", SpecialKey::Escape}, {"esc", SpecialKey::Escape},
+                  {"space", SpecialKey::Enter},  // overwritten below
+                  {"f1", SpecialKey::F1}, {"f2", SpecialKey::F2}, {"f3", SpecialKey::F3},
+                  {"f4", SpecialKey::F4}, {"f5", SpecialKey::F5}, {"f6", SpecialKey::F6},
+                  {"f7", SpecialKey::F7}, {"f8", SpecialKey::F8}, {"f9", SpecialKey::F9},
+                  {"f10", SpecialKey::F10}, {"f11", SpecialKey::F11}, {"f12", SpecialKey::F12},
+              };
+              std::string low;
+              low.reserve(s.size());
+              for (char ch : s) low += static_cast<char>(std::tolower(
+                  static_cast<unsigned char>(ch)));
+              KeyEvent ke{};
+              ke.mods = mods_of(ctrl, alt, shift, super_);
+              if (low == "space") {
+                  ke.key = CharKey{U' '};
+              } else if (auto it = kSpecial.find(low); it != kSpecial.end()) {
+                  ke.key = it->second;
+              } else {
+                  ke.key = CharKey{first_cp(s)};
+              }
+              return PyEvent{Event{std::move(ke)}};
+          },
+          py::arg("key"), py::arg("ctrl") = false, py::arg("alt") = false,
+          py::arg("shift") = false, py::arg("super") = false,
+          "Build a synthetic key Event (for headless driving / tests).");
+
+    // make_mouse(col, row, button="left", kind="press") -> Event
+    m.def("make_mouse",
+          [mods_of](int col, int row, const std::string& button,
+                    const std::string& kind, bool ctrl, bool alt, bool shift) {
+              static const std::unordered_map<std::string, MouseButton> kBtn = {
+                  {"left", MouseButton::Left}, {"right", MouseButton::Right},
+                  {"middle", MouseButton::Middle},
+                  {"scrollup", MouseButton::ScrollUp},
+                  {"scrolldown", MouseButton::ScrollDown},
+                  {"none", MouseButton::None},
+              };
+              static const std::unordered_map<std::string, MouseEventKind> kKind = {
+                  {"press", MouseEventKind::Press},
+                  {"release", MouseEventKind::Release},
+                  {"move", MouseEventKind::Move},
+              };
+              MouseEvent me{};
+              auto bit = kBtn.find(button);
+              me.button = bit != kBtn.end() ? bit->second : MouseButton::Left;
+              auto kit = kKind.find(kind);
+              me.kind = kit != kKind.end() ? kit->second : MouseEventKind::Press;
+              me.x = Columns{col};
+              me.y = Rows{row};
+              me.mods = mods_of(ctrl, alt, shift, false);
+              return PyEvent{Event{me}};
+          },
+          py::arg("col"), py::arg("row"), py::arg("button") = "left",
+          py::arg("kind") = "press", py::arg("ctrl") = false,
+          py::arg("alt") = false, py::arg("shift") = false,
+          "Build a synthetic mouse Event (for headless driving / tests).");
+
+    // make_scroll("up"|"down", col=1, row=1) -> Event
+    m.def("make_scroll",
+          [](const std::string& dir, int col, int row) {
+              MouseEvent me{};
+              me.button = (dir == "up") ? MouseButton::ScrollUp
+                                        : MouseButton::ScrollDown;
+              me.kind = MouseEventKind::Press;
+              me.x = Columns{col};
+              me.y = Rows{row};
+              return PyEvent{Event{me}};
+          },
+          py::arg("direction"), py::arg("col") = 1, py::arg("row") = 1,
+          "Build a synthetic scroll-wheel Event.");
+
+    // make_paste(text) -> Event
+    m.def("make_paste",
+          [](const std::string& text) {
+              return PyEvent{Event{PasteEvent{text}}};
+          },
+          py::arg("text"), "Build a synthetic bracketed-paste Event.");
+
+    // make_resize(cols, rows) -> Event
+    m.def("make_resize",
+          [](int cols, int rows) {
+              return PyEvent{Event{ResizeEvent{Columns{cols}, Rows{rows}}}};
+          },
+          py::arg("cols"), py::arg("rows"), "Build a synthetic resize Event.");
+
     m.def("key", [](const PyEvent& ev, const std::string& s) {
         if (s.size() == 1) return maya::key(ev.ev, s[0]);
         return false;

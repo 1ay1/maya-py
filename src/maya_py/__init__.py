@@ -62,6 +62,12 @@ from ._maya import (
     alt,
     any_key,
     resized,
+    # synthetic event factories (headless driving / testing)
+    make_key,
+    make_mouse,
+    make_scroll,
+    make_paste,
+    make_resize,
     # mouse predicates
     mouse_clicked,
     mouse_released,
@@ -107,6 +113,7 @@ __all__ = [
     "text", "box", "vstack", "hstack", "zstack", "blank", "nothing",
     "print", "render_to_string", "live", "run", "quit",
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
+    "make_key", "make_mouse", "make_scroll", "make_paste", "make_resize",
     "mouse_clicked", "mouse_released", "mouse_moved", "scrolled_up",
     "scrolled_down", "mouse_pos", "mouse_button", "mouse_kind", "is_mouse",
     "event_char", "pasted", "resize_size", "string_width",
@@ -222,7 +229,7 @@ from .easy import (  # noqa: E402
     center, stack, component, nothing, grow, when,
     pct, cells, auto, sides,
     BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE,
-    show, to_string, App, animate,
+    show, to_string, App, Pilot, animate,
     gradient_at, fmt_duration,
     text_input, textarea,
 )
@@ -238,7 +245,7 @@ __all__ += [
     "center", "stack", "component", "grow", "when",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
-    "show", "to_string", "App", "animate",
+    "show", "to_string", "App", "Pilot", "animate",
     "gradient_at", "fmt_duration",
     "text_input", "textarea",
 ]
