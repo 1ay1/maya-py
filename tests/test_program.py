@@ -23,6 +23,10 @@ def check(name, cond):
     else:
         fail += 1
         print(f"  FAIL: {name}")
+        # Raise so pytest (which imports this module) reports a real failure
+        # instead of silently passing; the __main__ runner below still gets a
+        # tally via the counters before this propagates.
+        raise AssertionError(name)
 
 
 # ── Cmd value type ──────────────────────────────────────────────────────────
@@ -117,5 +121,6 @@ check("fn update", update(init(), "up") == {"n": 6})
 check("fn view", isinstance(view(init()), maya.Element))
 
 
-print(f"\nprogram: {ok} passed, {fail} failed")
-sys.exit(1 if fail else 0)
+if __name__ == "__main__":
+    print(f"\nprogram: {ok} passed, {fail} failed")
+    sys.exit(1 if fail else 0)

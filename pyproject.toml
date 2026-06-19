@@ -76,18 +76,28 @@ extend-exclude = ["build", "_deps"]
 select = ["F", "E", "W", "I", "B", "UP"]
 ignore = [
     "E501",   # line length — many docstrings/tables exceed 100 intentionally
+    "E701",   # compound statement (colon) — deliberate one-line getters in easy.py
+    "E702",   # multiple statements (semicolon) — same terse hot-path style
     "E741",   # ambiguous var names (l/w/h are natural in layout code)
     "B008",   # function call in default arg (used deliberately for Style defaults)
+    "B004",   # getattr(type(x), "__call__") — deliberate type-level callability probe
+    "UP007",  # X | Y unions — we target py39, Optional/Union stay explicit
+    "UP037",  # quoted annotations — forward refs to the class being defined
     "UP038",  # isinstance tuple form — keep explicit for clarity
+    "UP045",  # X | None — we target py39, Optional stays explicit
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Examples are teaching code: allow module-level mutable globals, star-ish
-# math helpers, and unused loop vars used for clarity.
-"examples/**" = ["E402", "F841", "B007", "E731"]
-"scripts/**" = ["E402", "E731"]
-"tests/**" = ["E402", "F841"]
-"src/maya_py/__init__.py" = ["F401", "E402"]  # re-export hub
+# math helpers, unused imports/loop vars used for clarity, combined imports,
+# printf-style formatting, and import order.
+"examples/**" = ["E401", "E402", "F401", "F811", "F841", "B007", "E731", "I001", "UP031"]
+"scripts/**" = ["E402", "E731", "I001"]
+# Tests run as standalone scripts too (sys.path shim before imports), use
+# script-style locals, combined imports, and re-import helpers across blocks.
+"tests/**" = ["E401", "E402", "F401", "F811", "F841", "I001", "B011", "UP031"]
+"src/maya_py/__init__.py" = ["F401", "E402", "I001"]  # re-export hub
+"src/maya_py/widgets.py" = ["I001", "UP035"]  # re-export hub + typing.Sequence
 
 # ============================================================================
 # cibuildwheel — produce STANDALONE binary wheels

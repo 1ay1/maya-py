@@ -38,7 +38,7 @@ import time as _time
 from typing import Any, Callable
 
 from . import _maya
-from ._maya import Element, Style, Color, SpecialKey
+from ._maya import Color, Element, SpecialKey, Style
 
 # ── Named color palette ─────────────────────────────────────────────────────
 # Friendly names → packed 0xRRGGBB int. Keeping these as ints (not Color

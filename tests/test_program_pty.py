@@ -38,10 +38,12 @@ class C(Program):
 C().run(inline=True)
 """ % SRC
 
-pid, fd = pty.fork()
-if pid == 0:
-    os.execv(sys.executable, [sys.executable, "-c", prog])
-else:
+
+def test_program_pty():
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execv(sys.executable, [sys.executable, "-c", prog])
+        return  # unreachable in the child after execv
     out = b""
     deadline = time.time() + 10
     primed = False
@@ -81,4 +83,15 @@ else:
     print("rendered initial frame:", rendered_initial)
     print("re-rendered on each key (>=3 X glyphs):", re_rendered, f"({x_count})")
     print("quit issued cleanly:", quit_ok)
-    sys.exit(0 if (rendered_initial and re_rendered and quit_ok) else 1)
+    assert rendered_initial, "initial frame never rendered"
+    assert re_rendered, f"expected >=3 X glyphs on the wire, got {x_count}"
+    assert quit_ok, "quit was never issued"
+
+
+if __name__ == "__main__":
+    try:
+        test_program_pty()
+    except AssertionError as e:
+        print("FAIL:", e)
+        sys.exit(1)
+    sys.exit(0)

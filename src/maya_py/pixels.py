@@ -12,7 +12,7 @@ That doubles vertical resolution — a 64×40 pixel field fits in 64×20 cells.
 from __future__ import annotations
 
 from ._maya import Color
-from .easy import T, col, row, component
+from .easy import T, col, component, row
 
 UPPER = "▀"  # ▀ upper half block
 

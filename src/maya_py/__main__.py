@@ -75,7 +75,7 @@ def _cmd_new(args: list[str]) -> int:
 
 
 def _cmd_demo(_args: list[str]) -> int:
-    from maya_py import App, card, b, dim_text
+    from maya_py import App, b, card, dim_text
 
     app = App("demo", n=0, quit_keys=("q", "esc"))
     app.on("+", "=")(lambda s: setattr(s, "n", s.n + 1))
