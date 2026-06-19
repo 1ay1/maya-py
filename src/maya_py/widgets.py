@@ -93,10 +93,13 @@ def _col(c: Any) -> Color | None:
 
 
 def sparkline(data: Sequence[float], *, label: str = "", color: Any = None,
-              show_min_max: bool = False, show_last: bool = False) -> Element:
-    """An inline mini bar chart from a sequence of numbers."""
+              show_min_max: bool = False, show_last: bool = False,
+              range_min: float | None = None,
+              range_max: float | None = None) -> Element:
+    """An inline mini bar chart from a sequence of numbers. ``range_min`` /
+    ``range_max`` pin the value axis (otherwise it auto-scales to the data)."""
     return _W.sparkline([float(x) for x in data], label, _col(color),
-                        show_min_max, show_last)
+                        show_min_max, show_last, range_min, range_max)
 
 
 def gauge(value: float, label: str = "", *, color: Any = None,
@@ -217,16 +220,21 @@ def toggle(label: str, on: bool = False) -> Element:
 
 
 def radio(items: Sequence[str], *, selected: int = 0,
-          visible_count: int = 0) -> Element:
-    """A radio group; ``selected`` is the chosen index."""
-    return _W.radio([str(s) for s in items], int(selected), int(visible_count))
+          visible_count: int = 0, on_indicator: str = "",
+          off_indicator: str = "") -> Element:
+    """A radio group; ``selected`` is the chosen index. ``on_indicator`` /
+    ``off_indicator`` override the default ``●`` / ``○`` bullets."""
+    return _W.radio([str(s) for s in items], int(selected), int(visible_count),
+                    str(on_indicator), str(off_indicator))
 
 
 def select(items: Sequence[str], *, cursor: int = 0, indicator: str = "",
-           visible_count: int = 0) -> Element:
-    """A single-choice list with a ``❯`` cursor on row ``cursor``."""
+           visible_count: int = 0, inactive_prefix: str = "") -> Element:
+    """A single-choice list with a ``❯`` cursor on row ``cursor``.
+    ``indicator`` overrides the cursor glyph; ``inactive_prefix`` is the lead-in
+    for non-cursor rows."""
     return _W.select([str(s) for s in items], int(cursor), indicator,
-                     int(visible_count))
+                     int(visible_count), str(inactive_prefix))
 
 
 def slider(value: float, label: str = "", *, min: float = 0.0, max: float = 1.0,
@@ -303,22 +311,30 @@ def timeline(events: Sequence[Any], *, show_connector: bool = True,
                        int(track_width))
 
 
-def tree(root: dict) -> Element:
+def tree(root: dict, *, expanded_icon: str = "", collapsed_icon: str = "",
+         leaf_prefix: str = "", indent_width: int = 0) -> Element:
     """A collapsible tree. ``root`` is a nested dict
-    ``{label, expanded, selected, children: [...]}``."""
-    return _W.tree(root)
+    ``{label, expanded, selected, children: [...]}``. The icon / prefix /
+    ``indent_width`` kwargs override the default ``▾`` / ``▸`` glyphs and 2-space
+    indent."""
+    return _W.tree(root, str(expanded_icon), str(collapsed_icon),
+                   str(leaf_prefix), int(indent_width))
 
 
 def list_view(items: Sequence[Any], *, cursor: int = 0, filterable: bool = False,
-              visible_count: int = 0) -> Element:
+              visible_count: int = 0, indicator: str = "",
+              inactive_prefix: str = "") -> Element:
     """A scrollable item list with a highlighted ``cursor`` row.
 
     Items are strings, ``(label, description, icon)`` tuples, or dicts.
+    ``indicator`` overrides the cursor glyph; ``inactive_prefix`` is the lead-in
+    for non-cursor rows.
     """
     out = []
     for it in items:
         out.append(it if isinstance(it, (str, dict)) else tuple(str(x) for x in it))
-    return _W.list_view(out, int(cursor), bool(filterable), int(visible_count))
+    return _W.list_view(out, int(cursor), bool(filterable), int(visible_count),
+                        str(indicator), str(inactive_prefix))
 
 
 def menu(items: Sequence[Any], *, cursor: int = 0) -> Element:
@@ -329,15 +345,20 @@ def menu(items: Sequence[Any], *, cursor: int = 0) -> Element:
 
 
 def disclosure(label: str, *, open: bool = False,
-               content: Element | None = None) -> Element:
+               content: Element | None = None, open_icon: str = "",
+               closed_icon: str = "") -> Element:
     """A collapsible section. When ``open`` and ``content`` is given, the
-    content renders beneath the header."""
-    return _W.disclosure(str(label), bool(open), content)
+    content renders beneath the header. ``open_icon`` / ``closed_icon`` override
+    the default ``▼`` / ``▶`` triangles."""
+    return _W.disclosure(str(label), bool(open), content,
+                         str(open_icon), str(closed_icon))
 
 
-def toast(messages: Sequence[Any]) -> Element:
+def toast(messages: Sequence[Any], *, duration: float = 3.0,
+          fade_time: float = 0.5, max_visible: int = 0) -> Element:
     """A stack of toast notifications. Each is a string or
-    ``(message, level)`` tuple; level is info/success/warning/error."""
+    ``(message, level)`` tuple; level is info/success/warning/error.
+    ``duration`` / ``fade_time`` / ``max_visible`` tune the manager."""
     out = []
     for m in messages:
         if isinstance(m, str):
@@ -347,7 +368,7 @@ def toast(messages: Sequence[Any]) -> Element:
             if len(m) > 1:
                 m[1] = _enum(m[1], _TOAST_LEVEL, ToastLevel.Info)
             out.append(tuple(m))
-    return _W.toast(out)
+    return _W.toast(out, float(duration), float(fade_time), int(max_visible))
 
 
 def todo_list(items: Sequence[Any], *, description: str = "",
@@ -394,23 +415,25 @@ def inline_diff(before: str, after: str, *, label: str = "",
 
 
 def flame_chart(spans: Sequence[Any], *, time_scale: float = 0.0,
-                width: int = 60, show_times: bool = True) -> Element:
+                width: int = 60, show_times: bool = True,
+                max_depth: int = 0) -> Element:
     """A flamegraph. Spans are ``(label, start, duration, depth, color)``
-    tuples (depth/color optional)."""
+    tuples (depth/color optional). ``max_depth`` caps the stack rows shown."""
     out = []
     for s in spans:
         s = list(s)
         if len(s) > 4:
             s[4] = _col(s[4])
         out.append(tuple(s))
-    return _W.flame_chart(out, float(time_scale), int(width), bool(show_times))
+    return _W.flame_chart(out, float(time_scale), int(width), bool(show_times),
+                          int(max_depth))
 
 
 def waterfall(entries: Sequence[Any], *, time_scale: float = 0.0,
               bar_width: int = 30, show_labels: bool = True,
-              frame: int = 0) -> Element:
+              frame: int = 0, show_times: bool = True) -> Element:
     """A request waterfall. Entries are ``(label, start, duration, color)``
-    tuples (color optional)."""
+    tuples (color optional). ``show_times`` appends the per-row duration."""
     out = []
     for e in entries:
         e = list(e)
@@ -418,7 +441,7 @@ def waterfall(entries: Sequence[Any], *, time_scale: float = 0.0,
             e[3] = _col(e[3])
         out.append(tuple(e))
     return _W.waterfall(out, float(time_scale), int(bar_width),
-                        bool(show_labels), int(frame))
+                        bool(show_labels), int(frame), bool(show_times))
 
 
 def thinking(content: str = "", *, active: bool = False, expanded: bool = True,

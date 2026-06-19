@@ -398,6 +398,67 @@ def test_plan_view_status():
           "Read middleware" in out and "Run tests" in out and "Ship it" in out)
 
 
+# ── config-field parity: exposed kwargs must actually reach the C++ widget ─
+def test_sparkline_range_override():
+    auto = render(m.sparkline([1, 2, 3]))
+    pinned = render(m.sparkline([1, 2, 3], range_min=0.0, range_max=100.0))
+    check("sparkline_range_changes_render", auto != pinned)
+
+
+def test_radio_custom_indicators():
+    out = render(m.radio(["x", "y"], on_indicator=">> ", off_indicator=".. "))
+    check("radio_on_indicator", ">>" in out)
+    check("radio_off_indicator", ".." in out)
+
+
+def test_select_custom_indicator():
+    out = render(m.select(["x", "y"], indicator="=> ", inactive_prefix="~~ "))
+    check("select_indicator", "=>" in out)
+    check("select_inactive_prefix", "~~" in out)
+
+
+def test_tree_custom_icons():
+    root = {"label": "src", "expanded": True, "children": [
+        {"label": "pkg", "expanded": True, "children": [{"label": "a.py"}]}]}
+    out = render(m.tree(root, expanded_icon="[-] ", leaf_prefix=". "))
+    check("tree_expanded_icon", "[-]" in out)
+    check("tree_leaf_prefix", ". a.py" in out)
+
+
+def test_list_view_custom_indicator():
+    out = render(m.list_view(["x", "y"], indicator="** ", inactive_prefix="-- "))
+    check("list_view_indicator", "**" in out)
+
+
+def test_disclosure_custom_icons():
+    out = render(m.disclosure("More", open=True, open_icon="vvv "))
+    check("disclosure_open_icon", "vvv" in out)
+    closed = render(m.disclosure("More", open=False, closed_icon=">>> "))
+    check("disclosure_closed_icon", ">>>" in closed)
+
+
+def test_waterfall_show_times_toggle():
+    on = render(m.waterfall([("req", 0.0, 1.5)], bar_width=20, show_times=True))
+    off = render(m.waterfall([("req", 0.0, 1.5)], bar_width=20, show_times=False))
+    check("waterfall_show_times_changes_render", on != off)
+
+
+def test_flame_chart_max_depth():
+    # max_depth caps rendered stack rows; deep spans get clipped
+    spans = [("a", 0.0, 4.0, 0), ("b", 0.0, 2.0, 1), ("c", 0.0, 1.0, 2)]
+    full = render(m.flame_chart(spans, time_scale=4.0, width=30))
+    capped = render(m.flame_chart(spans, time_scale=4.0, width=30, max_depth=1))
+    check("flame_chart_max_depth_changes_render", full != capped)
+
+
+def test_toast_config_accepted():
+    # max_visible keeps the most-recent toasts; with 4 pushed and max_visible=2,
+    # only the last two (c, d) show.
+    out = render(m.toast(["a", "b", "c", "d"], duration=5.0, fade_time=1.0,
+                         max_visible=2))
+    check("toast_max_visible", "c" in out and "d" in out and "a" not in out)
+
+
 if __name__ == "__main__":
     g = dict(globals())
     for name, fn in sorted(g.items()):

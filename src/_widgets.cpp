@@ -228,18 +228,22 @@ void init_widgets(py::module_& m) {
     // ── sparkline(data, label, color, show_min_max, show_last) ──────────
     w.def("sparkline",
           [](std::vector<float> data, std::string label, std::optional<Color> color,
-             bool show_min_max, bool show_last) {
+             bool show_min_max, bool show_last, std::optional<float> range_min,
+             std::optional<float> range_max) {
               SparklineConfig cfg{};
               if (color) cfg.color = *color;
               cfg.show_min_max = show_min_max;
               cfg.show_last = show_last;
               Sparkline s{std::move(data), cfg};
               if (!label.empty()) s.set_label(label);
+              if (range_min) s.set_min(*range_min);
+              if (range_max) s.set_max(*range_max);
               return static_cast<Element>(s);
           },
           py::arg("data"), py::arg("label") = "",
           py::arg("color") = std::nullopt,
-          py::arg("show_min_max") = false, py::arg("show_last") = false);
+          py::arg("show_min_max") = false, py::arg("show_last") = false,
+          py::arg("range_min") = std::nullopt, py::arg("range_max") = std::nullopt);
 
     // ── gauge(value, label, color, style) ───────────────────────────────
     w.def("gauge",
@@ -432,30 +436,38 @@ void init_widgets(py::module_& m) {
           },
           py::arg("label"), py::arg("on") = false);
 
-    // ── radio(items, selected, visible_count) ───────────────────────────
+    // ── radio(items, selected, visible_count, on/off indicators) ────────
     w.def("radio",
-          [](std::vector<std::string> items, int selected, int visible_count) {
+          [](std::vector<std::string> items, int selected, int visible_count,
+             const std::string& selected_indicator,
+             const std::string& unselected_indicator) {
               RadioConfig cfg{};
               if (visible_count > 0) cfg.visible_count = visible_count;
+              if (!selected_indicator.empty()) cfg.selected_indicator = selected_indicator;
+              if (!unselected_indicator.empty()) cfg.unselected_indicator = unselected_indicator;
               Radio r{std::move(items), cfg};
               r.set_selected(selected);
               return static_cast<Element>(r);
           },
-          py::arg("items"), py::arg("selected") = 0, py::arg("visible_count") = 0);
+          py::arg("items"), py::arg("selected") = 0, py::arg("visible_count") = 0,
+          py::arg("selected_indicator") = "", py::arg("unselected_indicator") = "");
 
-    // ── select(items, cursor, indicator, visible_count) ─────────────────
+    // ── select(items, cursor, indicator, visible_count, inactive_prefix) ─
     w.def("select",
           [](std::vector<std::string> items, int cursor,
-             const std::string& indicator, int visible_count) {
+             const std::string& indicator, int visible_count,
+             const std::string& inactive_prefix) {
               SelectConfig cfg{};
               if (!indicator.empty()) cfg.indicator = indicator;
+              if (!inactive_prefix.empty()) cfg.inactive_prefix = inactive_prefix;
               if (visible_count > 0) cfg.visible_count = visible_count;
               Select s{std::move(items), cfg};
               if (cursor > 0) const_cast<Signal<int>&>(s.cursor()).set(cursor);
               return static_cast<Element>(s);
           },
           py::arg("items"), py::arg("cursor") = 0,
-          py::arg("indicator") = "", py::arg("visible_count") = 0);
+          py::arg("indicator") = "", py::arg("visible_count") = 0,
+          py::arg("inactive_prefix") = "");
 
     // ── slider(value, label, min, max, step, width, fill, track) ────────
     // width must be > 0 for a static render: the dynamic-width path returns a
@@ -584,7 +596,9 @@ void init_widgets(py::module_& m) {
 
     // ── tree(root) — root is a nested dict {label, children, expanded} ──
     w.def("tree",
-          [](const py::dict& root) {
+          [](const py::dict& root, const std::string& expanded_icon,
+             const std::string& collapsed_icon, const std::string& leaf_prefix,
+             int indent_width) {
               std::function<TreeNode(const py::dict&)> conv =
                   [&](const py::dict& d) -> TreeNode {
                   TreeNode n{};
@@ -597,15 +611,23 @@ void init_widgets(py::module_& m) {
                   }
                   return n;
               };
-              Tree t{conv(root)};
+              TreeConfig cfg{};
+              if (!expanded_icon.empty()) cfg.expanded_icon = expanded_icon;
+              if (!collapsed_icon.empty()) cfg.collapsed_icon = collapsed_icon;
+              if (!leaf_prefix.empty()) cfg.leaf_prefix = leaf_prefix;
+              if (indent_width > 0) cfg.indent_width = indent_width;
+              Tree t{conv(root), cfg};
               return static_cast<Element>(t);
           },
-          py::arg("root"));
+          py::arg("root"), py::arg("expanded_icon") = "",
+          py::arg("collapsed_icon") = "", py::arg("leaf_prefix") = "",
+          py::arg("indent_width") = 0);
 
     // ── list(items, cursor, filterable, visible_count) ──────────────────
     // items: list of str, or dicts/tuples (label, description, icon).
     w.def("list_view",
-          [](const py::list& items, int cursor, bool filterable, int visible_count) {
+          [](const py::list& items, int cursor, bool filterable, int visible_count,
+             const std::string& indicator, const std::string& inactive_prefix) {
               std::vector<ListItem> lis;
               for (const auto& item : items) {
                   ListItem li{};
@@ -627,12 +649,15 @@ void init_widgets(py::module_& m) {
               ListConfig cfg{};
               cfg.filterable = filterable;
               if (visible_count > 0) cfg.visible_count = visible_count;
+              if (!indicator.empty()) cfg.indicator = indicator;
+              if (!inactive_prefix.empty()) cfg.inactive_prefix = inactive_prefix;
               List l{std::move(lis), cfg};
               if (cursor > 0) const_cast<Signal<int>&>(l.cursor()).set(cursor);
               return static_cast<Element>(l);
           },
           py::arg("items"), py::arg("cursor") = 0,
-          py::arg("filterable") = false, py::arg("visible_count") = 0);
+          py::arg("filterable") = false, py::arg("visible_count") = 0,
+          py::arg("indicator") = "", py::arg("inactive_prefix") = "");
 
     // ── menu(items) — items: str, or (label, shortcut, enabled, separator) ─
     w.def("menu",
@@ -663,23 +688,31 @@ void init_widgets(py::module_& m) {
           },
           py::arg("items"), py::arg("cursor") = 0);
 
-    // ── disclosure(label, open, content) ────────────────────────────────
+    // ── disclosure(label, open, content, open_icon, closed_icon) ───────
     w.def("disclosure",
-          [](std::string label, bool open, std::optional<Element> content) {
+          [](std::string label, bool open, std::optional<Element> content,
+             const std::string& open_icon, const std::string& closed_icon) {
               Disclosure::Config cfg{};
               cfg.label = std::move(label);
+              if (!open_icon.empty()) cfg.open_icon = open_icon;
+              if (!closed_icon.empty()) cfg.closed_icon = closed_icon;
               Disclosure d{cfg};
               d.set_open(open);
               if (content) return d.build(*content);
               return d.build();
           },
           py::arg("label"), py::arg("open") = false,
-          py::arg("content") = std::nullopt);
+          py::arg("content") = std::nullopt,
+          py::arg("open_icon") = "", py::arg("closed_icon") = "");
 
-    // ── toast(messages) — list of (message, level) ──────────────────────
+    // ── toast(messages, duration, fade_time, max_visible) ──────────────
     w.def("toast",
-          [](const py::list& messages) {
+          [](const py::list& messages, float duration, float fade_time,
+             int max_visible) {
               ToastManager::Config cfg{};
+              cfg.duration = duration;
+              cfg.fade_time = fade_time;
+              if (max_visible > 0) cfg.max_visible = max_visible;
               ToastManager tm{cfg};
               for (const auto& item : messages) {
                   if (py::isinstance<py::str>(item)) {
@@ -693,7 +726,8 @@ void init_widgets(py::module_& m) {
               }
               return static_cast<Element>(tm);
           },
-          py::arg("messages"));
+          py::arg("messages"), py::arg("duration") = 3.0f,
+          py::arg("fade_time") = 0.5f, py::arg("max_visible") = 0);
 
     // ── todo_list(items, description, status, elapsed, expanded) ─────────
     // items: (content, status) tuples or strings.
@@ -773,10 +807,12 @@ void init_widgets(py::module_& m) {
     // ── flame_chart(spans, time_scale, width, show_times) ───────────────
     // spans: (label, start, duration, depth, color) tuples.
     w.def("flame_chart",
-          [](const py::list& spans, float time_scale, int width, bool show_times) {
+          [](const py::list& spans, float time_scale, int width, bool show_times,
+             int max_depth) {
               FlameChart fc{time_scale};
               fc.set_width(width);
               fc.set_show_times(show_times);
+              if (max_depth > 0) fc.set_max_depth(max_depth);
               for (const auto& item : spans) {
                   auto t = item.cast<py::sequence>();
                   std::string label = t[0].cast<std::string>();
@@ -790,17 +826,19 @@ void init_widgets(py::module_& m) {
               return static_cast<Element>(fc);
           },
           py::arg("spans"), py::arg("time_scale") = 0.0f,
-          py::arg("width") = 60, py::arg("show_times") = true);
+          py::arg("width") = 60, py::arg("show_times") = true,
+          py::arg("max_depth") = 0);
 
     // ── waterfall(entries, time_scale, bar_width, show_labels, frame) ───
     // entries: (label, start, duration, color) tuples.
     w.def("waterfall",
           [](const py::list& entries, float time_scale, int bar_width,
-             bool show_labels, int frame) {
+             bool show_labels, int frame, bool show_times) {
               Waterfall wf{};
               wf.set_time_scale(time_scale);
               wf.set_bar_width(bar_width);
               wf.set_show_labels(show_labels);
+              wf.set_show_times(show_times);
               wf.set_frame(frame);
               for (const auto& item : entries) {
                   auto t = item.cast<py::sequence>();
@@ -815,7 +853,7 @@ void init_widgets(py::module_& m) {
           },
           py::arg("entries"), py::arg("time_scale") = 0.0f,
           py::arg("bar_width") = 30, py::arg("show_labels") = true,
-          py::arg("frame") = 0);
+          py::arg("frame") = 0, py::arg("show_times") = true);
 
     // ── thinking(content, active, expanded, max_lines) ──────────────────
     w.def("thinking",
