@@ -164,11 +164,14 @@ else()
     # mouse coordinate translation + out-of-frame suppression, the
     # maya::set_mouse() runtime capture toggle, and terminal restoration on
     # fatal signals/crashes (SIGHUP/TERM/QUIT/SEGV/...) + cooked-termios
-    # restore in the emergency path. Bump deliberately when pulling in new
-    # maya changes.
+    # restore in the emergency path, and the safe_break_len() incomplete-CSI
+    # fix (a bare "\x1b[" at a buffer boundary is no longer treated as a
+    # complete sequence, so the non-blocking writer never splits a CSI across
+    # the wire) plus the engine's new CI / sanitizer / libFuzzer harnesses.
+    # Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        c5f8c30c606b334a8e9f8f47276ce04bb8565e2f)
+        GIT_TAG        22e270f4e0c51343c2c981dba06fbefb5f1117b2)
     FetchContent_MakeAvailable(maya)
 endif()
 
