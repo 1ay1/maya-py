@@ -351,3 +351,78 @@ def test_derive_works_on_model_object():
         return len(s.items)
 
     assert app.s.count == 3
+
+
+# ── MVU Program harness (the Elm Architecture, headless) ────────────────────
+
+from maya_py import Cmd, Program, program_test  # noqa: E402
+
+
+class _Counter(Program):
+    def init(self):
+        return {"count": 0}, Cmd.set_title("counter")
+
+    def update(self, m, msg):
+        if msg == "inc":
+            return {**m, "count": m["count"] + 1}
+        if msg == "dec":
+            return {**m, "count": m["count"] - 1}
+        if msg == "reset":
+            return {**m, "count": 0}
+        if msg == "quit":
+            return m, Cmd.quit()
+        return m
+
+    def view(self, m):
+        return card(b(f"count: {m['count']}"), title="counter")
+
+
+def test_program_pilot_threads_pure_update():
+    p = _Counter().test()
+    assert p.model == {"count": 0}
+    p.send("inc", "inc", "inc", "dec")
+    assert p.model == {"count": 2}
+    assert "count: 2" in p.view_string(40)
+
+
+def test_program_pilot_captures_cmds():
+    p = _Counter().test()
+    assert len(p.cmds) == 1          # init's Cmd.set_title
+    assert isinstance(p.last_cmd, Cmd)
+    p.send("inc")                    # no cmd
+    assert len(p.cmds) == 1
+    p.send("quit")                   # Cmd.quit()
+    assert len(p.cmds) == 2
+
+
+def test_program_update_is_pure_and_immutable():
+    c = _Counter()
+    m0, _cmd = c.init()
+    m1 = c.update(m0, "inc")
+    assert m1 == {"count": 1}
+    assert m0 == {"count": 0}        # original untouched
+    assert c.update(m0, "???") == m0  # unknown msg = identity
+
+
+def test_program_pilot_chains():
+    p = _Counter().test().send("inc").send("inc").send("reset")
+    assert p.model == {"count": 0}
+
+
+def test_program_test_function_form():
+    def init():
+        return {"n": 5}
+
+    def update(m, msg):
+        return {**m, "n": m["n"] + 1} if msg == "up" else m
+
+    p = program_test(init, update)       # no view
+    p.send("up", "up", "up")
+    assert p.model == {"n": 8}
+    # view_string without a view raises, faithfully
+    raised = False
+    try:
+        p.view_string()
+    except RuntimeError:
+        raised = True
+    assert raised

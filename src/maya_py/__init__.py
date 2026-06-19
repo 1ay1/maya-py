@@ -86,7 +86,7 @@ from ._maya import (
 )
 
 # ── MVU runtime (the full Program model, same as C++ run<P>) ────────────
-from .program import Cmd, Sub, Program, run_program
+from .program import Cmd, Sub, Program, run_program, ProgramPilot, program_test
 
 # ── Border style shortcuts (BorderStyle.* without the prefix) ───────────
 Round = BorderStyle.Round
@@ -124,7 +124,7 @@ __all__ = [
     "fg", "bg", "rgb", "hex", "bold", "dim", "italic", "underline",
     "strikethrough", "inverse", "style",
     # MVU runtime
-    "Cmd", "Sub", "Program", "run_program",
+    "Cmd", "Sub", "Program", "run_program", "ProgramPilot", "program_test",
 ]
 
 

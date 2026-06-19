@@ -349,6 +349,67 @@ def render(dt):
 animate(render, fps=30)   # maya.quit() to stop
 ```
 
+### The Elm Architecture: `Program` (pure, testable, no mutation)
+
+When you want the full discipline — an immutable `Model`, a closed set of
+`Msg`, a **pure** `update`, and side effects described as data — maya-py
+exposes maya's native MVU runtime as a `Program`. This is the *same* `run<P>`
+loop the C++ side uses, so the effects and subscriptions you return from
+Python are interpreted by maya's real runtime, not a reimplementation.
+
+```python
+import maya_py as maya
+from maya_py import Cmd, Sub, Program, card, T
+
+class Counter(Program):
+    title = "counter"
+
+    def init(self):                       # -> model | (model, Cmd)
+        return {"n": 0}, Cmd.set_title("counter")
+
+    def update(self, m, msg):             # pure: no I/O, no mutation
+        if msg == "inc":   return {**m, "n": m["n"] + 1}
+        if msg == "dec":   return {**m, "n": m["n"] - 1}
+        if msg == "quit":  return m, Cmd.quit()
+        return m
+
+    def view(self, m):                    # model -> Element
+        return card(T(f"count: {m['n']}").bold)
+
+    def subscribe(self, m):               # model -> event sources
+        return Sub.on_key(lambda ev:
+            "inc" if maya.key(ev, "+") else
+            "dec" if maya.key(ev, "-") else
+            "quit" if maya.key(ev, "q") else None)
+
+Counter().run()
+```
+
+`update` never touches the terminal, so it stays a pure state transition you
+can unit-test in isolation. Effects are **`Cmd`** values — `Cmd.quit()`,
+`Cmd.set_title(...)`, `Cmd.after(ms, msg)`, `Cmd.task(fn)` (async work),
+`Cmd.batch(...)`, clipboard + scrollback commands. Event sources are **`Sub`**
+values — `Sub.on_key`, `Sub.on_mouse`, `Sub.on_resize`, `Sub.on_paste`,
+`Sub.every(ms, msg)` (a timer), `Sub.on_animation_frame(msg)`, `Sub.batch(...)`.
+There's a plain-function form too: `run_program(init, update, view, subscribe)`.
+
+**The whole architecture is headlessly testable.** Because `update` is pure,
+`Program.test()` hands you a `ProgramPilot` that runs the real
+`init`/`update`/`view` with no terminal — you dispatch *messages* (exactly like
+`elm-test`), thread the immutable model, and assert on it and the rendered view:
+
+```python
+p = Counter().test()
+p.send("inc", "inc", "inc", "dec")        # dispatch messages in order
+assert p.model == {"n": 2}
+assert p.cmds                              # Cmd.set_title was emitted at init
+assert "count: 2" in p.view_string(40)
+```
+
+See `examples/counter_program.py` and `examples/stopwatch_program.py` (the
+latter uses `Sub.every` timers, `Sub.batch`, and `Cmd.batch`, and ships a
+`--test` self-check that proves every transition with the pilot).
+
 ## Examples
 
 **Every maya C++ example is ported 1:1 to Python** — 34 of them, plus extras.
@@ -405,6 +466,10 @@ each (CI-friendly, no TTY needed).
 
 - `hello.py` static card · `counter.py` / `stopwatch.py` / `todo.py` `App`
   basics · `paint.py` mouse painter · `live_spinner.py` inline animation.
+- `counter_program.py` / `stopwatch_program.py` — the pure **MVU `Program`**
+  (Elm Architecture): immutable model, pure `update`, `Cmd`/`Sub` effects, and
+  a headless `--test` self-check.
+- `form.py` — the declarative trio (`For`, `bind=`, `@app.derive`) in one cart.
 - `scroll.py` / `scroll_clip.py` / `scroll_2d.py` / `scroll_slice.py` /
   `scroll_styles.py` — every scrolling pattern (clip, two-axis, million-row
   slice, and all 15 scrollbar styles).

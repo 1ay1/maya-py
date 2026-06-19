@@ -43,8 +43,19 @@ for name in mods:
         elif hasattr(m, "gallery"):
             el = m.gallery()
         else:
-            print(f"·· {name}: no render entry (skipped)")
-            continue
+            # An MVU Program subclass: render its view of the initial model
+            # (drive it headlessly through the pilot — no terminal).
+            prog_cls = next(
+                (v for v in vars(m).values()
+                 if isinstance(v, type) and issubclass(v, maya.Program)
+                 and v is not maya.Program),
+                None,
+            )
+            if prog_cls is not None:
+                el = prog_cls().test().view()
+            else:
+                print(f"·· {name}: no render entry (skipped)")
+                continue
         out = maya.to_string(el, 110)
         assert isinstance(out, str) and out.strip(), "empty render"
         print(f"ok  {name:<18} {out.count(chr(10)):>3} lines")

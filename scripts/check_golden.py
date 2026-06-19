@@ -87,7 +87,16 @@ def build_snapshot() -> str:
             elif hasattr(m, "gallery"):
                 el = m.gallery()
             else:
-                continue
+                prog_cls = next(
+                    (v for v in vars(m).values()
+                     if isinstance(v, type) and issubclass(v, maya.Program)
+                     and v is not maya.Program),
+                    None,
+                )
+                if prog_cls is not None:
+                    el = prog_cls().test().view()
+                else:
+                    continue
         except Exception as e:  # noqa: BLE001
             out.append(f"### {name}: BUILD-FAIL {type(e).__name__}\n")
             continue
