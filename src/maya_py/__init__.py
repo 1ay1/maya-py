@@ -86,7 +86,9 @@ from ._maya import (
 )
 
 # ── MVU runtime (the full Program model, same as C++ run<P>) ────────────
-from .program import Cmd, Sub, Program, run_program, ProgramPilot, program_test
+from .program import (
+    Cmd, Sub, Program, run_program, ProgramPilot, program_test, ImpureUpdateError,
+)
 
 # ── Border style shortcuts (BorderStyle.* without the prefix) ───────────
 Round = BorderStyle.Round
@@ -125,6 +127,7 @@ __all__ = [
     "strikethrough", "inverse", "style",
     # MVU runtime
     "Cmd", "Sub", "Program", "run_program", "ProgramPilot", "program_test",
+    "ImpureUpdateError",
 ]
 
 

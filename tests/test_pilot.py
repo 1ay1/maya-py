@@ -426,3 +426,59 @@ def test_program_test_function_form():
     except RuntimeError:
         raised = True
     assert raised
+
+
+# ── purity enforcement (the API makes beautiful architecture the verified one) ─
+
+from maya_py import ImpureUpdateError  # noqa: E402
+
+
+class _MutatingUpdate(Program):
+    def init(self):
+        return {"n": 0}
+
+    def update(self, m, msg):
+        m["n"] += 1          # in-place mutation — the TEA sin
+        return m
+
+    def view(self, m):
+        return card(b(str(m["n"])))
+
+
+def test_strict_pilot_catches_mutating_update():
+    import pytest
+    with pytest.raises(ImpureUpdateError) as ei:
+        _MutatingUpdate().test().send("inc")
+    assert "update" in str(ei.value) and "in place" in str(ei.value)
+
+
+def test_strict_false_bypasses_purity_check():
+    # Escape hatch for huge / un-deep-copyable models.
+    p = _MutatingUpdate().test(strict=False).send("inc")
+    assert p.model == {"n": 1}
+
+
+class _MutatingView(Program):
+    def init(self):
+        return {"log": []}
+
+    def update(self, m, msg):
+        return m
+
+    def view(self, m):
+        m["log"].append("x")   # mutating during render
+        return card(b("x"))
+
+
+def test_strict_pilot_catches_mutating_view():
+    import pytest
+    with pytest.raises(ImpureUpdateError) as ei:
+        _MutatingView().test().view()
+    assert "view" in str(ei.value)
+
+
+def test_pure_program_passes_strict_silently():
+    # The Counter from above is pure ({**m, ...}) — strict mode is a no-op.
+    p = _Counter().test()                # strict=True by default
+    p.send("inc", "inc", "reset", "dec")
+    assert p.model == {"count": -1}

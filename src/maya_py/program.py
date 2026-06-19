@@ -66,6 +66,49 @@ def _split(result: Any) -> "tuple[Any, list]":
     return result, []
 
 
+class ImpureUpdateError(AssertionError):
+    """Raised in strict mode when ``update`` or ``view`` mutates the model in
+    place instead of returning a new one. The Elm Architecture's core promise
+    is that these are pure functions; this catches the violation early, with a
+    precise pointer to the offending hook — not a subtle stale-view bug later.
+    """
+
+
+def _snapshot(model: Any) -> Any:
+    """A best-effort deep copy used to detect in-place mutation. Falls back to
+    the ``_UNCOPYABLE`` sentinel (→ check skipped) for models that can't be
+    copied — strictness is a debugging aid, never a hard dependency.
+    """
+    import copy
+    try:
+        return copy.deepcopy(model)
+    except Exception:
+        return _UNCOPYABLE
+
+
+_UNCOPYABLE = object()
+
+
+def _assert_unmutated(before: Any, after: Any, hook: str) -> None:
+    """Raise if ``after`` (the same object handed to a hook) no longer equals
+    its pre-call snapshot ``before`` — i.e. the hook mutated it in place.
+    """
+    if before is _UNCOPYABLE:
+        return
+    try:
+        same = before == after
+    except Exception:
+        return
+    if same is False:
+        raise ImpureUpdateError(
+            f"{hook}() mutated the model in place. The Elm Architecture requires"
+            f" {hook} to be PURE: return a NEW model (e.g. {{**m, ...}} or a"
+            f" replace()/dataclasses.replace), never edit the one you were"
+            f" given. The model changed from {before!r:.80} to {after!r:.80}"
+            f" during the call."
+        )
+
+
 def run_program(
     init: Callable[[], Any],
     update: Callable[[Model, Msg], Any],
@@ -158,7 +201,7 @@ class Program:
 
     # -- headless testing ----------------------------------------------------
 
-    def test(self) -> "ProgramPilot":
+    def test(self, *, strict: bool = True) -> "ProgramPilot":
         """Drive this Program headlessly — no terminal. Returns a
         :class:`ProgramPilot` that runs the SAME pure ``init``/``update``/
         ``view`` your live app uses, so the whole architecture is unit-testable
@@ -168,20 +211,25 @@ class Program:
             p.send("inc", "inc")
             assert p.model["count"] == 2
             assert "count: 2" in p.view_string()
+
+        ``strict=True`` (the default) enforces purity: a hook that mutates the
+        model in place raises :class:`ImpureUpdateError`.
         """
-        return ProgramPilot(self.init, self.update, self.view)
+        return ProgramPilot(self.init, self.update, self.view, strict=strict)
 
 
 def program_test(
     init: Callable[[], Any],
     update: Callable[[Model, Msg], Any],
     view: Optional[Callable[[Model], Any]] = None,
+    *,
+    strict: bool = True,
 ) -> "ProgramPilot":
     """Headless driver for a plain-function Program — the function-form twin of
     :meth:`Program.test`. ``view`` is optional (omit it to test pure
-    ``update`` transitions without rendering).
+    ``update`` transitions without rendering). ``strict`` enforces purity.
     """
-    return ProgramPilot(init, update, view)
+    return ProgramPilot(init, update, view, strict=strict)
 
 
 class ProgramPilot:
@@ -203,6 +251,14 @@ class ProgramPilot:
     Because messages are dispatched directly (not synthesized from keystrokes),
     tests target the pure core exactly the way ``elm-test`` does — the view's
     ``Sub`` event-routing is the native runtime's job and stays out of the way.
+
+    **Purity is enforced.** By default (``strict=True``) the pilot snapshots the
+    model before every ``update`` / ``view`` call and raises
+    :class:`ImpureUpdateError` if the hook mutated it in place instead of
+    returning a new one — so an accidental ``m['n'] += 1; return m`` fails your
+    tests loudly instead of leaking a subtle stale-view bug into production.
+    Pass ``strict=False`` to skip the check (e.g. for an intentionally huge or
+    un-deep-copyable model).
     """
 
     def __init__(
@@ -210,9 +266,12 @@ class ProgramPilot:
         init: Callable[[], Any],
         update: Callable[[Model, Msg], Any],
         view: Optional[Callable[[Model], Any]] = None,
+        *,
+        strict: bool = True,
     ):
         self._update = update
         self._view = view
+        self._strict = strict
         self._model, self.cmds = _split(init())
 
     # -- driving -------------------------------------------------------------
@@ -220,9 +279,15 @@ class ProgramPilot:
     def send(self, *msgs: Msg) -> "ProgramPilot":
         """Dispatch one or more messages through ``update`` in order, threading
         the model and appending any emitted ``Cmd`` to :attr:`cmds`. Chainable.
+
+        In strict mode each call is checked for in-place mutation of the model.
         """
         for msg in msgs:
-            model, cmds = _split(self._update(self._model, msg))
+            old = self._model
+            before = _snapshot(old) if self._strict else _UNCOPYABLE
+            model, cmds = _split(self._update(old, msg))
+            if self._strict:
+                _assert_unmutated(before, old, "update")
             self._model = model
             self.cmds.extend(cmds)
         return self
@@ -242,15 +307,21 @@ class ProgramPilot:
     def view_string(self, width: int = 80) -> str:
         """Render the current model's ``view`` to a plain string. Requires a
         ``view`` (raises if the Program/pilot was built without one)."""
-        if self._view is None:
-            raise RuntimeError("this ProgramPilot has no view to render")
-        return _maya.render_to_string(self._view(self._model), width)
+        return _maya.render_to_string(self.view(), width)
 
     def view(self):
-        """The current model's ``view`` element (un-rendered)."""
+        """The current model's ``view`` element (un-rendered). In strict mode,
+        verifies the view did not mutate the model."""
         if self._view is None:
             raise RuntimeError("this ProgramPilot has no view to render")
-        return self._view(self._model)
+        before = _snapshot(self._model) if self._strict else _UNCOPYABLE
+        el = self._view(self._model)
+        if self._strict:
+            _assert_unmutated(before, self._model, "view")
+        return el
 
 
-__all__ = ["Cmd", "Sub", "Program", "run_program", "ProgramPilot", "program_test"]
+__all__ = [
+    "Cmd", "Sub", "Program", "run_program", "ProgramPilot", "program_test",
+    "ImpureUpdateError",
+]

@@ -406,6 +406,28 @@ assert p.cmds                              # Cmd.set_title was emitted at init
 assert "count: 2" in p.view_string(40)
 ```
 
+**Purity is enforced, not just encouraged.** The pilot runs in strict mode by
+default: it snapshots the model before every `update`/`view` and raises
+`ImpureUpdateError` if a hook mutated it in place instead of returning a new
+one. So the moment someone writes the tempting `m["n"] += 1; return m`, their
+tests fail loudly with a pointer to the exact hook — the beautiful, pure
+architecture is the *verified* one, and the subtle stale-view bug never ships:
+
+```python
+class Sloppy(Program):
+    def update(self, m, msg):
+        m["n"] += 1        # in-place mutation — the TEA sin
+        return m
+    ...
+
+Sloppy().test().send("inc")   # raises ImpureUpdateError: update() mutated the
+                              # model in place. Return a NEW model ({**m, ...}).
+```
+
+The check costs nothing at runtime (it lives in the test pilot), and there's an
+escape hatch — `prog.test(strict=False)` — for an intentionally huge or
+un-deep-copyable model.
+
 See `examples/counter_program.py` and `examples/stopwatch_program.py` (the
 latter uses `Sub.every` timers, `Sub.batch`, and `Cmd.batch`, and ships a
 `--test` self-check that proves every transition with the pilot).

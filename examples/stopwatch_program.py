@@ -126,7 +126,24 @@ def _self_test():
     assert "0:00.00" in p.view_string(40)
     assert "paused" in p.view_string(40)
 
-    print("stopwatch self-test: all pure-update transitions pass \u2713")
+    # The pilot ran in strict mode the whole time — had any transition mutated
+    # the model in place, it would have raised ImpureUpdateError. Getting here
+    # is itself a proof of purity. (Demonstrate the guard explicitly:)
+    from maya_py import ImpureUpdateError
+
+    class _Sloppy(Stopwatch):
+        def update(self, m, msg):
+            m["elapsed"] = 999      # the TEA sin: edit-in-place
+            return m
+
+    try:
+        _Sloppy().test().send("tick")
+        raise SystemExit("strict mode FAILED to catch a mutating update")
+    except ImpureUpdateError:
+        pass
+
+    print("stopwatch self-test: all pure-update transitions pass ✓")
+    print("strict mode caught a deliberately-mutating update ✓")
 
 
 if __name__ == "__main__":
