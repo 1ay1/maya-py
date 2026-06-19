@@ -22,7 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14]
+        # Linux only: maya's emergency-signal code uses `::sigemptyset`/
+        # `::sigaction`, which are macros on macOS and don't compile under
+        # Homebrew GCC. macOS is source-only/best-effort (see wheels.yml), so
+        # it's not a correctness gate here until that's fixed upstream.
+        os: [ubuntu-latest]
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
