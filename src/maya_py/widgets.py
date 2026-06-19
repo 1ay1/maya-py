@@ -33,6 +33,10 @@ TaskStatus = _W.TaskStatus
 ToastLevel = _W.ToastLevel
 TodoItemStatus = _W.TodoItemStatus
 TodoListStatus = _W.TodoListStatus
+PopupStyle = _W.PopupStyle
+BannerLevel = _W.BannerLevel
+ToolCallStatus = _W.ToolCallStatus
+ToolCallKind = _W.ToolCallKind
 
 _ALIGN = {"left": ColumnAlign.Left, "center": ColumnAlign.Center,
           "right": ColumnAlign.Right}
@@ -54,6 +58,26 @@ _TODO_ITEM = {"pending": TodoItemStatus.Pending, "inprogress": TodoItemStatus.In
 
 _TODO_LIST = {"pending": TodoListStatus.Pending, "running": TodoListStatus.Running,
               "done": TodoListStatus.Done, "failed": TodoListStatus.Failed}
+
+_POPUP_STYLE = {"info": PopupStyle.Info, "warning": PopupStyle.Warning,
+                "warn": PopupStyle.Warning, "error": PopupStyle.Error}
+
+_BANNER_LEVEL = {"info": BannerLevel.Info, "success": BannerLevel.Success,
+                 "warning": BannerLevel.Warning, "warn": BannerLevel.Warning,
+                 "error": BannerLevel.Error}
+
+_TOOL_STATUS = {"pending": ToolCallStatus.Pending, "running": ToolCallStatus.Running,
+                "completed": ToolCallStatus.Completed, "done": ToolCallStatus.Completed,
+                "failed": ToolCallStatus.Failed, "error": ToolCallStatus.Failed,
+                "confirmation": ToolCallStatus.Confirmation,
+                "confirm": ToolCallStatus.Confirmation}
+
+_TOOL_KIND = {"read": ToolCallKind.Read, "edit": ToolCallKind.Edit,
+              "execute": ToolCallKind.Execute, "exec": ToolCallKind.Execute,
+              "run": ToolCallKind.Execute, "search": ToolCallKind.Search,
+              "delete": ToolCallKind.Delete, "move": ToolCallKind.Move,
+              "fetch": ToolCallKind.Fetch, "think": ToolCallKind.Think,
+              "agent": ToolCallKind.Agent, "other": ToolCallKind.Other}
 
 
 def _enum(value, table, default):
@@ -543,7 +567,143 @@ def picker(rows: Sequence[Any] = (), *, title: str = "", accent: Any = None,
                      _col(cursor_color), _col(active_color))
 
 
-# ── scrolling ───────────────────────────────────────
+def popup(content: str, *, style: Any = "info") -> Element:
+    """A floating tooltip/notice box. ``style``: info/warning/error."""
+    return _W.popup(str(content), _enum(style, _POPUP_STYLE, PopupStyle.Info))
+
+
+def overlay(base: Any, over: Any, *, present: bool = True) -> Element:
+    """Composite ``over`` on top of ``base`` (a modal/popup layer). When
+    ``present`` is False, only ``base`` renders."""
+    return _W.overlay(_as_element(base), _as_element(over), bool(present))
+
+
+def user_message(content: Any) -> Element:
+    """A bordered user-message bubble. ``content`` is text or an Element."""
+    return _W.user_message(content if isinstance(content, str)
+                           else _as_element(content))
+
+
+def assistant_message(content: Any) -> Element:
+    """A padded assistant-message block. ``content`` is text or an Element."""
+    return _W.assistant_message(_as_element(content))
+
+
+def system_banner(message: str, *, level: Any = "info",
+                  dismissable: bool = False) -> Element:
+    """A full-width system notice rule. ``level``: info/success/warning/error."""
+    return _W.system_banner(str(message),
+                            _enum(level, _BANNER_LEVEL, BannerLevel.Info),
+                            bool(dismissable))
+
+
+def phase_chip(verb: str, *, glyph: str = "", color: Any = None,
+               breathing: bool = False, frame: int = 0, verb_width: int = 10,
+               elapsed: float = -1.0) -> Element:
+    """A rounded status chip (``✷ Thinking  4.2s``). ``elapsed < 0`` omits the
+    time tail; ``verb_width=0`` drops the verb. ``frame`` drives the breathing
+    animation when ``breathing`` is on."""
+    return _W.phase_chip(str(verb), str(glyph), _col(color), bool(breathing),
+                         int(frame), int(verb_width), float(elapsed))
+
+
+def context_gauge(used: int, max: int, *, cells: int = 10,
+                  show_bar: bool = True) -> Element:
+    """A compact token-budget meter (``used/max``) with a threshold-coloured
+    bar. Renders blank when ``max <= 0``."""
+    return _W.context_gauge(int(used), int(max), int(cells), bool(show_bar))
+
+
+def context_window(segments: Sequence[Any], *, max_tokens: int = 200000,
+                   width: int = 0, show_labels: bool = True,
+                   show_percent: bool = True) -> Element:
+    """A segmented context-window bar. ``segments`` is a list of
+    ``(label, tokens)`` or ``(label, tokens, color)`` tuples; the bar fills to
+    the sum of segment tokens out of ``max_tokens``."""
+    out = []
+    for s in segments:
+        s = list(s)
+        if len(s) > 2:
+            s[2] = _col(s[2])
+        out.append(tuple(s))
+    return _W.context_window(out, int(max_tokens), int(width),
+                             bool(show_labels), bool(show_percent))
+
+
+def diff_view(path: str, diff: str, *, show_border: bool = True,
+              show_line_numbers: bool = True) -> Element:
+    """Render a unified-diff string (``@@ ... @@`` hunks, ``+``/``-`` lines)
+    with syntax colours and line numbers."""
+    return _W.diff_view(str(path), str(diff), bool(show_border),
+                        bool(show_line_numbers))
+
+
+def tool_call(name: str, *, kind: Any = "other", description: str = "",
+              status: Any = "pending", elapsed: float = 0.0,
+              expanded: bool = False, content: Element | None = None) -> Element:
+    """An agent tool-call card. ``kind``:
+    read/edit/execute/search/delete/move/fetch/think/agent/other.
+    ``status``: pending/running/completed/failed/confirmation. ``content`` is an
+    optional Element shown when ``expanded``."""
+    return _W.tool_call(str(name), _enum(kind, _TOOL_KIND, ToolCallKind.Other),
+                        str(description),
+                        _enum(status, _TOOL_STATUS, ToolCallStatus.Pending),
+                        float(elapsed), bool(expanded),
+                        None if content is None else _as_element(content))
+
+
+def git_graph(commits: Sequence[Any], *, max_branches: int = 0,
+              show_hash: bool = True, show_author: bool = False,
+              show_time: bool = True) -> Element:
+    """An ASCII commit graph. Each commit is a dict
+    ``{hash, message, author, time, branch, is_merge, is_head}`` or a tuple
+    ``(hash, message, author, time, branch, is_merge, is_head)``."""
+    out = [c if isinstance(c, dict) else tuple(c) for c in commits]
+    return _W.git_graph(out, int(max_branches), bool(show_hash),
+                        bool(show_author), bool(show_time))
+
+
+def git_status(*, branch: str = "", ahead: int = 0, behind: int = 0,
+               modified: int = 0, staged: int = 0, untracked: int = 0,
+               deleted: int = 0, conflicts: int = 0, compact: bool = True,
+               changed_files: Sequence[str] = ()) -> Element:
+    """A git-status summary (branch, ahead/behind, dirty counts). ``compact``
+    renders a single line; otherwise an expanded list with ``changed_files``."""
+    return _W.git_status(str(branch), int(ahead), int(behind), int(modified),
+                         int(staged), int(untracked), int(deleted),
+                         int(conflicts), bool(compact),
+                         [str(f) for f in changed_files])
+
+
+def shortcut_row(bindings: Sequence[Any], *, color: Any = None) -> Element:
+    """A width-adaptive keybinding hint row. ``bindings`` is a list of
+    ``(key, label)`` or ``(key, label, key_color, priority)`` tuples; lower
+    priority bindings degrade/drop first when space runs out."""
+    out = []
+    for b in bindings:
+        b = list(b)
+        if len(b) > 2:
+            b[2] = _col(b[2])
+        out.append(tuple(b))
+    return _W.shortcut_row(out, _col(color))
+
+
+def plan_view(tasks: Sequence[Any]) -> Element:
+    """A task checklist. Each task is a string (pending) or a
+    ``(label, status)`` tuple; status is pending/in_progress/completed."""
+    out = []
+    for t in tasks:
+        if isinstance(t, str):
+            out.append(t)
+        else:
+            t = list(t)
+            if len(t) > 1:
+                t[1] = _enum(t[1], _TASK_STATUS, TaskStatus.Pending)
+            out.append(tuple(t))
+    return _W.plan_view(out)
+
+
+# ── scrolling ──────────────────────────────────
 ScrollState = _W.ScrollState
 ScrollbarStyle = _W.ScrollbarStyle
 
@@ -628,6 +788,7 @@ def scroll_handle(state: "ScrollState", ev: Any) -> bool:
 __all__ = [
     "GaugeStyle", "ColumnAlign", "ButtonVariant", "TaskStatus", "ToastLevel",
     "TodoItemStatus", "TodoListStatus", "ScrollState", "ScrollbarStyle",
+    "PopupStyle", "BannerLevel", "ToolCallStatus", "ToolCallKind",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "bar_chart", "gradient", "heatmap",
@@ -636,5 +797,8 @@ __all__ = [
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
     "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
+    "popup", "overlay", "user_message", "assistant_message", "system_banner",
+    "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",
+    "git_graph", "git_status", "shortcut_row", "plan_view",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]

@@ -17,6 +17,9 @@ from maya_py import (
     key_help, timeline, tree, list_view, menu, disclosure, toast, todo_list,
     title_chip, model_badge, file_ref, inline_diff, thinking, markdown,
     picker, dim_text,
+    popup, overlay, user_message, assistant_message, system_banner,
+    phase_chip, context_gauge, context_window, diff_view, tool_call,
+    git_graph, git_status, shortcut_row, plan_view,
 )
 
 
@@ -134,6 +137,40 @@ def gallery():
             footer=[dim_text("  ↑↓ move · enter select · esc cancel")],
             min_width=46,
         ),
+        divider("agent chrome", color="slate"),
+        row(
+            phase_chip("Thinking", glyph="✷", color="magenta", elapsed=4.2),
+            system_banner("context window 80% full", level="warning"),
+            gap=2,
+        ),
+        context_gauge(160000, 200000),
+        context_window(
+            [("System", 12400, "blue"), ("History", 89200, "magenta"),
+             ("Tools", 32100, "yellow"), ("Response", 11534, "green")],
+            width=44,
+        ),
+        tool_call("Read", kind="read", description="src/auth.py",
+                  status="completed", elapsed=1.2),
+        shortcut_row([("q", "quit"), ("/", "search"), ("?", "help")]),
+        plan_view([("Read middleware", "completed"),
+                   ("Run tests", "in_progress"), "Ship it"]),
+        divider("messages & git", color="slate"),
+        user_message("show me the project structure"),
+        assistant_message(markdown("Here's the **layout**:")),
+        popup("Saved to disk", style="info"),
+        overlay(
+            card(b("editor"), dim_text("def main():"), dim_text("    ..."),
+                 title="app.py"),
+            popup("unsaved changes", style="warning"),
+        ),
+        git_status(branch="main", ahead=2, modified=3, staged=1),
+        git_graph([
+            ("a9f3cf1", "Fix auth token expiry", "", "2m ago", 0, False, True),
+            ("9bf4e21", "Add rate limiting", "", "5m ago", 1),
+            ("a1c3d7f", "Merge branch", "", "8m ago", 0, True),
+        ]),
+        diff_view("app.ts",
+                  "@@ -1,3 +1,3 @@\n const x = 1\n-let y = 2\n+let y = 42\n const z = 3\n"),
         gap=1,
     )
 

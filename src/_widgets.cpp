@@ -68,6 +68,19 @@
 #include <maya/widget/plan_view.hpp>  // TaskStatus
 #include <maya/widget/input.hpp>      // interactive text input / textarea
 
+#include <maya/widget/popup.hpp>
+#include <maya/widget/overlay.hpp>
+#include <maya/widget/message.hpp>
+#include <maya/widget/system_banner.hpp>
+#include <maya/widget/phase_chip.hpp>
+#include <maya/widget/context_gauge.hpp>
+#include <maya/widget/context_window.hpp>
+#include <maya/widget/diff_view.hpp>
+#include <maya/widget/tool_call.hpp>
+#include <maya/widget/git_graph.hpp>
+#include <maya/widget/git_status.hpp>
+#include <maya/widget/shortcut_row.hpp>
+
 #include "_pyevent.hpp"
 
 #include <optional>
@@ -941,6 +954,267 @@ void init_widgets(py::module_& m) {
           py::arg("viewport_h") = 14,
           py::arg("cursor_color") = std::nullopt,
           py::arg("active_color") = std::nullopt);
+
+    // ── enums for the new widgets ───────────────────────────────────────
+    py::enum_<PopupStyle>(w, "PopupStyle")
+        .value("Info", PopupStyle::Info)
+        .value("Warning", PopupStyle::Warning)
+        .value("Error", PopupStyle::Error);
+
+    py::enum_<BannerLevel>(w, "BannerLevel")
+        .value("Info", BannerLevel::Info)
+        .value("Success", BannerLevel::Success)
+        .value("Warning", BannerLevel::Warning)
+        .value("Error", BannerLevel::Error);
+
+    py::enum_<ToolCallStatus>(w, "ToolCallStatus")
+        .value("Pending", ToolCallStatus::Pending)
+        .value("Running", ToolCallStatus::Running)
+        .value("Completed", ToolCallStatus::Completed)
+        .value("Failed", ToolCallStatus::Failed)
+        .value("Confirmation", ToolCallStatus::Confirmation);
+
+    py::enum_<ToolCallKind>(w, "ToolCallKind")
+        .value("Read", ToolCallKind::Read)
+        .value("Edit", ToolCallKind::Edit)
+        .value("Execute", ToolCallKind::Execute)
+        .value("Search", ToolCallKind::Search)
+        .value("Delete", ToolCallKind::Delete)
+        .value("Move", ToolCallKind::Move)
+        .value("Fetch", ToolCallKind::Fetch)
+        .value("Think", ToolCallKind::Think)
+        .value("Agent", ToolCallKind::Agent)
+        .value("Other", ToolCallKind::Other);
+
+    // ── popup(content, style) ───────────────────────────────────────────
+    w.def("popup",
+          [](std::string content, PopupStyle style) {
+              return static_cast<Element>(Popup{std::move(content), style});
+          },
+          py::arg("content"), py::arg("style") = PopupStyle::Info);
+
+    // ── overlay(base, overlay, present) ─────────────────────────────────
+    w.def("overlay",
+          [](Element base, Element over, bool present) {
+              Overlay::Config cfg{};
+              cfg.base = std::move(base);
+              cfg.overlay = std::move(over);
+              cfg.present = present;
+              return static_cast<Element>(Overlay{std::move(cfg)});
+          },
+          py::arg("base"), py::arg("overlay"), py::arg("present") = true);
+
+    // ── user_message(content) / assistant_message(content) ──────────────
+    // content is a string (user) or a pre-built Element (both).
+    w.def("user_message",
+          [](py::object content) {
+              if (py::isinstance<py::str>(content))
+                  return UserMessage::build(content.cast<std::string>());
+              return UserMessage::build(content.cast<Element>());
+          },
+          py::arg("content"));
+    w.def("assistant_message",
+          [](Element content) { return AssistantMessage::build(std::move(content)); },
+          py::arg("content"));
+
+    // ── system_banner(message, level, dismissable) ──────────────────────
+    w.def("system_banner",
+          [](std::string message, BannerLevel level, bool dismissable) {
+              SystemBanner b{std::move(message), level};
+              b.set_dismissable(dismissable);
+              return static_cast<Element>(b);
+          },
+          py::arg("message"), py::arg("level") = BannerLevel::Info,
+          py::arg("dismissable") = false);
+
+    // ── phase_chip(verb, glyph, color, breathing, frame, verb_width, elapsed) ─
+    w.def("phase_chip",
+          [](std::string verb, std::string glyph, std::optional<Color> color,
+             bool breathing, int frame, int verb_width, float elapsed_secs) {
+              PhaseChip::Config cfg{};
+              cfg.verb = std::move(verb);
+              cfg.glyph = std::move(glyph);
+              if (color) cfg.color = *color;
+              cfg.breathing = breathing;
+              cfg.frame = frame;
+              cfg.verb_width = verb_width;
+              cfg.elapsed_secs = elapsed_secs;
+              return static_cast<Element>(PhaseChip{std::move(cfg)});
+          },
+          py::arg("verb"), py::arg("glyph") = "", py::arg("color") = std::nullopt,
+          py::arg("breathing") = false, py::arg("frame") = 0,
+          py::arg("verb_width") = 10, py::arg("elapsed_secs") = -1.0f);
+
+    // ── context_gauge(used, max, cells, show_bar) ───────────────────────
+    w.def("context_gauge",
+          [](int used, int max, int cells, bool show_bar) {
+              ContextGauge::Config cfg{};
+              cfg.used = used;
+              cfg.max = max;
+              cfg.cells = cells;
+              cfg.show_bar = show_bar;
+              return static_cast<Element>(ContextGauge{cfg});
+          },
+          py::arg("used"), py::arg("max"), py::arg("cells") = 10,
+          py::arg("show_bar") = true);
+
+    // ── context_window(segments, max_tokens, width, show_labels, show_percent) ─
+    // segments: list of (label, tokens) or (label, tokens, color) tuples.
+    w.def("context_window",
+          [](const py::list& segments, int max_tokens, int width,
+             bool show_labels, bool show_percent) {
+              ContextWindow cw{max_tokens};
+              if (width > 0) cw.set_width(width);
+              cw.set_show_labels(show_labels);
+              cw.set_show_percent(show_percent);
+              for (const auto& item : segments) {
+                  auto t = item.cast<py::sequence>();
+                  std::string label = t[0].cast<std::string>();
+                  int tokens = t[1].cast<int>();
+                  if (py::len(t) > 2 && !t[2].is_none())
+                      cw.add_segment(std::move(label), tokens, t[2].cast<Color>());
+                  else
+                      cw.add_segment(std::move(label), tokens);
+              }
+              return static_cast<Element>(cw);
+          },
+          py::arg("segments"), py::arg("max_tokens") = 200000,
+          py::arg("width") = 0, py::arg("show_labels") = true,
+          py::arg("show_percent") = true);
+
+    // ── diff_view(path, diff, show_border, show_line_numbers) ───────────
+    w.def("diff_view",
+          [](std::string path, std::string diff, bool show_border,
+             bool show_line_numbers) {
+              DiffView::Config cfg{};
+              cfg.show_border = show_border;
+              cfg.show_line_numbers = show_line_numbers;
+              return DiffView{std::move(path), std::move(diff), cfg}.build();
+          },
+          py::arg("path"), py::arg("diff"), py::arg("show_border") = true,
+          py::arg("show_line_numbers") = true);
+
+    // ── tool_call(name, kind, description, status, elapsed, expanded, content) ─
+    w.def("tool_call",
+          [](std::string name, ToolCallKind kind, std::string description,
+             ToolCallStatus status, float elapsed, bool expanded,
+             std::optional<Element> content) {
+              ToolCall::Config cfg{};
+              cfg.tool_name = std::move(name);
+              cfg.kind = kind;
+              cfg.description = std::move(description);
+              ToolCall tc{std::move(cfg)};
+              tc.set_status(status);
+              tc.set_elapsed(elapsed);
+              tc.set_expanded(expanded);
+              if (content) tc.set_content(*content);
+              return static_cast<Element>(tc);
+          },
+          py::arg("name"), py::arg("kind") = ToolCallKind::Other,
+          py::arg("description") = "", py::arg("status") = ToolCallStatus::Pending,
+          py::arg("elapsed") = 0.0f, py::arg("expanded") = false,
+          py::arg("content") = std::nullopt);
+
+    // ── git_graph(commits, max_branches, show_hash, show_author, show_time) ─
+    // commits: list of dicts {hash, message, author, time, branch, is_merge, is_head}
+    // or (hash, message, author, time, branch, is_merge, is_head) tuples.
+    w.def("git_graph",
+          [](const py::list& commits, int max_branches, bool show_hash,
+             bool show_author, bool show_time) {
+              GitGraph g{};
+              if (max_branches > 0) g.set_max_branches(max_branches);
+              g.set_show_hash(show_hash);
+              g.set_show_author(show_author);
+              g.set_show_time(show_time);
+              for (const auto& item : commits) {
+                  GitCommit c{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("hash"))     c.hash = d["hash"].cast<std::string>();
+                      if (d.contains("message"))  c.message = d["message"].cast<std::string>();
+                      if (d.contains("author"))   c.author = d["author"].cast<std::string>();
+                      if (d.contains("time"))     c.time = d["time"].cast<std::string>();
+                      if (d.contains("branch"))   c.branch = d["branch"].cast<int>();
+                      if (d.contains("is_merge")) c.is_merge = d["is_merge"].cast<bool>();
+                      if (d.contains("is_head"))  c.is_head = d["is_head"].cast<bool>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      c.hash = t[0].cast<std::string>();
+                      if (py::len(t) > 1) c.message = t[1].cast<std::string>();
+                      if (py::len(t) > 2) c.author = t[2].cast<std::string>();
+                      if (py::len(t) > 3) c.time = t[3].cast<std::string>();
+                      if (py::len(t) > 4) c.branch = t[4].cast<int>();
+                      if (py::len(t) > 5) c.is_merge = t[5].cast<bool>();
+                      if (py::len(t) > 6) c.is_head = t[6].cast<bool>();
+                  }
+                  g.add_commit(std::move(c));
+              }
+              return static_cast<Element>(g);
+          },
+          py::arg("commits"), py::arg("max_branches") = 0,
+          py::arg("show_hash") = true, py::arg("show_author") = false,
+          py::arg("show_time") = true);
+
+    // ── git_status(branch, ahead, behind, modified, staged, untracked, ...) ─
+    w.def("git_status",
+          [](std::string branch, int ahead, int behind, int modified,
+             int staged, int untracked, int deleted, int conflicts,
+             bool compact, std::vector<std::string> changed_files) {
+              GitStatusWidget g{};
+              g.set_branch(std::move(branch));
+              g.set_ahead(ahead);
+              g.set_behind(behind);
+              g.set_dirty(modified, staged, untracked);
+              g.set_deleted(deleted);
+              g.set_conflicts(conflicts);
+              g.set_compact(compact);
+              for (auto& f : changed_files) g.add_changed_file(std::move(f));
+              return static_cast<Element>(g);
+          },
+          py::arg("branch") = "", py::arg("ahead") = 0, py::arg("behind") = 0,
+          py::arg("modified") = 0, py::arg("staged") = 0, py::arg("untracked") = 0,
+          py::arg("deleted") = 0, py::arg("conflicts") = 0, py::arg("compact") = true,
+          py::arg("changed_files") = std::vector<std::string>{});
+
+    // ── shortcut_row(bindings, text_color) ──────────────────────────────
+    // bindings: list of (key, label) or (key, label, color, priority) tuples.
+    w.def("shortcut_row",
+          [](const py::list& bindings, std::optional<Color> text_color) {
+              ShortcutRow::Config cfg{};
+              if (text_color) cfg.text_color = *text_color;
+              for (const auto& item : bindings) {
+                  ShortcutRow::Binding b{};
+                  auto t = item.cast<py::sequence>();
+                  b.key = t[0].cast<std::string>();
+                  if (py::len(t) > 1) b.label = t[1].cast<std::string>();
+                  if (py::len(t) > 2 && !t[2].is_none()) b.key_color = t[2].cast<Color>();
+                  if (py::len(t) > 3) b.priority = t[3].cast<int>();
+                  cfg.bindings.push_back(std::move(b));
+              }
+              return static_cast<Element>(ShortcutRow{std::move(cfg)});
+          },
+          py::arg("bindings"), py::arg("text_color") = std::nullopt);
+
+    // ── plan_view(tasks) ────────────────────────────────────────────────
+    // tasks: list of str (pending) or (label, status) tuples; status is the
+    // TaskStatus enum or pending/in_progress/completed.
+    w.def("plan_view",
+          [](const py::list& tasks) {
+              PlanView pv{};
+              for (const auto& item : tasks) {
+                  PlanView::Task t{};
+                  if (py::isinstance<py::str>(item)) {
+                      t.label = item.cast<std::string>();
+                  } else {
+                      auto seq = item.cast<py::sequence>();
+                      t.label = seq[0].cast<std::string>();
+                      if (py::len(seq) > 1) t.status = seq[1].cast<TaskStatus>();
+                  }
+                  pv.tasks.push_back(std::move(t));
+              }
+              return static_cast<Element>(pv);
+          },
+          py::arg("tasks"));
 
 
     // ── ScrollState ─────────────────────────────────────────────────────

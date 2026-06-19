@@ -265,6 +265,10 @@ from .widgets import (  # noqa: E402
     disclosure, toast, todo_list, title_chip, model_badge,
     file_ref, inline_diff, flame_chart, waterfall, thinking,
     markdown, image, canvas, Canvas, picker,
+    popup, overlay, user_message, assistant_message, system_banner,
+    phase_chip, context_gauge, context_window, diff_view, tool_call,
+    git_graph, git_status, shortcut_row, plan_view,
+    PopupStyle, BannerLevel, ToolCallStatus, ToolCallKind,
     scroll_state, viewport, scrollbar, scroll_handle,
 )
 
@@ -279,6 +283,10 @@ __all__ += [
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
     "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
+    "popup", "overlay", "user_message", "assistant_message", "system_banner",
+    "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",
+    "git_graph", "git_status", "shortcut_row", "plan_view",
+    "PopupStyle", "BannerLevel", "ToolCallStatus", "ToolCallKind",
     "scroll_state", "viewport", "scrollbar", "scroll_handle",
 ]
 

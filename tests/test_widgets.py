@@ -293,6 +293,111 @@ def test_new_widget_color_coercion():
     check("new_widget_color_coercion", True)
 
 
+# ── agent-chrome widgets (parity with maya C++) ───────────────────
+def test_popup_styles():
+    for style in ("info", "warning", "error"):
+        check(f"popup_{style}", "Tip" in render(m.popup("Tip", style=style)))
+
+
+def test_overlay_present_toggle():
+    base = m.dim_text("base")
+    on = render(m.overlay(base, m.popup("over"), present=True))
+    off = render(m.overlay(base, m.popup("over"), present=False))
+    # present=False shows only the base layer; present=True stacks the overlay
+    # on top (a zstack), so the two renders differ.
+    check("overlay_absent", off.strip() == "base")
+    check("overlay_present", on != off)
+
+
+def test_messages():
+    check("user_message_text", "hello" in render(m.user_message("hello")))
+    check("user_message_el", "X" in render(m.user_message(m.badge("X"))))
+    check("assistant_message", "ok" in render(m.assistant_message(m.text("ok"))))
+
+
+def test_system_banner_levels():
+    for level in ("info", "success", "warning", "error"):
+        out = render(m.system_banner("note", level=level))
+        check(f"system_banner_{level}", "note" in out)
+
+
+def test_phase_chip():
+    out = render(m.phase_chip("Thinking", glyph="*", color="cyan", elapsed=4.2))
+    check("phase_chip_verb", "Thinking" in out)
+    # elapsed < 0 omits the time tail
+    no_time = render(m.phase_chip("Idle", elapsed=-1.0))
+    check("phase_chip_no_time", "Idle" in no_time)
+
+
+def test_context_gauge():
+    out = render(m.context_gauge(160000, 200000))
+    check("context_gauge_pct", "80%" in out)
+    # blank when max <= 0
+    check("context_gauge_blank", render(m.context_gauge(10, 0)).strip() == "")
+
+
+def test_context_window():
+    out = render(m.context_window(
+        [("System", 12400), ("Tools", 32100, "green")], max_tokens=200000,
+        width=40))
+    check("context_window_label", "System" in out and "Tools" in out)
+
+
+def test_diff_view():
+    out = render(m.diff_view(
+        "a.py", "@@ -1 +1 @@\n-old line\n+new line\n"))
+    check("diff_view_add", "new line" in out)
+    check("diff_view_remove", "old line" in out)
+    check("diff_view_path", "a.py" in out)
+
+
+def test_tool_call_kinds_and_status():
+    out = render(m.tool_call("Read", kind="read", description="auth.py",
+                             status="completed", elapsed=1.2))
+    check("tool_call_name", "Read" in out)
+    check("tool_call_desc", "auth.py" in out)
+    # every kind / status string resolves without error
+    for kind in ("read", "edit", "execute", "search", "delete", "move",
+                 "fetch", "think", "agent", "other"):
+        render(m.tool_call("x", kind=kind))
+    for st in ("pending", "running", "completed", "failed", "confirmation"):
+        render(m.tool_call("x", status=st))
+    check("tool_call_enums_resolve", True)
+
+
+def test_git_graph_tuple_and_dict():
+    out = render(m.git_graph([
+        ("a9f3cf1", "Fix bug", "", "2m ago", 0, False, True),
+        {"hash": "9bf4e21", "message": "Add feature", "branch": 1},
+    ]))
+    check("git_graph_hash", "a9f3cf1" in out)
+    check("git_graph_msg", "Fix bug" in out and "Add feature" in out)
+
+
+def test_git_status_compact_and_expanded():
+    out = render(m.git_status(branch="main", ahead=2, modified=3, staged=1))
+    check("git_status_branch", "main" in out)
+    check("git_status_counts", "2" in out and "3" in out)
+    exp = render(m.git_status(branch="dev", compact=False,
+                              changed_files=["a.py", "b.py"]))
+    check("git_status_expanded", "a.py" in exp)
+
+
+def test_shortcut_row():
+    out = render(m.shortcut_row([("q", "quit"), ("?", "help", "cyan", 1)]))
+    check("shortcut_row", "quit" in out and "help" in out)
+
+
+def test_plan_view_status():
+    out = render(m.plan_view([
+        ("Read middleware", "completed"),
+        ("Run tests", "in_progress"),
+        "Ship it",
+    ]))
+    check("plan_view_labels",
+          "Read middleware" in out and "Run tests" in out and "Ship it" in out)
+
+
 if __name__ == "__main__":
     g = dict(globals())
     for name, fn in sorted(g.items()):

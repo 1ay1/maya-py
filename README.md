@@ -29,7 +29,7 @@ A full reference manual lives in [`docs/`](https://1ay1.github.io/maya-py/):
 - [Text & Style](https://1ay1.github.io/maya-py/text-and-style/) — `T`, markup helpers, colors.
 - [Layout](https://1ay1.github.io/maya-py/layout/) — `col`, `row`, `card`, `field`, `hr`, options.
 - [Apps](https://1ay1.github.io/maya-py/apps/) — the `App` class, key bindings, state, the view.
-- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 44 native renderers: charts, controls, agent UI, scrolling.
+- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 58 native renderers: charts, controls, agent UI, scrolling.
 - [Rendering](https://1ay1.github.io/maya-py/rendering/) — `show`, `to_string`, `animate`, `run`.
 - [Performance](https://1ay1.github.io/maya-py/performance/) — `memo`, the boundary tax, benchmarks.
 - [API Reference](https://1ay1.github.io/maya-py/api-reference/) — every public symbol.
@@ -139,7 +139,10 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
   `file_ref`, `markdown`
 - **structure & nav**: `table`, `tree`, `list_view`, `menu`, `disclosure`,
   `key_help`, `calendar`, `timeline`, `picker` (bordered command palette)
-- **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`
+- **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`,
+  `tool_call`, `plan_view`, `phase_chip`, `context_gauge`, `context_window`,
+  `diff_view`, `git_graph`, `git_status`, `shortcut_row`, `system_banner`,
+  `popup`, `overlay`, `user_message`, `assistant_message`
 - **graphics**: `image` (1-bit braille), `canvas` (color half-block grid),
   `Canvas` (imperative drawing surface: `set_pixel`/`line`/`rect`/`fill`)
 
@@ -162,7 +165,8 @@ col(
 List/tuple inputs are flexible: list items accept `"str"`,
 `(label, description, icon)`, or `{...}` dicts; timeline/todo statuses accept
 strings (`"completed"`, `"in_progress"`, ...) or the exported enums
-(`TaskStatus`, `TodoItemStatus`, `ToastLevel`, `ButtonVariant`).
+(`TaskStatus`, `TodoItemStatus`, `ToastLevel`, `ButtonVariant`,
+`ToolCallKind`, `ToolCallStatus`, `PopupStyle`, `BannerLevel`).
 
 ### Scrolling: viewport + scrollbar
 
