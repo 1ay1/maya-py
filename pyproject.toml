@@ -95,8 +95,9 @@ ignore = [
 "scripts/**" = ["E402", "E731", "I001"]
 # Tests run as standalone scripts too (sys.path shim before imports), use
 # script-style locals, combined imports, and re-import helpers across blocks.
-"tests/**" = ["E401", "E402", "F401", "F811", "F841", "I001", "B011", "UP031"]
+"tests/**" = ["E401", "E402", "E731", "F401", "F811", "F841", "I001", "B011", "UP031"]
 "src/maya_py/__init__.py" = ["F401", "E402", "I001"]  # re-export hub
+"src/maya_py/easy.py" = ["I001"]  # __future__ + grouped local imports
 "src/maya_py/widgets.py" = ["I001", "UP035"]  # re-export hub + typing.Sequence
 
 # ============================================================================
