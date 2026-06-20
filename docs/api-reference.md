@@ -210,6 +210,86 @@ tuple / `Color` everywhere.
 
 ---
 
+## DSL helpers
+
+The vocabulary every live / visual terminal app reaches for, so you never
+redefine `clamp` or hand-roll a sparkline again. All top-level imports. See
+`examples/dsl.py` for an animated tour.
+
+### Numeric
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `clamp` | `clamp(x, lo=0, hi=1) -> x` | Clamp into `[lo, hi]`. Preserves `int` for `int` input (drop-in for an integer-index clamp). |
+| `saturate` | `saturate(x) -> float` | Clamp into `[0, 1]` (the shader `saturate`). |
+| `lerp` | `lerp(a, b, t) -> float` | Linear interpolate `a→b` by `t` (unclamped). |
+| `norm` | `norm(x, lo, hi) -> float` | Inverse-lerp: where `x` falls in `[lo, hi]` as a 0..1 fraction. |
+| `remap` | `remap(x, a, b, c, d) -> float` | Map `x` from `[a, b]` into `[c, d]` (unclamped). |
+| `remapc` | `remapc(x, a, b, c, d) -> float` | `remap`, clamped to `[c, d]`. |
+| `smoothstep` | `smoothstep(t) -> float` | Hermite ease of a 0..1 `t`. |
+| `wrap` | `wrap(x, hi, lo=0) -> float` | Wrap `x` into `[lo, hi)`. |
+| `sign` | `sign(x) -> -1\|0\|1` | Sign of `x`. |
+| `approach` | `approach(cur, target, rate) -> float` | Move `cur` toward `target` by at most `rate`. |
+
+### Animation
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `oscillate` | `oscillate(t, lo=0, hi=1, period=1) -> float` | Sine sweep in `[lo, hi]` with `period` seconds. |
+| `pulse` | `pulse(t, period=1, duty=0.5) -> bool` | Square wave: `True` for the first `duty` fraction of each period. |
+| `ease` | `ease(t, kind="smooth") -> float` | Ease a 0..1 `t`. `kind`: `linear` `in` `out` `inout` `smooth` `cubic` `expo` `bounce`. |
+
+### Colour
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `hsv` | `hsv(h, s=1, v=1) -> (r,g,b)` | HSV → rgb. `h` in turns (0..1, wraps). The ergonomic hue sweep. |
+| `mix` | `mix(a, b, t) -> (r,g,b)` | Blend two colour specs at `t`. |
+| `lighten` | `lighten(c, amount=0.2) -> (r,g,b)` | Blend `c` toward white. |
+| `darken` | `darken(c, amount=0.2) -> (r,g,b)` | Blend `c` toward black. |
+| `alpha` | `alpha(fg, bg, a) -> (r,g,b)` | Composite `fg` over `bg` at opacity `a` (fake translucency). |
+| `ramp` | `ramp(stops, n) -> [int,…]` | Pack a list of colour stops into an `n`-entry gradient LUT (packed `0xRRGGBB`). |
+| `rgb_lerp` | `rgb_lerp(a, b, t) -> (r,g,b)` | Interpolate two `(r,g,b)` tuples. |
+
+### Data → text
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `spark` | `spark(data, width=0, *, lo=None, hi=None) -> str` | Unicode block sparkline. `width=0` = one cell per sample; `lo`/`hi` pin the axis. |
+| `bar` | `bar(value, width=10, *, lo=0, hi=1, fill="█", track="░") -> str` | Horizontal fill bar; sub-cell precise with the default block glyphs. |
+| `fixed` | `fixed(text, width, align="left") -> str` | Pad / clip to exactly `width` cells (`left`/`right`/`center`) — column alignment. |
+| `human` | `human(n, *, prec=1) -> str` | Compact magnitude format: `1234 → 1.2k`, `5.6M`. |
+| `percent` | `percent(value, *, prec=0, sign=False) -> str` | Format a 0..1 fraction as `62%`; `sign=True` prefixes `+` on deltas. |
+
+### Theme
+
+Named colour roles instead of `THEMES[i][TH_ACCENT]` index constants. Every
+role normalises to an `(r,g,b)` tuple, so it flows into `.fg()` / `ramp()` /
+`mix()`.
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `Theme` | `Theme(name, **roles)` | Immutable named-colour-role bag. Read by attribute (`th.accent`) or item (`th["accent"]`). |
+| `Theme.with_` | `.with_(**overrides) -> Theme` | Derive a variant with some roles replaced / added. |
+| `Theme.shade` | `.shade(role, amount) -> (r,g,b)` | Lighten (`amount > 0`) or darken (`< 0`) a role on the fly. |
+| `Theme.get` / `.roles` / `.name` | — | `get(role, default)`, the role names, the theme name. |
+| `ThemeSet` | `ThemeSet(*themes, index=0)` | Cyclable collection; proxies attribute access to the active theme (`themes.accent`). |
+| `ThemeSet.next` / `.prev` / `.set` | `.next(step=1)` / `.prev()` / `.set(i)` | Cycle / jump (wraps); returns the now-active `Theme`. |
+| `ThemeSet.current` / `.index` / `.names` | — | The active `Theme`, its index, every theme name. |
+| `ThemeSet.from_rows` | `from_rows(fields, rows, *, name_field="name") -> ThemeSet` | Build from a legacy positional `THEMES = [...]` table in one line. |
+
+```python
+themes = ThemeSet(
+    Theme("CYBER", accent=(0, 255, 200), bg="#050a0f", hot=(255, 0, 100)),
+    Theme("EMBER", accent=(255, 120, 0), bg=(15, 8, 5), hot=(255, 40, 40)),
+)
+T("x").fg(themes.accent)      # active theme's accent
+ramp([themes.bg, themes.hot], 8)
+themes.next()                 # cycle (wraps)
+```
+
+---
+
 ## Utilities
 
 | Symbol | Signature | Description |
