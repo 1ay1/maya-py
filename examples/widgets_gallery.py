@@ -19,6 +19,7 @@ from maya_py import (
     popup, overlay, user_message, assistant_message, system_banner,
     phase_chip, context_gauge, context_window, diff_view, tool_call,
     git_graph, git_status, shortcut_row, plan_view,
+    activity_bar, file_changes, api_usage, cost_tracker,
 )
 
 
@@ -143,6 +144,19 @@ def gallery():
             gap=2,
         ),
         context_gauge(160000, 200000),
+        activity_bar(model="claude-sonnet-4", input_tokens=1200,
+                     output_tokens=3400, cost=0.03, context_pct=45,
+                     status="thinking"),
+        row(
+            api_usage(requests=42, request_limit=60, tokens=150000,
+                      token_limit=200000, latency_ms=340, errors=1),
+            cost_tracker([{"input": 2340, "output": 1820,
+                           "cache_read": 12000, "cost": 0.12}]),
+            gap=2,
+        ),
+        file_changes([("src/auth.ts", "modified", 12, 3),
+                      ("src/token.ts", "created", 45, 0),
+                      ("src/old.ts", "deleted", 0, 30)]),
         context_window(
             [("System", 12400, "blue"), ("History", 89200, "magenta"),
              ("Tools", 32100, "yellow"), ("Response", 11534, "green")],

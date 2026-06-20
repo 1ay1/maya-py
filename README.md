@@ -142,7 +142,8 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
 - **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`,
   `tool_call`, `plan_view`, `phase_chip`, `context_gauge`, `context_window`,
   `diff_view`, `git_graph`, `git_status`, `shortcut_row`, `system_banner`,
-  `popup`, `overlay`, `user_message`, `assistant_message`
+  `popup`, `overlay`, `user_message`, `assistant_message`, `activity_bar`,
+  `file_changes`, `api_usage`, `cost_tracker`
 - **graphics**: `image` (1-bit braille), `canvas` (color half-block grid),
   `Canvas` (imperative drawing surface: `set_pixel`/`line`/`rect`/`fill`)
 

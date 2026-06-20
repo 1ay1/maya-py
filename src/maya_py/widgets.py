@@ -37,6 +37,7 @@ PopupStyle = _W.PopupStyle
 BannerLevel = _W.BannerLevel
 ToolCallStatus = _W.ToolCallStatus
 ToolCallKind = _W.ToolCallKind
+FileChangeKind = _W.FileChangeKind
 
 _ALIGN = {"left": ColumnAlign.Left, "center": ColumnAlign.Center,
           "right": ColumnAlign.Right}
@@ -250,6 +251,52 @@ def breadcrumb(segments: Sequence[str]) -> Element:
 def tabs(labels: Sequence[str], active: int = 0) -> Element:
     """A tab bar with one active tab highlighted."""
     return _W.tabs([str(s) for s in labels], active)
+
+
+def activity_bar(*, model: str = "", input_tokens: int = 0,
+                 output_tokens: int = 0, cost: float = 0.0,
+                 context_pct: int = 0, status: str = "") -> Element:
+    """A single-line model/usage status strip (the Claude Code / Zed activity
+    bar): ``model · ↑in ↓out · $cost · ctx%``. Omitted fields are dropped."""
+    return _W.activity_bar(str(model), int(input_tokens), int(output_tokens),
+                           float(cost), int(context_pct), str(status))
+
+
+def file_changes(changes: Sequence[Any], *, compact: bool = False) -> Element:
+    """A session file-change summary with +/~/- status icons and ±line counts.
+
+    Each change is a dict ``{path, kind, added, removed}`` or a tuple
+    ``(path, kind, added, removed)``. ``kind`` is
+    created/modified/deleted/renamed.
+    """
+    out = []
+    for c in changes:
+        out.append(c if isinstance(c, dict) else tuple(c))
+    return _W.file_changes(out, bool(compact))
+
+
+def api_usage(*, requests: int = 0, request_limit: int = 0, tokens: int = 0,
+              token_limit: int = 0, latency_ms: int = 0, errors: int = 0,
+              compact: bool = False) -> Element:
+    """An API rate-limit / usage panel: request + token mini-bars that shade
+    green→yellow→red as they approach their limits, plus latency and error
+    count. A limit of 0 hides that row."""
+    return _W.api_usage(int(requests), int(request_limit), int(tokens),
+                        int(token_limit), int(latency_ms), int(errors),
+                        bool(compact))
+
+
+def cost_tracker(turns: Sequence[Any], *, compact: bool = False) -> Element:
+    """A per-turn + cumulative token/cost breakdown.
+
+    Each turn is a dict with keys
+    ``input/output/cache_read/cache_write/cost/latency_ms`` or a tuple
+    ``(input, output, cost)``.
+    """
+    out = []
+    for t in turns:
+        out.append(t if isinstance(t, dict) else tuple(t))
+    return _W.cost_tracker(out, bool(compact))
 
 
 def bar_chart(bars: Sequence[Any], *, max_value: float = 0.0,
@@ -1198,7 +1245,9 @@ __all__ = [
     "PopupStyle", "BannerLevel", "ToolCallStatus", "ToolCallKind",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
+    "activity_bar", "file_changes", "api_usage", "cost_tracker",
     "error_block", "modal", "log_viewer", "command_palette", "activity_indicator",
+    "FileChangeKind",
     "bar_chart", "gradient", "heatmap",
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",

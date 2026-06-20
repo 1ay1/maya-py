@@ -86,6 +86,10 @@
 #include <maya/widget/log_viewer.hpp>
 #include <maya/widget/command_palette.hpp>
 #include <maya/widget/activity_indicator.hpp>
+#include <maya/widget/activity_bar.hpp>
+#include <maya/widget/file_changes.hpp>
+#include <maya/widget/api_usage.hpp>
+#include <maya/widget/cost_tracker.hpp>
 
 #include "_pyevent.hpp"
 
@@ -602,6 +606,12 @@ void init_widgets(py::module_& m) {
         .value("Done", TodoListStatus::Done)
         .value("Failed", TodoListStatus::Failed);
 
+    py::enum_<FileChangeKind>(w, "FileChangeKind")
+        .value("Created", FileChangeKind::Created)
+        .value("Modified", FileChangeKind::Modified)
+        .value("Deleted", FileChangeKind::Deleted)
+        .value("Renamed", FileChangeKind::Renamed);
+
     // ── sparkline(data, label, color, show_min_max, show_last) ──────────
     w.def("sparkline",
           [](std::vector<float> data, std::string label, std::optional<Color> color,
@@ -887,6 +897,115 @@ void init_widgets(py::module_& m) {
               return static_cast<Element>(t);
           },
           py::arg("labels"), py::arg("active") = 0);
+
+    // ── activity_bar(model, input_tokens, output_tokens, cost, context_pct,
+    //                status) ──────────────────────────────────────────────
+    // A single-line model/usage status strip (model · tokens · cost · ctx%).
+    w.def("activity_bar",
+          [](std::string model, int input_tokens, int output_tokens,
+             float cost, int context_pct, std::string status) {
+              ActivityBar bar{};
+              if (!model.empty()) bar.set_model(model);
+              if (input_tokens || output_tokens)
+                  bar.set_tokens(input_tokens, output_tokens);
+              if (cost > 0.0f) bar.set_cost(cost);
+              if (context_pct > 0) bar.set_context_percent(context_pct);
+              if (!status.empty()) bar.set_status(status);
+              return static_cast<Element>(bar);
+          },
+          py::arg("model") = "", py::arg("input_tokens") = 0,
+          py::arg("output_tokens") = 0, py::arg("cost") = 0.0f,
+          py::arg("context_pct") = 0, py::arg("status") = "");
+
+    // ── file_changes(changes, compact) ──────────────────────────────────
+    // A session file-change summary. changes: list of dicts/tuples
+    // (path, kind, added, removed) where kind is a FileChangeKind enum or one
+    // of "created"|"modified"|"deleted"|"renamed".
+    w.def("file_changes",
+          [](const py::list& changes, bool compact) {
+              auto parse_kind = [](const py::handle& h) -> FileChangeKind {
+                  if (py::isinstance<py::str>(h)) {
+                      std::string s = h.cast<std::string>();
+                      if (s == "created" || s == "added" || s == "+")
+                          return FileChangeKind::Created;
+                      if (s == "deleted" || s == "removed" || s == "-")
+                          return FileChangeKind::Deleted;
+                      if (s == "renamed" || s == "moved")
+                          return FileChangeKind::Renamed;
+                      return FileChangeKind::Modified;
+                  }
+                  return h.cast<FileChangeKind>();
+              };
+              FileChanges fc{};
+              fc.set_compact(compact);
+              for (const auto& item : changes) {
+                  FileChange c{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("path"))    c.path = d["path"].cast<std::string>();
+                      if (d.contains("kind"))    c.kind = parse_kind(d["kind"]);
+                      if (d.contains("added"))   c.lines_added = d["added"].cast<int>();
+                      if (d.contains("removed")) c.lines_removed = d["removed"].cast<int>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      c.path = t[0].cast<std::string>();
+                      if (py::len(t) > 1) c.kind = parse_kind(t[1]);
+                      if (py::len(t) > 2) c.lines_added = t[2].cast<int>();
+                      if (py::len(t) > 3) c.lines_removed = t[3].cast<int>();
+                  }
+                  fc.add(std::move(c));
+              }
+              return static_cast<Element>(fc);
+          },
+          py::arg("changes"), py::arg("compact") = false);
+
+    // ── api_usage(requests, request_limit, tokens, token_limit, latency_ms,
+    //             errors, compact) ─────────────────────────────────────────
+    // Rate-limit / usage panel with green→yellow→red mini bars.
+    w.def("api_usage",
+          [](int requests, int request_limit, int tokens, int token_limit,
+             int latency_ms, int errors, bool compact) {
+              APIUsage u{};
+              u.set_compact(compact);
+              if (request_limit > 0) u.set_requests(requests, request_limit);
+              if (token_limit > 0)   u.set_tokens(tokens, token_limit);
+              if (latency_ms > 0)    u.set_latency_ms(latency_ms);
+              if (errors > 0)        u.set_error_count(errors);
+              return static_cast<Element>(u);
+          },
+          py::arg("requests") = 0, py::arg("request_limit") = 0,
+          py::arg("tokens") = 0, py::arg("token_limit") = 0,
+          py::arg("latency_ms") = 0, py::arg("errors") = 0,
+          py::arg("compact") = false);
+
+    // ── cost_tracker(turns, compact) ────────────────────────────────────
+    // Per-turn + cumulative token/cost breakdown. turns: list of dicts with
+    // keys input/output/cache_read/cache_write/cost/latency_ms.
+    w.def("cost_tracker",
+          [](const py::list& turns, bool compact) {
+              CostTracker ct{};
+              ct.set_compact(compact);
+              for (const auto& item : turns) {
+                  TurnUsage t{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("input"))       t.input_tokens = d["input"].cast<int>();
+                      if (d.contains("output"))      t.output_tokens = d["output"].cast<int>();
+                      if (d.contains("cache_read"))  t.cache_read = d["cache_read"].cast<int>();
+                      if (d.contains("cache_write")) t.cache_write = d["cache_write"].cast<int>();
+                      if (d.contains("cost"))        t.cost_usd = d["cost"].cast<float>();
+                      if (d.contains("latency_ms"))  t.latency_ms = d["latency_ms"].cast<float>();
+                  } else {
+                      auto seq = item.cast<py::sequence>();
+                      t.input_tokens = seq[0].cast<int>();
+                      if (py::len(seq) > 1) t.output_tokens = seq[1].cast<int>();
+                      if (py::len(seq) > 2) t.cost_usd = seq[2].cast<float>();
+                  }
+                  ct.add_turn(t);
+              }
+              return static_cast<Element>(ct);
+          },
+          py::arg("turns"), py::arg("compact") = false);
 
     // ── bar_chart(bars, max_value, default_color) ───────────────────────
     // bars: list of (label, value) or (label, value, color) tuples.

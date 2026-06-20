@@ -146,13 +146,13 @@ tuple / `Color` everywhere.
 **Agent UI:** `thinking` `todo_list` `toast` `inline_diff` `tool_call`
 `plan_view` `phase_chip` `context_window` `context_gauge` `diff_view`
 `git_graph` `git_status` `user_message` `assistant_message` `system_banner`
-`shortcut_row`
+`shortcut_row` `activity_bar` `file_changes` `api_usage` `cost_tracker`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
 `ToastLevel` `TodoItemStatus` `TodoListStatus` `PopupStyle` `BannerLevel`
-`ToolCallStatus` `ToolCallKind`
+`ToolCallStatus` `ToolCallKind` `FileChangeKind`
 
 ## Scrolling
 
