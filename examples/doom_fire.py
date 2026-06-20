@@ -23,6 +23,12 @@ from maya_py import App, T, col, row, component, halfblock  # noqa: E402
 
 MAX_HEAT = 48
 NUM_PALETTES = 3
+# Cap the simulated fire field height: the fullscreen layout hands the field
+# component an unbounded-height sentinel, so without a cap we'd simulate a
+# 200-row fire (400 px rows) every frame regardless of the real terminal —
+# that was the source of the lag. Simulate at most MAX_CH cells tall (covers
+# any normal terminal; taller ones clip harmlessly) and let maya clip.
+MAX_CH = 50
 
 _rng = random.Random(42)
 
@@ -84,10 +90,20 @@ def toxic_color(h):
 PALETTES = [("CLASSIC", classic_color), ("INFERNO", inferno_color),
             ("TOXIC", toxic_color)]
 
+# Precompute a heat→colour lookup table per palette (heat 0..MAX_HEAT). The
+# render loop touches every pixel each frame; a list index is ~10× cheaper
+# than recomputing the gradient, which is what keeps 60fps achievable.
+_BLACK = (0, 0, 0)
+PALETTE_LUTS = [[fn(hh) if hh > 0 else _BLACK for hh in range(MAX_HEAT + 1)]
+                for _name, fn in PALETTES]
+
 
 # ── State ────────────────────────────────────────────────────────────────────
 
-app = App("doom_fire", inline=False, fps=60)
+# A pure-Python fire sim at 60fps over a full terminal is too heavy (the per
+# pixel propagation does several RNG draws each frame); 30fps runs smoothly
+# with headroom and looks just as fluid. The C++ original is native at 60.
+app = App("doom_fire", inline=False, fps=30)
 app.state(fire=[], w=0, h=0, source=True, wind=0, palette=0, intensity=3,
           embers=[])  # ember: [x, y, vx, vy, heat, life]
 
@@ -108,23 +124,30 @@ def step(s):
         return
     fire_h = h * 2
     f = s.fire
-    aw = abs(s.wind)
+    wind = s.wind
+    aw = abs(wind)
     decay_hi = 6 - s.intensity
     ri = _rng.randint
-    # Propagate upward.
+    wmax = w - 1
+    # Propagate upward. Hoist the wind branch out of the inner loop and fold
+    # the horizontal jitter (±1) into a single random span so we do two RNG
+    # draws per cell instead of three.
+    if wind == 0:
+        lo, hi = -1, 1
+    elif wind > 0:
+        lo, hi = -1, aw + 1
+    else:
+        lo, hi = -aw - 1, 1
     for y in range(fire_h - 1):
         rowbase = y * w
         srcbase = (y + 1) * w
         for x in range(w):
-            if s.wind == 0:
-                wind_offset = 0
-            elif s.wind > 0:
-                wind_offset = ri(0, aw)
-            else:
-                wind_offset = -ri(0, aw)
-            src_x = _clamp(x + wind_offset + ri(-1, 1), 0, w - 1)
-            decay = ri(0, decay_hi)
-            heat = f[srcbase + src_x] - decay
+            src_x = x + ri(lo, hi)
+            if src_x < 0:
+                src_x = 0
+            elif src_x > wmax:
+                src_x = wmax
+            heat = f[srcbase + src_x] - ri(0, decay_hi)
             f[rowbase + x] = heat if heat > 0 else 0
     # Maintain the source row.
     if s.source:
@@ -206,34 +229,36 @@ def _quit(s):
 # ── Render ───────────────────────────────────────────────────────────────────
 
 def _field(w, h):
-    # Fullscreen field minus the status bar row. Guard against the fullscreen
-    # layout sentinel and the per-frame cost: cap to sane terminal bounds.
-    w = max(1, min(w, 400))
-    canvas_h = max(1, min(h, 200))
+    # The fullscreen layout passes an unbounded-height sentinel for h. We can't
+    # learn the real terminal height, so simulate a fixed, bounded field that
+    # comfortably covers a normal terminal and let maya clip the overflow.
+    # (Capping here is what keeps the 60fps sim cheap.)
+    w = max(1, min(int(w), 400))
+    canvas_h = MAX_CH if h > MAX_CH else max(1, int(h))
     s = app.s
     if w != s.w or canvas_h != s.h:
         rebuild(s, w, canvas_h)
     step(s)
-    color_fn = PALETTES[s.palette][1]
+    lut = PALETTE_LUTS[s.palette]
     f = s.fire
     fw = s.w
-    grid = [[None] * fw for _ in range(canvas_h * 2)]
-    for cy in range(canvas_h):
-        top = grid[cy * 2]
-        bot = grid[cy * 2 + 1]
-        base_t = (cy * 2) * fw
-        base_b = (cy * 2 + 1) * fw
-        for cx in range(fw):
-            ht = f[base_t + cx]
-            hb = f[base_b + cx]
-            top[cx] = color_fn(ht) if ht > 0 else (0, 0, 0)
-            bot[cx] = color_fn(hb) if hb > 0 else (0, 0, 0)
+    # Build the half-block pixel grid by mapping each fire row through the LUT.
+    # A per-row list comprehension over a slice is far faster than a nested
+    # per-pixel Python loop with a function call.
+    grid = [None] * (canvas_h * 2)
+    pr = 0
+    base = 0
+    for _cy in range(canvas_h * 2):
+        rowf = f[base:base + fw]
+        grid[pr] = [lut[hv] for hv in rowf]
+        base += fw
+        pr += 1
     # Embers on top (a bright dot in the upper pixel of its cell).
     for e in s.embers:
         ex = int(e[0])
         ey = int(e[1])
         if 0 <= ex < fw and 0 <= ey < canvas_h:
-            grid[ey * 2][ex] = color_fn(e[4])
+            grid[ey * 2][ex] = lut[_clamp(int(e[4]), 0, MAX_HEAT)]
     return halfblock(grid)
 
 
