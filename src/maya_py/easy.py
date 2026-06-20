@@ -35,7 +35,8 @@ Three ideas:
 from __future__ import annotations
 
 import time as _time
-from typing import Any, Callable, Sequence
+from collections.abc import Sequence
+from typing import Any, Callable
 
 from . import _maya
 from ._maya import Color, Element, SpecialKey, Style
