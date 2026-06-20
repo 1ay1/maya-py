@@ -401,6 +401,13 @@ def build_chart():
         chg_T(" " + fmt_change(st[S_PRICE], st[S_PREV]), chg),
         gap=0,
     )
+    # Current price marker (┌ $price), indented under the y-axis labels.
+    price_tag = " $" + fmt_price(st[S_PRICE]) + " "
+    marker_row = row(
+        T(_fw("", 8)),
+        chg_T("┌" + price_tag, chg),
+        gap=0,
+    )
     body = []
     for r in range(chart_h):
         label_val = mx - (mx - mn) * r / (chart_h - 1) if chart_h > 1 else mx
@@ -424,7 +431,7 @@ def build_chart():
     vol_spark = spark_line(vdata, chart_w)
     vol_row = row(T(_fw("Volume", 8)).fg(muted), T("│").dim, T(vol_spark).fg(muted), gap=0)
     return card(
-        title_row, *body, xaxis, stats, vol_row,
+        title_row, marker_row, *body, xaxis, stats, vol_row,
         title=f"{st[S_SYM]} · {TF_LABELS[s.timeframe]}",
         border_color=TH()[TH_BORDER], pad=(0, 1),
     )

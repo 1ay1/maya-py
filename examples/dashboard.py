@@ -383,6 +383,13 @@ def draw_waveform(c, x, y, w, h):
         if py1 < ph - 1:
             braille_plot(c, ox, oy, bw, bh, px, py1 + 1, accent)
 
+    # Mode + readout in title bar (right-aligned), matching the C++ original.
+    modes = ["SINE", "LISSAJOUS", "NOISE", "HEARTBEAT"]
+    amp = abs(wave_sample(W.time * 0.5))
+    amp_buf = " %s A:%.2f " % (modes[W.wave_mode], amp)
+    label_x = x + w - len(amp_buf) - 2
+    c.write(max(ox, label_x), y, amp_buf, accent)
+
 
 def draw_spectrum(c, x, y, w, h):
     th = TH()
@@ -486,6 +493,20 @@ def draw_radar(c, x, y, w, h):
             for dx in (-1, 0, 1):
                 fg = hot if (dx == 0 and dy == 0) else (accent if intensity > 0.5 else dim)
                 braille_plot(c, ox, oy, bw, bh, bpx + dx, bpy + dy, fg)
+
+    # Cardinal labels + center reticle (cell-space, like the C++ original).
+    cx_r = ox + iw // 2
+    cy_r = oy + ih // 2
+    c.write(cx_r, oy, "N", accent)
+    c.write(cx_r, oy + ih - 1, "S", accent)
+    c.write(ox, cy_r, "W", accent)
+    c.write(ox + iw - 1, cy_r, "E", accent)
+    c.set(cx_r, cy_r, "+", pack(th[TH_ACCENT]))
+
+    # Blip count in title bar (right-aligned).
+    count_buf = " %dT " % len(W.blips)
+    data_c = pack((190, 190, 200))
+    c.write(x + w - len(count_buf) - 2, y, count_buf, data_c)
 
 
 def draw_hex(c, x, y, w, h):
