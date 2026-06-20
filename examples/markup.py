@@ -176,7 +176,7 @@ def dump():
 
 DOC = build_doc()
 
-app = App("markup", inline=False, mouse=True)
+app = App.fullscreen("markup", mouse=True)
 s = scroll_state()            # auto_dispatch on — wheel + arrows just work
 s.step_y = 1
 app.state(s=s, vh=20)

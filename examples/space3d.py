@@ -596,7 +596,7 @@ def post_process(px, py, color, pw, ph):
 
 # ── App ─────────────────────────────────────────────────────────────────────
 
-app = App("terrain", inline=False, fps=30)
+app = App.fullscreen("terrain", fps=30)
 app.state(_t=0.0)
 
 

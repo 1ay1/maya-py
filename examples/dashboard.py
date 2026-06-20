@@ -529,7 +529,7 @@ def draw_status(s, w, h):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("NEXUS", inline=True, fps=30)
+app = App.inline("NEXUS", fps=30)
 app.state(_t=0.0)
 
 

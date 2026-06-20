@@ -323,7 +323,7 @@ def build_status_bar():
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("music", inline=False, fps=15)
+app = App.fullscreen("music", fps=15)
 app.state(_t=0.0)
 
 

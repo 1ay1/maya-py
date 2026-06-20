@@ -103,7 +103,7 @@ PALETTE_LUTS = [[fn(hh) if hh > 0 else _BLACK for hh in range(MAX_HEAT + 1)]
 # A pure-Python fire sim at 60fps over a full terminal is too heavy (the per
 # pixel propagation does several RNG draws each frame); 30fps runs smoothly
 # with headroom and looks just as fluid. The C++ original is native at 60.
-app = App("doom_fire", inline=False, fps=30)
+app = App.fullscreen("doom_fire", fps=30)
 app.state(fire=[], w=0, h=0, source=True, wind=0, palette=0, intensity=3,
           embers=[])  # ember: [x, y, vx, vy, heat, life]
 

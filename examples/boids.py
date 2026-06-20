@@ -51,7 +51,7 @@ class Boid:
         self.x, self.y, self.vx, self.vy = x, y, vx, vy
 
 
-app = App("boids", inline=False, mouse=True, fps=60)
+app = App.fullscreen("boids", mouse=True, fps=60)
 
 MODES = ["follow", "flee", "ignore"]
 

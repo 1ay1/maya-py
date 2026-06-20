@@ -35,7 +35,7 @@ ROW_CLR = [
 ]
 ROW_PTS = [70, 60, 50, 40, 30, 20, 10]
 
-app = App("breakout", inline=True, fps=30)
+app = App.inline("breakout", fps=30)
 app.state(bricks=[], px=PW / 2, padw=14, ball=None, trail=[], parts=[],
           score=0, lives=3, level=1, stuck=True, paused=False, over=False,
           win=False, kl=False, kr=False)

@@ -38,7 +38,7 @@ def grid():
     return col(*lines, gap=0)
 
 
-app = App("scroll_2d", inline=True, mouse=True)
+app = App.inline("scroll_2d", mouse=True)
 s = scroll_state()
 app.state(s=s)
 

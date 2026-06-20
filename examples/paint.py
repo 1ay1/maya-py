@@ -27,7 +27,7 @@ from maya_py import (
 GRID_W, GRID_H = 60, 18
 PALETTE = ["red", "orange", "gold", "lime", "sky", "magenta", "white"]
 
-app = App("paint", inline=False, mouse=True)   # fullscreen: clean coord origin
+app = App.fullscreen("paint", mouse=True)   # fullscreen: clean coord origin
 vp = scroll_state()          # records the canvas's painted bounds each frame
 app.state(cells={}, brush=0, last=None, vp=vp)
 

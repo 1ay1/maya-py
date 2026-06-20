@@ -37,7 +37,7 @@ def content():
     return col(*rows, gap=0)
 
 
-app = App("scroll_clip", inline=True, mouse=True)
+app = App.inline("scroll_clip", mouse=True)
 s = scroll_state()
 app.state(s=s)
 

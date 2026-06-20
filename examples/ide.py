@@ -596,7 +596,7 @@ def render(s):
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
-app = App("ide", inline=False, fps=10)
+app = App.fullscreen("ide", fps=10)
 app.state(active_tab=0, show_left=True, show_right=True, show_bottom=True,
           building=False, build_progress=0.0, build_done=False, frame=0,
           selected_file=3, term_h=28)

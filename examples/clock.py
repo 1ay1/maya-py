@@ -108,7 +108,7 @@ def draw_clock(now, smooth):
     return c.element()
 
 
-app = App("clock", inline=True, fps=20)
+app = App.inline("clock", fps=20)
 app.state(h24=True, smooth=True)
 
 

@@ -638,7 +638,7 @@ def _field(w, h):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("RAYMARCH", inline=False, fps=30)
+app = App.fullscreen("RAYMARCH", fps=30)
 app.state(_t=0.0)
 
 SCENE_NAMES = ["sphere+torus", "metaballs", "columns", "cathedral"]

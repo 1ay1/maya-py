@@ -991,6 +991,32 @@ class App:
                 m = self._matcher(k)
                 self._bindings.append((lambda ev, m=m: m(ev), fn))
 
+    # -- mode constructors ---------------------------------------------------
+    @classmethod
+    def inline(cls, title: str = "", **kw) -> "App":
+        """An **inline** app: draws in place below the prompt, leaves the
+        terminal scrollback intact. The default mode — reads as intent::
+
+            app = App.inline("counter", fps=30)
+
+        Same as ``App(title, inline=True, **kw)``.
+        """
+        kw.pop("inline", None)
+        return cls(title, inline=True, **kw)
+
+    @classmethod
+    def fullscreen(cls, title: str = "", **kw) -> "App":
+        """A **fullscreen** app: takes the alternate screen, owns every cell,
+        restores the terminal on exit. For canvases, games, sims, dashboards::
+
+            app = App.fullscreen("boids", mouse=True, fps=60)
+
+        Same as ``App(title, inline=False, **kw)``. Pair with
+        :func:`fullscreen_pixels` for a whole-terminal half-block canvas.
+        """
+        kw.pop("inline", None)
+        return cls(title, inline=False, **kw)
+
     # -- state ---------------------------------------------------------------
     def state(self, **kw) -> _State:
         """Seed initial state. Returns the state object."""
@@ -1532,13 +1558,88 @@ def fmt_duration(seconds: float, *, centis: bool = False) -> str:
     return out
 
 
-# ── live animation (kept simple) ─────────────────────────────────────────────
+# ── live animation (kept simple) ───────────────────────────────────
 def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
     """Run an inline animation. ``render_fn(dt)`` returns a node each frame.
 
     Call ``maya_py.quit()`` (or raise) to stop.
     """
     _maya.live(lambda dt: _el(render_fn(dt)), fps=fps)
+
+
+# ── terminal geometry ──────────────────────────────────────────
+import shutil as _shutil
+
+
+def term_size(fallback: tuple[int, int] = (80, 24)) -> tuple[int, int]:
+    """The terminal size as ``(cols, rows)``. Fullscreen apps that need real
+    pixel dimensions up front used to all import ``shutil`` and spell the
+    ``get_terminal_size(fallback=…)`` dance by hand; this is that, once.
+
+        cols, rows = term_size()
+    """
+    sz = _shutil.get_terminal_size(fallback=fallback)
+    return (sz.columns, sz.lines)
+
+
+def term_cols(fallback: int = 80) -> int:
+    """The terminal width in cells."""
+    return _shutil.get_terminal_size(fallback=(fallback, 24)).columns
+
+
+def term_rows(fallback: int = 24) -> int:
+    """The terminal height in cells."""
+    return _shutil.get_terminal_size(fallback=(80, fallback)).lines
+
+
+def fullscreen_pixels(draw: Callable, *, bg: Any = (0, 0, 0),
+                      reserve: int = 0, max_pw: int = 600,
+                      grid: bool = False):
+    """A whole-terminal half-block pixel canvas for a fullscreen app.
+
+    Solves the one papercut every fullscreen pixel app hit: under
+    ``inline=False`` the layout hands a ``grow=1`` component an *unbounded*
+    height sentinel, not the real cell height — so apps all hand-rolled a
+    ``shutil.get_terminal_size()`` fallback to size their field. This helper
+    does that for you and hands ``draw`` a field already sized to the visible
+    terminal (2 pixels tall per cell).
+
+    ``draw(field, pw, ph)`` receives a resize-managed :class:`PixelField`
+    (mutate with ``field.set(x, y, colour)``); it's rendered as half-blocks
+    automatically. Pass ``grid=True`` to instead receive a fresh
+    ``[[None]*pw for _ in range(ph)]`` list-of-rows and return it (or a
+    half-block element) — matches the older hand-rolled grid style.
+
+        @app.view
+        def view(s):
+            def draw(f, pw, ph):
+                for p in s.parts:
+                    f.set(int(p.x), int(p.y), (0, 200, 255))
+            return fullscreen_pixels(draw)
+
+    ``reserve`` subtracts rows for a header/footer you stack around it;
+    ``max_pw`` caps pixel width for very wide terminals.
+    """
+    # Lazy import: pixels.py imports from easy.py, so this avoids a cycle.
+    from .pixels import PixelField as _PixelField, halfblock as _halfblock
+    field = None if grid else _PixelField(bg=bg)
+
+    def _inner(w: int, h: int):
+        # Trust the laid-out height when it's a sane cell count; otherwise the
+        # grow sentinel leaked through — fall back to the real terminal rows.
+        cell_h = h if 0 < h < 10000 else max(6, term_rows() - reserve)
+        pw = min(max_pw, max(8, w))
+        ph = cell_h * 2
+        if grid:
+            g = [[None] * pw for _ in range(ph)]
+            out = draw(g, pw, ph)
+            return _el(out if out is not None else _halfblock(g, bg=bg))
+        field.resize(pw, ph)
+        field.clear()
+        draw(field, pw, ph)
+        return field.render()
+
+    return component(_inner, grow=1)
 
 
 # ── numeric DSL — the maths every live/visual app reinvents ──────────────────
@@ -1978,6 +2079,7 @@ __all__ = [
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "Pilot", "animate",
+    "term_size", "term_cols", "term_rows", "fullscreen_pixels",
     "gradient_at", "fmt_duration",
     # numeric / animation
     "clamp", "saturate", "lerp", "norm", "remap", "remapc", "smoothstep",

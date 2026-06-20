@@ -387,7 +387,7 @@ def build_status_bar():
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("sysmon", inline=False, fps=15)
+app = App.fullscreen("sysmon", fps=15)
 app.state(_t=0.0)
 
 

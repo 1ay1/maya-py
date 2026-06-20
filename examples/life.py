@@ -39,7 +39,7 @@ def _age_color(age):
     return GRADIENT[4]
 
 
-app = App("life", inline=True, fps=30)
+app = App.inline("life", fps=30)
 app.state(cur=[], age=[], pw=0, ph=0, gen=0, pop=0, paused=False,
           interval=4, accum=0, name="random")
 

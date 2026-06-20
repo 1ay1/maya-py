@@ -369,7 +369,7 @@ def _grid_to_rows(grid, w, h):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("spectrum", inline=True, fps=30)
+app = App.inline("spectrum", fps=30)
 app.state(_t=0.0)
 
 

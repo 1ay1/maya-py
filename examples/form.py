@@ -13,8 +13,8 @@ A tiny shopping cart. Nothing here is plumbing:
 """
 from maya_py import App, text_input, card, col, row, For, T
 
-app = App(
-    "form", inline=True, quit_keys=("esc",),
+app = App.inline(
+    "form", quit_keys=("esc",),
     items=[("Pen", 2.0), ("Notebook", 4.5), ("Mug", 9.5)],
     name="",
 )

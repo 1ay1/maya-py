@@ -455,7 +455,7 @@ def build_status_bar():
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("ARES VII Mission Control", inline=False, fps=15)
+app = App.fullscreen("ARES VII Mission Control", fps=15)
 app.state(_t=0.0)
 
 

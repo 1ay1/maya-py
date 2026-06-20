@@ -61,7 +61,7 @@ LINES = [
 
 STYLES = ["line", "block", "slim", "neon", "braille", "shadow", "double"]
 
-app = App("scroll", inline=True, mouse=True)
+app = App.inline("scroll", mouse=True)
 s = scroll_state()            # auto_dispatch on — wheel + arrows just work
 s.step_y = 1
 app.state(s=s, style=0, vh=14)

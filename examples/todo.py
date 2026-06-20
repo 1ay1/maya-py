@@ -33,8 +33,8 @@ def todo_row(text, done, focused):
     )
 
 
-app = App(
-    "todo", inline=True, quit_keys=("q", "esc"), model=Todo(),
+app = App.inline(
+    "todo", quit_keys=("q", "esc"), model=Todo(),
     keys={
         "up":    lambda s: s.move(-1),
         "down":  lambda s: s.move(+1),

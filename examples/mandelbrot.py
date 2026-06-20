@@ -211,7 +211,7 @@ def _field(w, h):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("MANDELBROT", inline=False, fps=30)
+app = App.fullscreen("MANDELBROT", fps=30)
 app.state(_t=0.0)
 
 

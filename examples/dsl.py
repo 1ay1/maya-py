@@ -42,7 +42,7 @@ themes = ThemeSet(
 )
 
 
-app = App("dsl", inline=True, fps=30, t=0.0)
+app = App.inline("dsl", fps=30, t=0.0)
 
 
 @app.on("q", "esc")

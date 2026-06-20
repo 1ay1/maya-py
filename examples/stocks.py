@@ -463,7 +463,7 @@ def build_footer(_theme):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("Terminal Trader", inline=True, fps=20)
+app = App.inline("Terminal Trader", fps=20)
 app.state(_t=0.0)
 
 

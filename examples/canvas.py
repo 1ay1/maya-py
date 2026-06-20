@@ -37,7 +37,7 @@ def static_art():
     return c.element()
 
 
-app = App("canvas", inline=True, fps=30)
+app = App.inline("canvas", fps=30)
 app.state(t=0.0, paused=False)
 
 

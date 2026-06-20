@@ -62,7 +62,7 @@ SCENARIOS = [
 
 PH_THINK, PH_TOOL, PH_PLAN, PH_STREAM, PH_HOLD = range(5)
 
-app = App("agent_session", inline=True, fps=20)
+app = App.inline("agent_session", fps=20)
 app.state(sc=0, phase=PH_THINK, t=0.0, reveal=0, started=0.0)
 app.s.started = time.time()
 

@@ -549,7 +549,7 @@ def build_status_bar():
 init_services()
 trigger_deploy_wave()
 
-app = App("deploy", inline=False, fps=15)
+app = App.fullscreen("deploy", fps=15)
 app.state(_t=0.0)
 
 

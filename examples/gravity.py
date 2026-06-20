@@ -86,7 +86,7 @@ def spawn_ring(n, cx, cy, r, spin):
     return out
 
 
-app = App("gravity", inline=False, mouse=True, fps=30)
+app = App.fullscreen("gravity", mouse=True, fps=30)
 
 
 def field_scale(st):

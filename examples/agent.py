@@ -38,7 +38,7 @@ unchanged.
 # phases of the simulation
 PH_THINK, PH_READ, PH_EDIT, PH_PLAN, PH_BASH, PH_STREAM, PH_DONE = range(7)
 
-app = App("agent", inline=True, fps=20)
+app = App.inline("agent", fps=20)
 app.state(phase=PH_THINK, t=0.0, reveal=0, started=0.0)
 app.s.started = time.time()
 

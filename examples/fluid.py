@@ -332,7 +332,7 @@ resize_grid(GRID_N, GRID_M)
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("fluid", inline=False, fps=30, mouse=True)
+app = App.fullscreen("fluid", fps=30, mouse=True)
 app.state(_t=0.0)
 
 

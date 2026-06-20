@@ -60,7 +60,7 @@ def draw(w, h, t):
     return s
 
 
-app = App("surface", inline=True, fps=30, t=0.0)
+app = App.inline("surface", fps=30, t=0.0)
 
 
 @app.on("q", "esc")

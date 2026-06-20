@@ -147,7 +147,7 @@ def build_waterfall(s, focused):
 
 # ── app ──────────────────────────────────────────────────────────────────────
 
-app = App("widgets", inline=False, fps=20)
+app = App.fullscreen("widgets", fps=20)
 app.state(frame=0, elapsed=0.0, streaming=True, total_tokens=0,
           tokens_per_sec=0.0, peak_rate=0.0, rate_history=[0.0] * 32, panel=0)
 

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import maya_py as maya
 from maya_py import App, col, row, card, b, dim_text, T, divider, badge
 
-app = App("stopwatch", inline=True, fps=20)
+app = App.inline("stopwatch", fps=20)
 app.state(running=False, base=0.0, started_at=0.0, laps=[])
 
 

@@ -255,7 +255,7 @@ class Rng:
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
-app = App("messenger", inline=True, fps=20)
+app = App.inline("messenger", fps=20)
 
 
 def _init_channels():

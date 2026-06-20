@@ -1159,7 +1159,7 @@ def render_field(w, h):
 
 # ── App ─────────────────────────────────────────────────────────────────────
 
-app = App("fps", inline=False, fps=30)
+app = App.fullscreen("fps", fps=30)
 app.state(_t=0.0)
 
 

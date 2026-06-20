@@ -301,7 +301,7 @@ def _draw(w, _h):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("matrix", inline=True, fps=30)
+app = App.inline("matrix", fps=30)
 app.state(_t=0.0)
 
 

@@ -534,7 +534,7 @@ def pixels_to_grid():
 
 # ── App ───────────────────────────────────────────────────────────────────
 
-app = App("particles", inline=False, fps=30)
+app = App.fullscreen("particles", fps=30)
 app.state(_t=0.0)
 
 MODE_NAMES = ["FIREWORKS", "GALAXY", "FOUNTAIN", "VORTEX", "STARFIELD"]

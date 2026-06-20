@@ -317,7 +317,7 @@ def tick(dt):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("agent session", inline=True, fps=30)
+app = App.inline("agent session", fps=30)
 app.state(_t=0.0)
 
 

@@ -42,7 +42,7 @@ GOAL_C = (255, 95, 95)
 GEN, SOLVE, DONE = 0, 1, 2
 
 
-app = App("maze", inline=False, mouse=True, fps=60)
+app = App.fullscreen("maze", mouse=True, fps=60)
 s = app.state(
     cw=0, ch=0,              # maze grid size in CELLS (each cell = 2px block)
     grid=None,              # wall bitmask per cell: bit0=N bit1=E bit2=S bit3=W open

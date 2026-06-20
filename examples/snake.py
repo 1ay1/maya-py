@@ -113,7 +113,7 @@ for _i in range(TRAIL_LIFE):
 
 # ── Game state ───────────────────────────────────────────────────────────────
 
-app = App("snake", inline=False, fps=60)
+app = App.fullscreen("snake", fps=60)
 
 
 def reset_game(s):

@@ -520,7 +520,7 @@ def panel(st, pw, ph, max_val):
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("sorting visualizer", inline=False, fps=30)
+app = App.fullscreen("sorting visualizer", fps=30)
 app.state(_t=0.0)
 
 

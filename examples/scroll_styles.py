@@ -39,7 +39,7 @@ def tile(name, s):
     )
 
 
-app = App("scroll_styles", inline=True, mouse=True)
+app = App.inline("scroll_styles", mouse=True)
 s = scroll_state()
 app.state(s=s)
 

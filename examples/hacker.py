@@ -466,7 +466,7 @@ def build_toasts():
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
-app = App("NEXUS://BREACH", inline=False, fps=15)
+app = App.fullscreen("NEXUS://BREACH", fps=15)
 app.state(_t=0.0)
 
 

@@ -36,7 +36,7 @@ def line(i):
     )
 
 
-app = App("scroll_slice", inline=True)
+app = App.inline("scroll_slice")
 app.state(off=0)
 
 
