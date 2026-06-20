@@ -88,6 +88,8 @@ See [Layout](layout.md#keyword-options).
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `App` | `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), model=None, keys=None, **state)` | Interactive app. `model=` uses your object as state; `keys={k: fn}` binds keys declaratively; `**state`/`quit_keys` as before. |
+| `App.inline` | `App.inline(title="", **kw) -> App` | Inline app (draws in place, keeps scrollback). Reads as intent; same as `inline=True`. |
+| `App.fullscreen` | `App.fullscreen(title="", **kw) -> App` | Fullscreen app (alt screen, owns every cell, restores on exit). Same as `inline=False`. Pair with `fullscreen_pixels`. |
 | `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
 | `App.s` | property | The live state bag. |
 | `App.on` | `@app.on(*keys)` | Bind keys to `fn(state)`. |
@@ -172,6 +174,10 @@ tuple / `Color` everywhere.
 | `show` | `show(node, width=None)` | Render once to stdout. |
 | `to_string` | `to_string(node, width=80) -> str` | Render to a string. |
 | `animate` | `animate(render_fn, *, fps=30)` | Inline animation; `render_fn(dt)->node`. |
+| `term_size` | `term_size(fallback=(80,24)) -> (cols, rows)` | Terminal size in cells. The `shutil.get_terminal_size` dance, once. |
+| `term_cols` | `term_cols(fallback=80) -> int` | Terminal width in cells. |
+| `term_rows` | `term_rows(fallback=24) -> int` | Terminal height in cells. |
+| `fullscreen_pixels` | `fullscreen_pixels(draw, *, bg=(0,0,0), reserve=0, max_pw=600, grid=False)` | Whole-terminal half-block canvas for a fullscreen app. Hands `draw(field, pw, ph)` a `PixelField` sized to the visible terminal (2 px/cell) and renders it — no grow-sentinel / `shutil` boilerplate. `grid=True` hands a `[[None]*pw …]` list instead. |
 
 ### Low
 

@@ -147,6 +147,40 @@ session. `inline=False` takes over the whole terminal (alternate screen),
 which suits full-screen dashboards and games. See
 [concepts.md §5](concepts.md#5-the-frame-lifecycle).
 
+Two classmethod constructors read as intent instead of a boolean flag:
+
+```python
+app = App.inline("counter", fps=30)          # == App("counter", inline=True, fps=30)
+app = App.fullscreen("boids", mouse=True)    # == App("boids", inline=False, mouse=True)
+```
+
+**Fullscreen pixel canvas.** A fullscreen half-block app used to hand-roll a
+`shutil.get_terminal_size()` fallback, because a `grow=1` component under the
+alternate screen receives an *unbounded* height sentinel, not the real cell
+height. `fullscreen_pixels(draw)` does that for you — it hands `draw(field,
+pw, ph)` a `PixelField` already sized to the visible terminal (2 pixels tall
+per cell) and renders it as half-blocks:
+
+```python
+from maya_py import App, fullscreen_pixels, hsv, wrap
+
+app = App.fullscreen("plasma", fps=30, t=0.0)
+
+@app.on_frame
+def tick(s, dt): s.t += dt
+
+@app.view
+def view(s):
+    def draw(f, pw, ph):
+        for y in range(ph):
+            for x in range(pw):
+                f.set(x, y, hsv(wrap(x / pw + s.t * 0.1, 1.0)))
+    return fullscreen_pixels(draw, bg=(4, 4, 10))
+```
+
+Need raw cell dimensions yourself? `term_size() -> (cols, rows)`,
+`term_cols()`, `term_rows()` wrap the size lookup with a sane fallback.
+
 ### `fps=0` vs. `fps>0`
 
 - **`fps=0` (default): event-driven.** The loop sleeps until input arrives,
