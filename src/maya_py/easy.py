@@ -1855,7 +1855,7 @@ def bar(value: float, width: int = 10, *, lo: float = 0.0,
             out += _BARC[int(rem * 8)]
             out += "░" * (width - full - 1)
         return out[:width]
-    full = int(round(frac * width))
+    full = int(frac * width)
     return (fill * full + track * (width - full))[:width]
 
 
@@ -1903,6 +1903,39 @@ def percent(value: float, *, prec: int = 0, sign: bool = False) -> str:
     p = value * 100
     s = "+" if sign and p > 0 else ""
     return f"{s}{p:.{prec}f}%"
+
+
+# ── Random + spinners — the tiny helpers every live demo hand-rolled ─────────
+import random as _random
+
+
+def randf(lo: float = 0.0, hi: float = 1.0) -> float:
+    """A uniform random float in ``[lo, hi]`` — `random.uniform` with defaults."""
+    return _random.uniform(lo, hi)
+
+
+def randi(lo: int, hi: int) -> int:
+    """A random integer in ``[lo, hi]`` inclusive — `random.randint`."""
+    return _random.randint(lo, hi)
+
+
+_SPINNERS = {
+    "dots": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
+    "line": "|/-\\",
+    "bar": "▁▃▄▅▆▇▆▅▄▃",
+    "arc": "◜◠◝◞◡◟",
+    "circle": "◐◓◑◒",
+}
+
+
+def spin(frame: int, kind: str = "dots") -> str:
+    """One glyph from a looping spinner, indexed by ``frame``. ``kind`` selects
+    the glyph set: dots / line / bar / arc / circle.
+
+        T(spin(self.frame)).fg("sky")
+    """
+    glyphs = _SPINNERS.get(kind, _SPINNERS["dots"])
+    return glyphs[frame % len(glyphs)]
 
 
 # ── Theme — named colour roles, no integer index constants ───────────────────
@@ -2088,6 +2121,8 @@ __all__ = [
     "hsv", "mix", "lighten", "darken", "alpha",
     # data → text
     "spark", "bar", "fixed", "human", "percent",
+    # random + spinners
+    "randf", "randi", "spin",
     # theme
     "Theme", "ThemeSet",
     "text_input", "textarea",

@@ -25,16 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
     sparkline, progress, heatmap, badge,
-    Theme, ThemeSet, clamp,
+    Theme, ThemeSet, clamp, randf, randi, spin, bar,
 )
-
-
-def randi(lo, hi):
-    return random.randint(lo, hi)
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
 
 
 # Themes: named colour roles, cycled with keys 1/2/3
@@ -66,18 +58,6 @@ HOST_SUFFIX = [".corp.net", ".darknet.io", ".shadow.sys", ".zero.lan", ".ghost.o
 
 def rand_hostname():
     return f"{random.choice(HOST_PREFIX)}-{randi(1, 99)}{random.choice(HOST_SUFFIX)}"
-
-
-def block_bar(v, width):
-    filled = clamp(int(v * width), 0, width)
-    return "█" * filled + "░" * (width - filled)
-
-
-DOT_SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-
-def dot_spin(frame):
-    return DOT_SPIN[frame % 10]
 
 
 MAX_LOG = 18
@@ -323,12 +303,12 @@ def tick(dt):
 
 def build_header():
     s = S
-    spin = dot_spin(s.frame)
+    glyph = spin(s.frame)
     blink = (s.frame // 8) % 2 == 0
     dot = "●" if blink else "○"
     conn = f"TOR x3 | PROXY: {rand_ip()} | LAT: {randi(12, 350)}ms"
     return row(
-        T(spin).fg(TH().primary),
+        T(glyph).fg(TH().primary),
         T("NEXUS://BREACH").fg(TH().bright).bold,
         T("v4.2.0").dim,
         T(dot).fg(TH().primary if blink else TH().dim),
@@ -408,14 +388,14 @@ def build_intel_panel():
     out_data = [s.outbound_spark[(s.spark_idx + k) % 20] for k in range(20)]
 
     def gauge_line(label, val):
-        bar = block_bar(val, 12)
+        gbar = bar(val, 12, fill="█", track="░")
         if val > 0.8:
             bc = (255, 60, 60)
         elif val > 0.5:
             bc = (255, 200, 60)
         else:
             bc = TH().primary
-        return row(T(label).dim, T(bar).fg(bc), T(f"{int(val * 100):3d}%").dim, gap=1)
+        return row(T(label).dim, T(gbar).fg(bc), T(f"{int(val * 100):3d}%").dim, gap=1)
 
     return card(
         T("NETWORK TRAFFIC").fg(TH().bright).bold,

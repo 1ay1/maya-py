@@ -267,6 +267,16 @@ redefine `clamp` or hand-roll a sparkline again. All top-level imports. See
 | `human` | `human(n, *, prec=1) -> str` | Compact magnitude format: `1234 → 1.2k`, `5.6M`. |
 | `percent` | `percent(value, *, prec=0, sign=False) -> str` | Format a 0..1 fraction as `62%`; `sign=True` prefixes `+` on deltas. |
 
+### Random & spinners
+
+The tiny helpers every live demo used to hand-roll.
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `randf` | `randf(lo=0.0, hi=1.0) -> float` | Uniform random float in `[lo, hi]` — `random.uniform` with defaults. |
+| `randi` | `randi(lo, hi) -> int` | Random integer in `[lo, hi]` inclusive — `random.randint`. |
+| `spin` | `spin(frame, kind="dots") -> str` | One glyph from a looping spinner, indexed by `frame`. `kind`: `dots` / `line` / `bar` / `arc` / `circle`. |
+
 ### Theme
 
 Named colour roles instead of `THEMES[i][TH_ACCENT]` index constants. Every

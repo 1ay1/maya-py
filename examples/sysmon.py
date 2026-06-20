@@ -21,15 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer, clamp  # noqa: E402
-
-
-def randi(lo, hi):
-    return random.randint(lo, hi)
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
+from maya_py import App, T, col, row, card, spacer, clamp, randf, randi, spin, bar  # noqa: E402
 
 
 def usage_color(v):
@@ -53,18 +45,6 @@ BRAILLE_BARS = ["⠀", "⣀", "⣤", "⣴", "⣶", "⣷", "⣿", "⣿"]
 
 def braille_bar(v):
     return BRAILLE_BARS[clamp(int(v * 7), 0, 7)]
-
-
-def block_bar(v, width):
-    filled = clamp(int(v * width), 0, width)
-    return "▓" * filled + "░" * (width - filled)
-
-
-DOT_SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-
-def dot_spin(frame):
-    return DOT_SPIN[frame % 10]
 
 
 def hex_char():
@@ -210,9 +190,9 @@ def tick(dt):
 def build_header():
     s = S
     h = "".join(hex_char() for _ in range(8))
-    spin = dot_spin(s.frame_count)
+    glyph = spin(s.frame_count)
     parts = [
-        T(f"{spin} SYSMON").fg((0, 255, 136)).bold,
+        T(f"{glyph} SYSMON").fg((0, 255, 136)).bold,
         T(" v3.7.1").dim,
     ]
     if s.paused:
@@ -235,10 +215,10 @@ def build_cpu_panel():
         pct = int(c.usage * 100)
         freq_i = int(c.freq * 10)
         freq_str = f"{freq_i // 10}.{freq_i % 10}GHz"
-        bar = block_bar(c.usage, 12)
+        ubar = bar(c.usage, 12, fill="▓", track="░")
         rows.append(row(
             T(f"CPU{i}").fg((100, 180, 255)).bold,
-            T(bar).fg(usage_color(c.usage)),
+            T(ubar).fg(usage_color(c.usage)),
             T(f"{pct}%").bold,
             T(f"{int(c.temp)}°C").dim,
             T(freq_str).dim,
@@ -248,7 +228,7 @@ def build_cpu_panel():
     avg = sum(c.usage for c in s.cores) / len(s.cores)
     rows.append(row(
         T("TOTAL").fg((255, 200, 60)).bold,
-        T(block_bar(avg, 12)).fg((255, 200, 60)),
+        T(bar(avg, 12, fill="▓", track="░")).fg((255, 200, 60)),
         T(f"{int(avg * 100)}%").bold,
         T(f"load:{int(avg * 8 * 1.2 * 10) / 10}").dim,
         gap=1,
@@ -265,10 +245,10 @@ def build_mem_panel():
         used_gb = used * total_gb
         total_used += used_gb
         total_cap += total_gb
-        bar = block_bar(used, 16)
+        ubar = bar(used, 16, fill="▓", track="░")
         rows.append(row(
             T(name).fg((100, 180, 255)),
-            T(bar).fg(usage_color(used)),
+            T(ubar).fg(usage_color(used)),
             T(f"{int(used_gb)}/{total_gb}G").dim,
             gap=1,
         ))
@@ -357,7 +337,7 @@ def build_status_bar():
     s = S
     mins = int(s.uptime) // 60
     secs = int(s.uptime) % 60
-    entropy_bar = block_bar(s.entropy_pool, 8)
+    entropy_bar = bar(s.entropy_pool, 8, fill="▓", track="░")
     sc = s.total_syscalls
     if sc > 1e9:
         sc_str = f"{sc / 1e9:.1f}G"

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import math
 import os
-import random
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -25,21 +24,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, spacer, grow, memo,
-    clamp, spark, fixed as _fw, Theme, ThemeSet,
+    clamp, spark, fixed as _fw, Theme, ThemeSet, randf, randi,
 )
 
 
 def spark_line(data, width):
     """Thin shim onto the DSL ``spark`` (kept for call-site readability)."""
     return spark(data, width)
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
-
-
-def randi(lo, hi):
-    return random.randint(lo, hi)
 
 
 # Themes: named colour roles, cycled with 't'

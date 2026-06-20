@@ -23,38 +23,17 @@ pipeline-health bar round it out — all rendered with maya's native widgets.
 from __future__ import annotations
 
 import os
-import random
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
-    App, T, col, row, card, spacer, grow, sparkline, clamp,
+    App, T, col, row, card, spacer, grow, sparkline, clamp, randf, randi, spin, bar,
 )
 
 
 # -- Helpers -----------------------------------------------------------------
-
-def randi(lo, hi):
-    return random.randint(lo, hi)
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
-
-
-DOT_SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-
-def dot_spin(frame):
-    return DOT_SPIN[frame % 10]
-
-
-def block_bar(v, width):
-    filled = clamp(int(v * width), 0, width)
-    return "█" * filled + "─" * (width - filled)
-
 
 # -- Pipeline stage status ---------------------------------------------------
 
@@ -325,7 +304,7 @@ def status_color(s):
 def status_icon(s, frame):
     return {
         PENDING:      "○",
-        RUNNING:      dot_spin(frame),
+        RUNNING:      spin(frame),
         SUCCESS:      "✓",
         FAILED:       "✗",
         SKIPPED:      "⊘",
@@ -334,7 +313,7 @@ def status_icon(s, frame):
 
 
 def build_header():
-    spin = dot_spin(W.frame_count)
+    glyph = spin(W.frame_count)
     ec = ENV_COLORS[W.current_env]
 
     phase = W.frame_count % 12
@@ -342,7 +321,7 @@ def build_header():
     grad = "".join(blocks[(i + phase) % 6] for i in range(6))
 
     parts = [
-        T(spin).fg((0, 200, 255)),
+        T(glyph).fg((0, 200, 255)),
         T(" DEPLOY CONTROL").bold.fg((0, 200, 255)),
         T(" " + grad).fg((0, 150, 200)),
         spacer(),
@@ -371,22 +350,22 @@ def build_stage_cell(stage, frame):
     if stage.status in (RUNNING, SUCCESS, FAILED, ROLLING_BACK):
         time_str = " " + fmt_time(stage.elapsed)
 
-    bar = ""
+    pbar = ""
     if stage.status in (RUNNING, ROLLING_BACK):
-        bar = block_bar(stage.progress, 10)
+        pbar = bar(stage.progress, 10, fill="█", track="─")
     elif stage.status == SUCCESS:
-        bar = block_bar(1.0, 10)
+        pbar = bar(1.0, 10, fill="█", track="─")
     elif stage.status == FAILED:
-        bar = block_bar(stage.progress, 10)
+        pbar = bar(stage.progress, 10, fill="█", track="─")
 
     parts = [row(T(icon).fg(col_sty), T(" " + stage.name).fg(col_sty).bold, gap=0)]
 
-    if bar:
+    if pbar:
         bar_col = ((255, 60, 80) if stage.status == FAILED else
                    (255, 140, 50) if stage.status == ROLLING_BACK else
                    (0, 230, 118) if stage.status == SUCCESS else
                    (255, 200, 60))
-        parts.append(T(bar).fg(bar_col))
+        parts.append(T(pbar).fg(bar_col))
 
     if time_str:
         parts.append(T(time_str).dim)
@@ -492,7 +471,7 @@ def build_metrics_panel():
     denom = succeeded + failed + active
     health = (succeeded / denom) if denom > 0 else 1.0
 
-    health_bar = block_bar(health, 16)
+    health_bar = bar(health, 16, fill="█", track="─")
     health_pct = int(health * 100)
     health_col = ((0, 230, 118) if health > 0.8 else
                   (255, 200, 60) if health > 0.5 else

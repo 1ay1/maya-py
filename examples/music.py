@@ -25,12 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
-    heatmap, sparkline, progress, badge, clamp,
+    heatmap, sparkline, progress, badge, clamp, randf, bar,
 )
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
 
 
 # Track: title, artist, genre, duration, freq_base, freq_mod, low(rgb), high(rgb)
@@ -128,11 +124,6 @@ def fmt_time(seconds):
     m = int(seconds) // 60
     sec = int(seconds) % 60
     return f"{m}:{sec:02d}"
-
-
-def block_bar(v, width):
-    filled = clamp(int(v * width), 0, width)
-    return "█" * filled + "─" * (width - filled)
 
 
 def genre_kind(genre):
@@ -302,7 +293,7 @@ def build_status_bar():
     rep_str = ["off", "one", "all"][S.repeat_mode]
     return row(
         T(" VOL").fg((140, 140, 160)),
-        T(" " + block_bar(S.volume, 10)).fg(accent),
+        T(" " + bar(S.volume, 10, fill="█", track="─")).fg(accent),
         T(f" {vol_pct}%").fg((140, 140, 160)),
         T("  |").fg((60, 60, 80)),
         T("  repeat:").fg((140, 140, 160)),

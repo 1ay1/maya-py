@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import math
 import os
-import random
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -29,19 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from maya_py import (  # noqa: E402
     App, T, b, col, row, card, grow, spacer,
     gauge, sparkline, heatmap, line_chart, bar_chart, badge, callout,
+    clamp, randf, randi, spin,
 )
-
-
-def randf(lo, hi):
-    return random.uniform(lo, hi)
-
-
-def randi(lo, hi):
-    return random.randint(lo, hi)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 def fmt_f(v, decimals=1):
@@ -53,13 +41,6 @@ def fmt_time(total_secs):
     m = (int(total_secs) % 3600) // 60
     s = int(total_secs) % 60
     return f"{h:03d}:{m:02d}:{s:02d}"
-
-
-DOT_SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-
-def dot_spin(frame):
-    return DOT_SPIN[frame % 10]
 
 
 HIST_SIZE = 30
@@ -279,14 +260,14 @@ def severity_color(lvl):
 
 def build_header():
     s = W
-    spin = dot_spin(s.frame_count)
+    glyph = spin(s.frame_count)
     met = fmt_time(s.elapsed)
     phase_str = PHASE_NAMES[s.mission_phase]
     phase_sty = ((255, 140, 50) if s.mission_phase == 0
                  else (100, 180, 255) if s.mission_phase == 1
                  else (0, 255, 136))
     parts = [
-        T(spin).fg((0, 180, 255)),
+        T(glyph).fg((0, 180, 255)),
         T(" MISSION CONTROL").bold.fg((0, 180, 255)),
         T(" ─ ").dim,
         T("ARES VII").bold.fg((255, 255, 255)),
