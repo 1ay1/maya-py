@@ -238,6 +238,7 @@ from .easy import (  # noqa: E402
     wrap, sign, approach, oscillate, pulse, ease,
     hsv, mix, lighten, darken, alpha,
     spark, bar, fixed, human, percent,
+    Theme, ThemeSet,
     text_input, textarea,
 )
 
@@ -258,6 +259,7 @@ __all__ += [
     "wrap", "sign", "approach", "oscillate", "pulse", "ease",
     "hsv", "mix", "lighten", "darken", "alpha",
     "spark", "bar", "fixed", "human", "percent",
+    "Theme", "ThemeSet",
     "text_input", "textarea",
 ]
 

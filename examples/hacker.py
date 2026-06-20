@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
     sparkline, progress, heatmap, badge,
+    Theme, ThemeSet, clamp,
 )
 
 
@@ -36,23 +37,19 @@ def randf(lo, hi):
     return random.uniform(lo, hi)
 
 
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
-
-
-# Themes: name, primary, bright, dim, accent, alert, border
-THEMES = [
-    ("PHOSPHOR", (0, 255, 65), (0, 255, 136), (0, 100, 30), (0, 200, 100), (255, 50, 50), (0, 60, 20)),
-    ("AMBER", (255, 176, 0), (255, 220, 80), (140, 90, 0), (255, 200, 60), (255, 60, 60), (80, 55, 0)),
-    ("ICE", (0, 200, 255), (100, 220, 255), (0, 80, 130), (0, 160, 220), (255, 50, 80), (0, 40, 70)),
-]
-T_NAME, T_PRIMARY, T_BRIGHT, T_DIM, T_ACCENT, T_ALERT, T_BORDER = range(7)
-
-theme_idx = 0
+# Themes: named colour roles, cycled with keys 1/2/3
+themes = ThemeSet(
+    Theme("PHOSPHOR", primary=(0, 255, 65), bright=(0, 255, 136), dim=(0, 100, 30),
+          accent=(0, 200, 100), alert=(255, 50, 50), border=(0, 60, 20)),
+    Theme("AMBER", primary=(255, 176, 0), bright=(255, 220, 80), dim=(140, 90, 0),
+          accent=(255, 200, 60), alert=(255, 60, 60), border=(80, 55, 0)),
+    Theme("ICE", primary=(0, 200, 255), bright=(100, 220, 255), dim=(0, 80, 130),
+          accent=(0, 160, 220), alert=(255, 50, 80), border=(0, 40, 70)),
+)
 
 
 def TH():
-    return THEMES[theme_idx]
+    return themes.current
 
 
 def rand_hex_str(n):
@@ -331,16 +328,16 @@ def build_header():
     dot = "●" if blink else "○"
     conn = f"TOR x3 | PROXY: {rand_ip()} | LAT: {randi(12, 350)}ms"
     return row(
-        T(spin).fg(TH()[T_PRIMARY]),
-        T("NEXUS://BREACH").fg(TH()[T_BRIGHT]).bold,
+        T(spin).fg(TH().primary),
+        T("NEXUS://BREACH").fg(TH().bright).bold,
         T("v4.2.0").dim,
-        T(dot).fg(TH()[T_PRIMARY] if blink else TH()[T_DIM]),
-        T(" CONNECTED").fg(TH()[T_PRIMARY]),
+        T(dot).fg(TH().primary if blink else TH().dim),
+        T(" CONNECTED").fg(TH().primary),
         spacer(),
-        T(conn).fg(TH()[T_DIM]),
+        T(conn).fg(TH().dim),
         spacer(),
-        T(TH()[T_NAME]).fg(TH()[T_ACCENT]).bold,
-        T("0x" + rand_hex_str(6)).fg(TH()[T_DIM]),
+        T(TH().name).fg(TH().accent).bold,
+        T("0x" + rand_hex_str(6)).fg(TH().dim),
         gap=1, pad=(0, 1),
     )
 
@@ -353,7 +350,7 @@ def build_targets_panel():
     )]
     for ip, host, port, _svc, status, vuln, scan, _age in s.targets:
         if status == "EXPLOITED":
-            st_col = TH()[T_PRIMARY]
+            st_col = TH().primary
             st_t = T("EXPLOITED").fg(st_col).bold
         elif status == "OPEN":
             st_t = T("OPEN").fg((100, 200, 255))
@@ -371,7 +368,7 @@ def build_targets_panel():
             vuln_el = T("")
         display = ip if len(ip) >= 18 else host[:18]
         rows.append(row(
-            T(display).fg(TH()[T_ACCENT]),
+            T(display).fg(TH().accent),
             T(str(port)).dim,
             st_t,
             vuln_el,
@@ -379,7 +376,7 @@ def build_targets_panel():
         ))
     while len(rows) < 11:
         rows.append(T(""))
-    return card(*rows, title=" TARGETS ", border_color=TH()[T_BORDER], pad=(0, 1))
+    return card(*rows, title=" TARGETS ", border_color=TH().border, pad=(0, 1))
 
 
 def build_terminal_panel():
@@ -387,14 +384,14 @@ def build_terminal_panel():
     rows = []
     for ts, msg, lvl, opacity in s.terminal_log:
         if lvl == 1:
-            mc = TH()[T_PRIMARY]
+            mc = TH().primary
             t_msg = T(msg).fg(mc).bold
         elif lvl == 2:
             t_msg = T(msg).fg((255, 200, 60)).bold
         elif lvl == 3:
             t_msg = T(msg).fg((255, 50, 50)).bold
         else:
-            t_msg = T(msg).fg(TH()[T_PRIMARY])
+            t_msg = T(msg).fg(TH().primary)
         ts_t = T(f"[{ts}]").dim
         if opacity < 0.5:
             ts_t = ts_t.dim
@@ -402,7 +399,7 @@ def build_terminal_panel():
         rows.append(row(ts_t, t_msg, gap=1))
     while len(rows) < MAX_LOG:
         rows.append(T(""))
-    return card(*rows, title=" TERMINAL ", border_color=TH()[T_BORDER], pad=(0, 1))
+    return card(*rows, title=" TERMINAL ", border_color=TH().border, pad=(0, 1))
 
 
 def build_intel_panel():
@@ -417,27 +414,27 @@ def build_intel_panel():
         elif val > 0.5:
             bc = (255, 200, 60)
         else:
-            bc = TH()[T_PRIMARY]
+            bc = TH().primary
         return row(T(label).dim, T(bar).fg(bc), T(f"{int(val * 100):3d}%").dim, gap=1)
 
     return card(
-        T("NETWORK TRAFFIC").fg(TH()[T_BRIGHT]).bold,
-        sparkline(in_data, label="IN ", color=TH()[T_PRIMARY], show_last=True),
-        sparkline(out_data, label="OUT", color=TH()[T_ACCENT], show_last=True),
+        T("NETWORK TRAFFIC").fg(TH().bright).bold,
+        sparkline(in_data, label="IN ", color=TH().primary, show_last=True),
+        sparkline(out_data, label="OUT", color=TH().accent, show_last=True),
         T(""),
-        T("PASSWORD CRACK").fg(TH()[T_BRIGHT]).bold,
-        progress(s.crack_progress, "bcrypt", width=24, fill=TH()[T_PRIMARY],
-                 track=TH()[T_BORDER]),
+        T("PASSWORD CRACK").fg(TH().bright).bold,
+        progress(s.crack_progress, "bcrypt", width=24, fill=TH().primary,
+                 track=TH().border),
         T(""),
-        T("NET TOPOLOGY").fg(TH()[T_BRIGHT]).bold,
-        heatmap(s.heatmap_data, low=TH()[T_BORDER], high=TH()[T_PRIMARY]),
+        T("NET TOPOLOGY").fg(TH().bright).bold,
+        heatmap(s.heatmap_data, low=TH().border, high=TH().primary),
         T(""),
-        T("SYSTEM LOAD").fg(TH()[T_BRIGHT]).bold,
+        T("SYSTEM LOAD").fg(TH().bright).bold,
         gauge_line("CPU", s.cpu_load),
         gauge_line("MEM", s.mem_load),
         gauge_line("NET", s.net_load),
         gauge_line("I/O", s.disk_io),
-        title=" INTEL ", border_color=TH()[T_BORDER], pad=(0, 1),
+        title=" INTEL ", border_color=TH().border, pad=(0, 1),
     )
 
 
@@ -449,7 +446,7 @@ def build_hex_footer():
     ascii_part = "|" + "".join(chr(randi(33, 126)) for _ in range(16)) + "|"
 
     def key(k, lab):
-        return [T(k).fg(TH()[T_BRIGHT]).bold, T(lab).fg((120, 120, 140))]
+        return [T(k).fg(TH().bright).bold, T(lab).fg((120, 120, 140))]
 
     parts = [T(addr + hex_part + "  " + ascii_part).dim, spacer()]
     parts += key(" SPC", ":breach")
@@ -475,20 +472,17 @@ app.state(_t=0.0)
 
 @app.on("1")
 def _t1(s):
-    global theme_idx
-    theme_idx = 0
+    themes.set(0)
 
 
 @app.on("2")
 def _t2(s):
-    global theme_idx
-    theme_idx = 1
+    themes.set(1)
 
 
 @app.on("3")
 def _t3(s):
-    global theme_idx
-    theme_idx = 2
+    themes.set(2)
 
 
 @app.on("space")

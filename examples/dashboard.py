@@ -27,7 +27,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, box, col, component, Surface, ramp, rgb_lerp  # noqa: E402
+from maya_py import (App, box, col, component, Surface, ramp, rgb_lerp,  # noqa: E402
+                     Theme, ThemeSet, clamp)
 
 PI = 3.14159265
 TAU = 6.28318530
@@ -36,27 +37,26 @@ ROWS = 30  # fixed render height
 
 random.seed(42)
 
-# ── Themes: name, accent, dim, bg, hot, cold ─────────────────────────────────
-THEMES = [
-    ("CYBER", (0, 255, 200), (0, 80, 60), (5, 10, 15), (255, 0, 100), (0, 100, 255)),
-    ("NEON", (255, 0, 255), (80, 0, 80), (10, 5, 15), (255, 255, 0), (0, 200, 255)),
-    ("EMBER", (255, 120, 0), (80, 40, 0), (15, 8, 5), (255, 40, 40), (255, 200, 60)),
-    ("ARCTIC", (100, 200, 255), (30, 60, 80), (5, 10, 18), (255, 255, 255), (0, 150, 200)),
-]
-TH_NAME, TH_ACCENT, TH_DIM, TH_BG, TH_HOT, TH_COLD = range(6)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
-
-
-def clampi(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
+# ── Themes: named colour roles, cycled with keys 1-4 ──────────────────────
+themes = ThemeSet(
+    Theme("CYBER", accent=(0, 255, 200), dim=(0, 80, 60), bg=(5, 10, 15),
+          hot=(255, 0, 100), cold=(0, 100, 255)),
+    Theme("NEON", accent=(255, 0, 255), dim=(80, 0, 80), bg=(10, 5, 15),
+          hot=(255, 255, 0), cold=(0, 200, 255)),
+    Theme("EMBER", accent=(255, 120, 0), dim=(80, 40, 0), bg=(15, 8, 5),
+          hot=(255, 40, 40), cold=(255, 200, 60)),
+    Theme("ARCTIC", accent=(100, 200, 255), dim=(30, 60, 80), bg=(5, 10, 18),
+          hot=(255, 255, 255), cold=(0, 150, 200)),
+)
 
 
 def lerp8(a, b, t):
     t = clamp(t, 0.0, 1.0)
     return int(a + (b - a) * t)
+
+
+def clampi(x, lo, hi):
+    return lo if x < lo else hi if x > hi else x
 
 
 VBLOCKS = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
@@ -100,7 +100,7 @@ W = World()
 
 
 def TH():
-    return THEMES[W.theme]
+    return themes[W.theme]
 
 
 def spawn_burst(cx, cy, count):
@@ -110,9 +110,9 @@ def spawn_burst(cx, cy, count):
         speed = random.uniform(5, 25)
         life = random.uniform(1, 3)
         blend = random.uniform(0, 1)
-        r = lerp8(th[TH_ACCENT][0], th[TH_HOT][0], blend)
-        g = lerp8(th[TH_ACCENT][1], th[TH_HOT][1], blend)
-        b = lerp8(th[TH_ACCENT][2], th[TH_HOT][2], blend)
+        r = lerp8(th.accent[0], th.hot[0], blend)
+        g = lerp8(th.accent[1], th.hot[1], blend)
+        b = lerp8(th.accent[2], th.hot[2], blend)
         W.particles.append([cx, cy, math.cos(angle) * speed,
                             math.sin(angle) * speed * 0.5, life, life, r, g, b])
 
@@ -241,37 +241,37 @@ def tick(dt):
 
 def _spectrum_stops(th):
     """The accent→hot→white spectrum ramp shared by spectrum + hex heat."""
-    return [th[TH_COLD], th[TH_ACCENT], th[TH_HOT], (255, 240, 255)]
+    return [th.cold, th.accent, th.hot, (255, 240, 255)]
 
 
 def draw_waveform(s, x, y, w, h):
     th = TH()
-    pen = s.panel(x, y, w, h, fg=th[TH_DIM], title=" WAVEFORM ")
+    pen = s.panel(x, y, w, h, fg=th.dim, title=" WAVEFORM ")
     if pen.pw < 16 or pen.ph < 16:
         return
-    fill = ramp([th[TH_ACCENT], th[TH_BG]], 8)
+    fill = ramp([th.accent, th.bg], 8)
     ph1 = pen.ph - 1
     ys = [int(clamp(0.5 - wave_sample(px / pen.pw * TAU) * 0.45, 0, 1) * ph1)
           for px in range(pen.pw)]
     pen.fill_curve_raw(ys, ph1 // 2, ramp_fg=fill,
-                       line_fg=th[TH_ACCENT], thick=2)
+                       line_fg=th.accent, thick=2)
 
     modes = ["SINE", "LISSAJOUS", "NOISE", "HEARTBEAT"]
     amp = abs(wave_sample(W.time * 0.5))
     buf = " %s A:%.2f " % (modes[W.wave_mode], amp)
-    s.write(max(x + 1, x + w - len(buf) - 2), y, buf, fg=th[TH_ACCENT])
+    s.write(max(x + 1, x + w - len(buf) - 2), y, buf, fg=th.accent)
 
 
 def draw_spectrum(s, x, y, w, h):
     th = TH()
-    s.box(x, y, w, h, fg=th[TH_DIM], title=" SPECTRUM ")
+    s.box(x, y, w, h, fg=th.dim, title=" SPECTRUM ")
     iw, ih = w - 2, h - 2
     if iw < 4 or ih < 3:
         return
     ox, oy = x + 1, y + 1
     num_bars = min(64, iw)
-    pal = ramp([th[TH_COLD], th[TH_ACCENT], th[TH_HOT], (255, 240, 255)], 12)
-    hot = th[TH_HOT]
+    pal = ramp([th.cold, th.accent, th.hot, (255, 240, 255)], 12)
+    hot = th.hot
     for i in range(num_bars):
         val = W.spectrum[i * 64 // num_bars]
         bar_h = max(1, int(val * ih))
@@ -295,14 +295,14 @@ def draw_spectrum(s, x, y, w, h):
 
 def draw_radar(s, x, y, w, h):
     th = TH()
-    dim, accent, hot = th[TH_DIM], th[TH_ACCENT], th[TH_HOT]
+    dim, accent, hot = th.dim, th.accent, th.hot
     grid_c = (max(5, dim[0] // 3), max(5, dim[1] // 3), max(5, dim[2] // 3))
     pen = s.panel(x, y, w, h, fg=dim, title=" RADAR ")
     if pen.pw < 16 or pen.ph < 24:
         return
     cpx, cpy = pen.pw // 2, pen.ph // 2
     rx, ry = pen.pw // 2 - 2, pen.ph // 2 - 2
-    trail = ramp([th[TH_ACCENT], th[TH_BG]], 10)
+    trail = ramp([th.accent, th.bg], 10)
     # rings
     for ring in range(1, 4):
         pen.ring(cpx, cpy, rx * ring / 3, ry * ring / 3, fg=dim)
@@ -341,10 +341,10 @@ def draw_radar(s, x, y, w, h):
 
 def draw_hex(s, x, y, w, h):
     th = TH()
-    dim, accent = th[TH_DIM], th[TH_ACCENT]
+    dim, accent = th.dim, th.accent
     vdim = (dim[0] // 2, dim[1] // 2, dim[2] // 2)
     addr_c = (accent[0] // 2, accent[1] // 2, accent[2] // 2)
-    heat = ramp([th[TH_COLD], th[TH_ACCENT], th[TH_HOT], (255, 240, 255)], 8)
+    heat = ramp([th.cold, th.accent, th.hot, (255, 240, 255)], 8)
     s.box(x, y, w, h, fg=dim, title=" DATA STREAM ")
     iw, ih = w - 2, h - 2
     if iw < 20 or ih < 2:
@@ -388,10 +388,10 @@ def draw_hex(s, x, y, w, h):
 
 def draw_gauges(s, x, y, w, h):
     th = TH()
-    dim, accent, hot, cold = th[TH_DIM], th[TH_ACCENT], th[TH_HOT], th[TH_COLD]
+    dim, accent, hot, cold = th.dim, th.accent, th.hot, th.cold
     vdim = (dim[0] // 2, dim[1] // 2, dim[2] // 2)
     label_c = (160, 160, 170)
-    bar = ramp([th[TH_COLD], th[TH_ACCENT], th[TH_HOT]], 8)
+    bar = ramp([th.cold, th.accent, th.hot], 8)
     labels = ["CPU", "GPU", "MEM", "NET", "DSK", "PWR"]
     s.box(x, y, w, h, fg=dim, title=" SYSTEMS ")
     iw, ih = w - 2, h - 2
@@ -429,11 +429,11 @@ def draw_gauges(s, x, y, w, h):
 
 def draw_network(s, x, y, w, h):
     th = TH()
-    dim, accent, hot = th[TH_DIM], th[TH_ACCENT], th[TH_HOT]
+    dim, accent, hot = th.dim, th.accent, th.hot
     pen = s.panel(x, y, w, h, fg=dim, title=" NETWORK ")
     if pen.pw < 16 or pen.ph < 16:
         return
-    fill = ramp([th[TH_ACCENT], th[TH_BG]], 8)
+    fill = ramp([th.accent, th.bg], 8)
     samples = min(pen.pw, 120)
     ph1 = pen.ph - 1
 
@@ -458,10 +458,10 @@ def draw_network(s, x, y, w, h):
 
 def draw_spirograph(s, x, y, w, h):
     th = TH()
-    pen = s.panel(x, y, w, h, fg=th[TH_DIM], title=" SIGNAL ")
+    pen = s.panel(x, y, w, h, fg=th.dim, title=" SIGNAL ")
     if pen.pw < 12 or pen.ph < 16:
         return
-    pal = ramp([th[TH_BG], th[TH_ACCENT], th[TH_HOT]], 8)
+    pal = ramp([th.bg, th.accent, th.hot], 8)
     cpx, cpy = pen.pw // 2, pen.ph // 2
     scale = min(pen.pw // 20, pen.ph // 20) or 1
     prev = [(-999, -999), (-999, -999)]
@@ -495,7 +495,7 @@ def draw_particles(s, w, h):
 def draw_status(s, w, h):
     th = TH()
     y = h - 1
-    accent, dim, hot, bg = th[TH_ACCENT], th[TH_DIM], th[TH_HOT], th[TH_BG]
+    accent, dim, hot, bg = th.accent, th.dim, th.hot, th.bg
     vdim = (dim[0] // 2, dim[1] // 2, dim[2] // 2)
     data_c = (190, 190, 200)
     s.rect(0, y, w, 1, ch=" ", fg=bg)
@@ -503,7 +503,7 @@ def draw_status(s, w, h):
     s.set(7, y, "│", fg=dim)
     chip_x = 9
     for i in range(4):
-        name = THEMES[i][TH_NAME]
+        name = themes[i].name
         active = i == W.theme
         s.set(chip_x, y, str(1 + i), fg=accent if active else vdim)
         s.set(chip_x + 1, y, ":", fg=vdim)
@@ -612,7 +612,7 @@ def _screen(w, _h):
     h = ROWS
     if w < 40 or h < 8:
         return col()
-    s = Surface(w, h, bg=TH()[TH_BG])
+    s = Surface(w, h, bg=TH().bg)
     avail_h = h - 1
     top_h = max(6, avail_h * 35 // 100)
     mid_h = max(6, avail_h * 35 // 100)

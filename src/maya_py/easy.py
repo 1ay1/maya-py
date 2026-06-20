@@ -1804,6 +1804,172 @@ def percent(value: float, *, prec: int = 0, sign: bool = False) -> str:
     return f"{s}{p:.{prec}f}%"
 
 
+# ── Theme — named colour roles, no integer index constants ───────────────────
+# Apps used to hand-index colour tuples: `THEMES[i][TH_ACCENT]` with a wall of
+# `TH_NAME, TH_ACCENT, ... = range(8)` constants. A Theme is a frozen bag of
+# named colour roles you read by attribute (`th.accent`) or item (`th["accent"]`).
+# Every role resolves to an `(r, g, b)` tuple, so it drops straight into
+# `.fg(...)`, `ramp(...)`, `mix(...)` — anywhere a colour spec is accepted.
+class Theme:
+    """A named set of colour roles, read by attribute.
+
+        th = Theme("CYBER", accent=(0, 255, 200), bg=(5, 10, 15),
+                   hot="#ff0064", cold=(0, 100, 255))
+        T("hi").fg(th.accent)        # attribute access
+        ramp([th.accent, th.bg], 8)  # tuples flow into the colour DSL
+        th.name                       # "CYBER"
+
+    Any colour spec the DSL understands (name / #hex / (r,g,b) / packed int)
+    is accepted and normalised to an ``(r, g, b)`` tuple. Themes are immutable;
+    derive a variant with :meth:`with_`.
+    """
+
+    __slots__ = ("name", "_roles")
+
+    def __init__(self, name: str = "", **roles: Any):
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "_roles", {k: _as_rgb(v) for k, v in roles.items()})
+
+    def __getattr__(self, key: str) -> tuple[int, int, int]:
+        try:
+            return self._roles[key]
+        except KeyError:
+            raise AttributeError(
+                f"theme {self.name!r} has no role {key!r}; "
+                f"roles: {', '.join(self._roles) or '(none)'}")
+
+    def __setattr__(self, key: str, value: Any):
+        raise AttributeError("Theme is immutable; use .with_(...) to derive one")
+
+    def __getitem__(self, key: str) -> tuple[int, int, int]:
+        return self._roles[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._roles
+
+    def get(self, key: str, default: Any = None):
+        """A role tuple, or ``default`` if the role is undefined."""
+        return self._roles.get(key, default)
+
+    def roles(self) -> tuple[str, ...]:
+        """The names of every defined role."""
+        return tuple(self._roles)
+
+    def with_(self, **overrides: Any) -> "Theme":
+        """A copy of this theme with some roles replaced / added."""
+        merged = dict(self._roles)
+        merged.update({k: _as_rgb(v) for k, v in overrides.items()})
+        return Theme(self.name, **merged)
+
+    def shade(self, role: str, amount: float) -> tuple[int, int, int]:
+        """Lighten (``amount`` > 0) or darken (``amount`` < 0) a role on the fly."""
+        c = self._roles[role]
+        return lighten(c, amount) if amount >= 0 else darken(c, -amount)
+
+    def __repr__(self) -> str:
+        return f"Theme({self.name!r}, {', '.join(self._roles)})"
+
+
+def _as_rgb(value: Any) -> tuple[int, int, int]:
+    """Normalise any colour spec to an ``(r, g, b)`` tuple."""
+    if type(value) is tuple and len(value) == 3:
+        return value
+    p = _rgb_int(value)
+    return ((p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF)
+
+
+class ThemeSet:
+    """An ordered, cyclable collection of :class:`Theme` s. Proxies attribute
+    access to the *active* theme, so an app reads ``themes.accent`` and gets the
+    current palette's accent — no index constants, no ``THEMES[i]`` plumbing.
+
+        themes = ThemeSet(
+            Theme("CYBER", accent=(0, 255, 200), bg=(5, 10, 15)),
+            Theme("EMBER", accent=(255, 120, 0), bg=(15, 8, 5)),
+        )
+        T("x").fg(themes.accent)   # active theme's accent
+        themes.next()              # cycle to EMBER (wraps)
+        themes.name                # "EMBER"
+        themes.current             # the active Theme object
+
+    Build one straight from the old positional tuples with
+    :meth:`from_rows` so legacy ``THEMES = [...]`` tables convert in one line.
+    """
+
+    __slots__ = ("_themes", "_idx")
+
+    def __init__(self, *themes: Theme, index: int = 0):
+        if not themes:
+            raise ValueError("ThemeSet needs at least one Theme")
+        object.__setattr__(self, "_themes", list(themes))
+        object.__setattr__(self, "_idx", index % len(themes))
+
+    @classmethod
+    def from_rows(cls, fields: Sequence[str], rows: Sequence[Sequence[Any]],
+                  *, name_field: str = "name") -> "ThemeSet":
+        """Build from a legacy positional table. ``fields`` names each column;
+        the column named ``name_field`` becomes the theme name (default
+        ``"name"``), the rest become colour roles.
+
+            ThemeSet.from_rows(
+                ["name", "accent", "bg"],
+                [("CYBER", (0,255,200), (5,10,15)),
+                 ("EMBER", (255,120,0), (15,8,5))])
+        """
+        themes = []
+        for row_vals in rows:
+            kw = dict(zip(fields, row_vals))
+            nm = kw.pop(name_field, "")
+            themes.append(Theme(nm, **kw))
+        return cls(*themes)
+
+    @property
+    def current(self) -> Theme:
+        """The active :class:`Theme`."""
+        return self._themes[self._idx]
+
+    @property
+    def index(self) -> int:
+        """The active theme's index."""
+        return self._idx
+
+    def set(self, index: int) -> Theme:
+        """Jump to ``index`` (wraps); returns the now-active theme."""
+        object.__setattr__(self, "_idx", index % len(self._themes))
+        return self.current
+
+    def next(self, step: int = 1) -> Theme:
+        """Advance by ``step`` (wraps); returns the now-active theme."""
+        return self.set(self._idx + step)
+
+    def prev(self) -> Theme:
+        """Step back one (wraps); returns the now-active theme."""
+        return self.set(self._idx - 1)
+
+    def names(self) -> tuple[str, ...]:
+        """Every theme name, in order."""
+        return tuple(t.name for t in self._themes)
+
+    def __len__(self) -> int:
+        return len(self._themes)
+
+    def __getitem__(self, i: int) -> Theme:
+        return self._themes[i]
+
+    def __iter__(self):
+        return iter(self._themes)
+
+    def __getattr__(self, key: str):
+        # Proxy role access to the active theme: themes.accent → current.accent
+        return getattr(self._themes[self._idx], key)
+
+    def __setattr__(self, key: str, value: Any):
+        raise AttributeError("ThemeSet roles are read-only; use .set()/.next()")
+
+    def __repr__(self) -> str:
+        return f"ThemeSet({', '.join(self.names())} @ {self._idx})"
+
+
 
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
@@ -1820,5 +1986,7 @@ __all__ = [
     "hsv", "mix", "lighten", "darken", "alpha",
     # data → text
     "spark", "bar", "fixed", "human", "percent",
+    # theme
+    "Theme", "ThemeSet",
     "text_input", "textarea",
 ]

@@ -9,6 +9,7 @@ list of numbers into a sparkline. maya-py ships all of it so you never redefine
   • animation oscillate · pulse · ease(kind)
   • colour    hsv · mix · lighten · darken · alpha
   • data→text spark · bar · fixed · human · percent
+  • theme     Theme · ThemeSet (named colour roles, no index constants)
 
 This app animates them all off a single time `t`.
 
@@ -28,6 +29,16 @@ from maya_py import (  # noqa: E402
     App, T, col, row, card, b, dim_text,
     clamp, lerp, remap, smoothstep, wrap, oscillate, pulse, ease,
     hsv, mix, lighten, darken, spark, bar, fixed, human, percent,
+    Theme, ThemeSet,
+)
+
+
+# A ThemeSet replaces the old `THEMES[i][TH_ACCENT]` index-constant pattern:
+# named colour roles, read by attribute, cycled with .next().
+themes = ThemeSet(
+    Theme("CYBER", accent=(0, 255, 200), hot=(255, 0, 100), cold=(0, 100, 255)),
+    Theme("EMBER", accent=(255, 120, 0), hot=(255, 40, 40), cold=(255, 200, 60)),
+    Theme("VAPOR", accent=(255, 100, 220), hot=(255, 80, 100), cold=(100, 255, 200)),
 )
 
 
@@ -37,6 +48,11 @@ app = App("dsl", inline=True, fps=30, t=0.0)
 @app.on("q", "esc")
 def _quit(s):
     app.stop()
+
+
+@app.on("t")
+def _cycle_theme(s):
+    themes.next()
 
 
 @app.on_frame
@@ -103,14 +119,37 @@ def data_panel(t):
     )
 
 
+def theme_panel(t):
+    """Named colour roles from the active theme — no integer index constants."""
+    th = themes.current
+    swatch = "████"
+    chips = []
+    for i, name in enumerate(themes.names()):
+        active = i == themes.index
+        chips.append(T(f"{i + 1}:{name}").fg("white" if active else "slate")
+                     .opt(bold=active, dim=not active))
+    return card(
+        b("theme"),
+        row(*chips, gap=1),
+        row(dim_text(fixed("accent", 7)), T(swatch).fg(th.accent),
+            T(swatch).fg(th.shade("accent", 0.3)),
+            T(swatch).fg(th.shade("accent", -0.4)), gap=1),
+        row(dim_text(fixed("hot/cold", 9)), T(swatch).fg(th.hot),
+            T(swatch).fg(th.cold),
+            dim_text("  ramp"),
+            *[T("█").fg(mix(th.cold, th.hot, i / 11)) for i in range(12)], gap=1),
+        title=f"theme · {th.name}", gap=0,
+    )
+
+
 @app.view
 def view(s):
     return col(
         row(b("maya-py DSL").fg(hsv(wrap(s.t * 0.1, 1.0))),
-            dim_text("— numeric · colour · data, off one clock"), gap=1),
+            dim_text("— numeric · colour · data · theme, off one clock"), gap=1),
         row(numeric_panel(s.t), colour_panel(s.t), gap=1),
-        data_panel(s.t),
-        dim_text("q quit"),
+        row(data_panel(s.t), theme_panel(s.t), gap=1),
+        dim_text("t cycle theme · q quit"),
         gap=0,
     )
 

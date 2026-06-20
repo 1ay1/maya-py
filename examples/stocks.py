@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, spacer, grow, memo,
-    clamp, spark, fixed as _fw,
+    clamp, spark, fixed as _fw, Theme, ThemeSet,
 )
 
 
@@ -42,20 +42,21 @@ def randi(lo, hi):
     return random.randint(lo, hi)
 
 
-# Themes: name, accent, gain, loss, muted, border, dim, label
-THEMES = [
-    ("NEON", (0, 220, 255), (0, 255, 120), (255, 50, 80), (80, 80, 100), (35, 40, 55), (60, 60, 75), (140, 180, 220)),
-    ("AMBER", (255, 180, 0), (80, 255, 120), (255, 80, 60), (120, 100, 60), (50, 42, 25), (80, 70, 45), (200, 170, 100)),
-    ("VAPOR", (255, 100, 220), (100, 255, 200), (255, 80, 100), (100, 70, 120), (45, 25, 55), (70, 40, 80), (180, 140, 220)),
-    ("MATRIX", (0, 255, 65), (0, 255, 65), (255, 50, 50), (0, 100, 30), (0, 40, 15), (0, 60, 20), (0, 180, 60)),
-]
-TH_NAME, TH_ACCENT, TH_GAIN, TH_LOSS, TH_MUTED, TH_BORDER, TH_DIM, TH_LABEL = range(8)
-
-theme_idx = 0
+# Themes: named colour roles, cycled with 't'
+themes = ThemeSet(
+    Theme("NEON", accent=(0, 220, 255), gain=(0, 255, 120), loss=(255, 50, 80),
+          muted=(80, 80, 100), border=(35, 40, 55), dim=(60, 60, 75), label=(140, 180, 220)),
+    Theme("AMBER", accent=(255, 180, 0), gain=(80, 255, 120), loss=(255, 80, 60),
+          muted=(120, 100, 60), border=(50, 42, 25), dim=(80, 70, 45), label=(200, 170, 100)),
+    Theme("VAPOR", accent=(255, 100, 220), gain=(100, 255, 200), loss=(255, 80, 100),
+          muted=(100, 70, 120), border=(45, 25, 55), dim=(70, 40, 80), label=(180, 140, 220)),
+    Theme("MATRIX", accent=(0, 255, 65), gain=(0, 255, 65), loss=(255, 50, 50),
+          muted=(0, 100, 30), border=(0, 40, 15), dim=(0, 60, 20), label=(0, 180, 60)),
+)
 
 
 def TH():
-    return THEMES[theme_idx]
+    return themes.current
 
 
 SPARK_CHARS = "▁▂▃▄▅▆▇█"
@@ -254,15 +255,15 @@ def fmt_time(secs):
 
 def chg_color(v):
     if v > 0:
-        return TH()[TH_GAIN]
+        return TH().gain
     if v < 0:
-        return TH()[TH_LOSS]
-    return TH()[TH_MUTED]
+        return TH().loss
+    return TH().muted
 
 
 def chg_T(text, v):
     if v == 0:
-        return T(text).fg(TH()[TH_MUTED])
+        return T(text).fg(TH().muted)
     return T(text).fg(chg_color(v)).bold
 
 
@@ -277,7 +278,7 @@ def build_header():
     blocks = ["░", "▒", "▓", "█", "▓", "▒"]
     phase = s.frame % 24
     grad = "".join(blocks[(i + phase) % 6] for i in range(6))
-    accent = TH()[TH_ACCENT]
+    accent = TH().accent
     return row(
         T(spin).fg(accent),
         T("TERMINAL").fg(accent).bold,
@@ -288,8 +289,8 @@ def build_header():
         chg_T(f"{idx_val:.2f}", total_change),
         chg_T(fmt_change(idx_val, 5234.18), total_change),
         spacer(),
-        T(mkt).fg(TH()[TH_GAIN] if s.market_open else TH()[TH_LOSS]),
-        T("  " + TH()[TH_NAME]).fg(accent),
+        T(mkt).fg(TH().gain if s.market_open else TH().loss),
+        T("  " + TH().name).fg(accent),
         gap=1, pad=(0, 1),
     )
 
@@ -301,8 +302,8 @@ def build_portfolio_bar():
     pnl = total_val - total_prev
     best = max(s.stocks, key=lambda st: (st[S_PRICE] - st[S_PREV]) / st[S_PREV])
     worst = min(s.stocks, key=lambda st: (st[S_PRICE] - st[S_PREV]) / st[S_PREV])
-    gain = TH()[TH_GAIN]
-    loss = TH()[TH_LOSS]
+    gain = TH().gain
+    loss = TH().loss
     return row(
         T("Portfolio").dim,
         T(f"${fmt_price(total_val)}").bold,
@@ -319,9 +320,9 @@ def build_portfolio_bar():
 
 def build_watchlist():
     s = S
-    accent = TH()[TH_ACCENT]
-    label = TH()[TH_LABEL]
-    muted = TH()[TH_MUTED]
+    accent = TH().accent
+    label = TH().label
+    muted = TH().muted
     tabs = []
     for i, lab in enumerate(TF_LABELS):
         if i == s.timeframe:
@@ -353,10 +354,10 @@ def build_watchlist():
             chg_T(_fw(f"{pct:+.2f}%", 10), chg),
             T(_fw(fmt_mcap(st[S_MCAP]), 8)).fg(muted),
             T(_fw(fmt_vol(st[S_VOL]), 7)).fg(muted),
-            T(spark).fg(TH()[TH_GAIN] if chg >= 0 else TH()[TH_LOSS]),
+            T(spark).fg(TH().gain if chg >= 0 else TH().loss),
             gap=1,
         ))
-    return card(*rows, title="WATCHLIST", border_color=TH()[TH_BORDER], pad=(0, 1))
+    return card(*rows, title="WATCHLIST", border_color=TH().border, pad=(0, 1))
 
 
 def build_chart():
@@ -368,11 +369,11 @@ def build_chart():
     chart_h = 10
     chart_rows = braille_chart(data, chart_w, chart_h)
     chg = st[S_PRICE] - st[S_PREV]
-    chart_col = TH()[TH_GAIN] if chg >= 0 else TH()[TH_LOSS]
+    chart_col = TH().gain if chg >= 0 else TH().loss
     mn = min(data)
     mx = max(data)
-    accent = TH()[TH_ACCENT]
-    muted = TH()[TH_MUTED]
+    accent = TH().accent
+    muted = TH().muted
     title_row = row(
         T(st[S_SYM]).fg(accent).bold,
         T(" " + st[S_NAME]).fg(muted),
@@ -401,8 +402,8 @@ def build_chart():
     xaxis = row(T(_fw("", 8)), T("└" + "─" * chart_w).dim, gap=0)
     stats = row(
         T(_fw("Open", 5)).fg(muted), T(_fw(fmt_price(st[S_OPEN]), 10)).fg((200, 200, 210)),
-        T(_fw("High", 5)).fg(muted), T(_fw(fmt_price(st[S_HIGH]), 10)).fg(TH()[TH_GAIN]),
-        T(_fw("Low", 5)).fg(muted), T(_fw(fmt_price(st[S_LOW]), 10)).fg(TH()[TH_LOSS]),
+        T(_fw("High", 5)).fg(muted), T(_fw(fmt_price(st[S_HIGH]), 10)).fg(TH().gain),
+        T(_fw("Low", 5)).fg(muted), T(_fw(fmt_price(st[S_LOW]), 10)).fg(TH().loss),
         T(_fw("Vol", 5)).fg(muted), T(_fw(fmt_vol(st[S_VOL]), 7)).fg((200, 200, 210)),
         T(_fw("MCap", 5)).fg(muted), T(fmt_mcap(st[S_MCAP])).fg((200, 200, 210)),
         gap=1,
@@ -413,22 +414,22 @@ def build_chart():
     return card(
         title_row, marker_row, *body, xaxis, stats, vol_row,
         title=f"{st[S_SYM]} · {TF_LABELS[s.timeframe]}",
-        border_color=TH()[TH_BORDER], pad=(0, 1),
+        border_color=TH().border, pad=(0, 1),
     )
 
 
 def build_news():
     s = S
-    muted = TH()[TH_MUTED]
-    gain = TH()[TH_GAIN]
-    loss = TH()[TH_LOSS]
+    muted = TH().muted
+    gain = TH().gain
+    loss = TH().loss
     rows = []
     for source, headline, sent, age in s.news[:5]:
         icon = "▲" if sent > 0 else ("▼" if sent < 0 else "─")
         col_c = gain if sent > 0 else (loss if sent < 0 else muted)
         rows.append(row(
             T(_fw(icon, 2)).fg(col_c),
-            T(_fw(source, 11)).fg(TH()[TH_LABEL]),
+            T(_fw(source, 11)).fg(TH().label),
             T(headline).fg(muted),
             grow(T("")),
             T(fmt_time(age)).fg((50, 50, 60)),
@@ -436,13 +437,13 @@ def build_news():
         ))
     while len(rows) < 5:
         rows.append(T(""))
-    return card(*rows, title="NEWS", border_color=TH()[TH_BORDER], pad=(0, 1))
+    return card(*rows, title="NEWS", border_color=TH().border, pad=(0, 1))
 
 
 @memo
 def build_footer(_theme):
-    accent = TH()[TH_ACCENT]
-    muted = TH()[TH_MUTED]
+    accent = TH().accent
+    muted = TH().muted
 
     def key(k, kw, lab, lw):
         return [T(_fw(k, kw)).fg(accent).bold, T(_fw(lab, lw)).fg(muted)]
@@ -501,8 +502,7 @@ def _market(s):
 
 @app.on("t")
 def _theme(s):
-    global theme_idx
-    theme_idx = (theme_idx + 1) % 4
+    themes.next()
 
 
 @app.on("q", "esc")
@@ -523,7 +523,7 @@ def view(s):
         build_watchlist(),
         build_chart(),
         build_news(),
-        build_footer(theme_idx),
+        build_footer(themes.index),
         gap=0,
     )
 
