@@ -234,6 +234,10 @@ from .easy import (  # noqa: E402
     BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE,
     show, to_string, App, Pilot, animate,
     gradient_at, fmt_duration,
+    clamp, saturate, lerp, norm, remap, remapc, smoothstep,
+    wrap, sign, approach, oscillate, pulse, ease,
+    hsv, mix, lighten, darken, alpha,
+    spark, bar, fixed, human, percent,
     text_input, textarea,
 )
 
@@ -250,6 +254,10 @@ __all__ += [
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "Pilot", "animate",
     "gradient_at", "fmt_duration",
+    "clamp", "saturate", "lerp", "norm", "remap", "remapc", "smoothstep",
+    "wrap", "sign", "approach", "oscillate", "pulse", "ease",
+    "hsv", "mix", "lighten", "darken", "alpha",
+    "spark", "bar", "fixed", "human", "percent",
     "text_input", "textarea",
 ]
 

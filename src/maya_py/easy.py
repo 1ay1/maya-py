@@ -1541,6 +1541,270 @@ def animate(render_fn: Callable[[float], Any], *, fps: int = 30) -> None:
     _maya.live(lambda dt: _el(render_fn(dt)), fps=fps)
 
 
+# ── numeric DSL — the maths every live/visual app reinvents ──────────────────
+# 16 of the example apps defined their own `clamp`; many also rolled `lerp`,
+# `remap`, easing, sparkline strings. These are that vocabulary, once, fast,
+# and consistent. All are plain functions (no allocation, no boundary cross).
+import math as _math
+
+
+def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    """Constrain ``x`` to ``[lo, hi]`` (defaults to the unit interval)."""
+    return lo if x < lo else hi if x > hi else x
+
+
+def saturate(x: float) -> float:
+    """Clamp to ``[0, 1]`` — the shader ``saturate``."""
+    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    """Linear interpolation from ``a`` to ``b`` by ``t`` (``t`` unclamped)."""
+    return a + (b - a) * t
+
+
+def norm(x: float, lo: float, hi: float) -> float:
+    """Inverse-lerp: where ``x`` falls in ``[lo, hi]`` as a 0..1 fraction.
+    Returns 0 when the range is degenerate."""
+    d = hi - lo
+    return 0.0 if d == 0 else (x - lo) / d
+
+
+def remap(x: float, a: float, b: float, c: float, d: float) -> float:
+    """Map ``x`` from the range ``[a, b]`` into ``[c, d]`` (linear, unclamped).
+
+        remap(temp, 0, 100, 0, 1)        # 0..100 → 0..1
+    """
+    if b == a:
+        return c
+    return c + (d - c) * ((x - a) / (b - a))
+
+
+def remapc(x: float, a: float, b: float, c: float, d: float) -> float:
+    """:func:`remap`, clamped to the output range ``[c, d]``."""
+    lo, hi = (c, d) if c <= d else (d, c)
+    return clamp(remap(x, a, b, c, d), lo, hi)
+
+
+def smoothstep(t: float) -> float:
+    """Hermite ease at the edges of ``[0, 1]`` (the classic ``3t²-2t³``)."""
+    t = saturate(t)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def wrap(x: float, hi: float, lo: float = 0.0) -> float:
+    """Wrap ``x`` into ``[lo, hi)`` (toroidal) — angles, ring buffers, scroll."""
+    span = hi - lo
+    if span <= 0:
+        return lo
+    return lo + (x - lo) % span
+
+
+def sign(x: float) -> int:
+    """-1 / 0 / +1."""
+    return (x > 0) - (x < 0)
+
+
+def approach(cur: float, target: float, rate: float) -> float:
+    """Move ``cur`` toward ``target`` by at most ``rate`` (frame-rate-free
+    easing toward a goal without overshoot)."""
+    if cur < target:
+        return min(cur + rate, target)
+    return max(cur - rate, target)
+
+
+_TAU = 6.283185307179586
+
+
+def oscillate(t: float, lo: float = 0.0, hi: float = 1.0,
+              period: float = 1.0) -> float:
+    """A smooth sine oscillation between ``lo`` and ``hi`` with the given
+    ``period`` (seconds) — breathing UIs, pulsing cursors, idle bob."""
+    phase = _math.sin(t / period * _TAU)
+    return lo + (hi - lo) * (0.5 + 0.5 * phase)
+
+
+def pulse(t: float, period: float = 1.0, duty: float = 0.5) -> bool:
+    """A square wave: True for the first ``duty`` fraction of each ``period``
+    — blink a cursor, flash an alert."""
+    return (t % period) < period * duty
+
+
+_EASES = {
+    "linear": lambda t: t,
+    "in": lambda t: t * t,
+    "out": lambda t: 1 - (1 - t) * (1 - t),
+    "inout": lambda t: 2 * t * t if t < 0.5 else 1 - (-2 * t + 2) ** 2 / 2,
+    "smooth": smoothstep,
+    "cubic": lambda t: t * t * t,
+    "expo": lambda t: 0.0 if t <= 0 else 2 ** (10 * (t - 1)),
+    "bounce": lambda t: 1 - abs(_math.cos(t * _math.pi * 1.5)) * (1 - t),
+}
+
+
+def ease(t: float, kind: str = "smooth") -> float:
+    """Apply a named easing curve to ``t`` in ``[0, 1]``: linear / in / out /
+    inout / smooth / cubic / expo / bounce."""
+    fn = _EASES.get(kind)
+    if fn is None:
+        raise ValueError(f"unknown ease {kind!r}; valid: {', '.join(_EASES)}")
+    return fn(saturate(t))
+
+
+# ── colour DSL — beyond rgb_lerp ─────────────────────────────────────────────
+def hsv(h: float, s: float = 1.0, v: float = 1.0) -> tuple[int, int, int]:
+    """HSV → an ``(r, g, b)`` 0-255 tuple. ``h`` in turns (0..1, wraps), ``s``
+    and ``v`` in 0..1. The ergonomic way to sweep hues::
+
+        T("x").fg(hsv(t % 1.0))          # rainbow cycling on t
+    """
+    h = h % 1.0
+    s = saturate(s)
+    v = saturate(v)
+    i = int(h * 6)
+    f = h * 6 - i
+    p = v * (1 - s)
+    q = v * (1 - f * s)
+    u = v * (1 - (1 - f) * s)
+    r, g, b = ((v, u, p), (q, v, p), (p, v, u),
+               (p, q, v), (u, p, v), (v, p, q))[i % 6]
+    return (int(r * 255), int(g * 255), int(b * 255))
+
+
+def mix(a: Any, b: Any, t: float) -> tuple[int, int, int]:
+    """Blend two colours (any spec) at ``t`` → an ``(r, g, b)`` tuple.
+    Like :func:`rgb_lerp` but lives in the core DSL."""
+    pa, pb = _rgb_int(a), _rgb_int(b)
+    t = saturate(t)
+    ar, ag, ab = (pa >> 16) & 0xFF, (pa >> 8) & 0xFF, pa & 0xFF
+    br, bg, bb = (pb >> 16) & 0xFF, (pb >> 8) & 0xFF, pb & 0xFF
+    return (int(ar + (br - ar) * t), int(ag + (bg - ag) * t),
+            int(ab + (bb - ab) * t))
+
+
+def lighten(c: Any, amount: float = 0.2) -> tuple[int, int, int]:
+    """Blend ``c`` toward white by ``amount`` (0..1)."""
+    return mix(c, (255, 255, 255), amount)
+
+
+def darken(c: Any, amount: float = 0.2) -> tuple[int, int, int]:
+    """Blend ``c`` toward black by ``amount`` (0..1)."""
+    return mix(c, (0, 0, 0), amount)
+
+
+def alpha(fg: Any, bg: Any, a: float) -> tuple[int, int, int]:
+    """Composite ``fg`` over ``bg`` at opacity ``a`` (0..1) — fake translucency
+    for a terminal that has no real alpha."""
+    return mix(bg, fg, saturate(a))
+
+
+# ── data → text helpers ──────────────────────────────────────────────────────
+_SPARK = "▁▂▃▄▅▆▇█"
+
+
+def spark(data: Sequence[float], width: int = 0, *,
+         lo: float | None = None, hi: float | None = None) -> str:
+    """A unicode sparkline STRING from a sequence of numbers — the one every
+    dashboard reimplements. ``width`` 0 means "one cell per sample"; a smaller
+    width subsamples. ``lo`` / ``hi`` pin the value axis (else auto-scale).
+
+        T(spark(cpu_history, 20)).fg("lime")
+    """
+    n = len(data)
+    if n == 0:
+        return ""
+    mn = min(data) if lo is None else lo
+    mx = max(data) if hi is None else hi
+    rng = mx - mn
+    if rng < 1e-9:
+        rng = 1.0
+    w = n if width <= 0 else width
+    step = max(1, n // w) if w < n else 1
+    cnt = min(w, (n + step - 1) // step)
+    sc = _SPARK
+    scale = 7.0 / rng
+    out = []
+    ap = out.append
+    for i in range(cnt):
+        idx = int((data[i * step] - mn) * scale)
+        ap(sc[0 if idx < 0 else 7 if idx > 7 else idx])
+    return "".join(out)
+
+
+_BARC = " ▏▎▍▌▋▊▉█"
+
+
+def bar(value: float, width: int = 10, *, lo: float = 0.0,
+        hi: float = 1.0, fill: str = "█", track: str = "░") -> str:
+    """A horizontal fill-bar STRING ``width`` cells wide, filled to where
+    ``value`` falls in ``[lo, hi]``. With the default block glyphs it renders a
+    sub-cell-precise gradient using partial-block characters.
+
+        T(bar(0.62, 20)).fg("sky")
+    """
+    if width <= 0:
+        return ""
+    frac = saturate(norm(value, lo, hi))
+    if fill == "█" and track == "░":
+        exact = frac * width
+        full = int(exact)
+        rem = exact - full
+        out = "█" * full
+        if full < width:
+            out += _BARC[int(rem * 8)]
+            out += "░" * (width - full - 1)
+        return out[:width]
+    full = int(round(frac * width))
+    return (fill * full + track * (width - full))[:width]
+
+
+def fixed(text: Any, width: int, align: str = "left") -> str:
+    """Pad / clip ``text`` to exactly ``width`` display cells — the fixed-cell
+    column helper for aligning table-ish rows byte-for-byte. ``align``:
+    left / right / center.
+
+        row(T(fixed(sym, 6)).fg("sky"), T(fixed(price, 9, "right")))
+    """
+    text = str(text)
+    n = len(text)
+    if n > width:
+        return text[:width]
+    pad = width - n
+    if align == "right":
+        return " " * pad + text
+    if align == "center":
+        left = pad // 2
+        return " " * left + text + " " * (pad - left)
+    return text + " " * pad
+
+
+def human(n: float, *, prec: int = 1) -> str:
+    """Compact number formatting with a magnitude suffix: 1234 → ``1.2k``,
+    5_600_000 → ``5.6M``. Great for token counts, bytes, request rates."""
+    n = float(n)
+    neg = "-" if n < 0 else ""
+    n = abs(n)
+    for suffix, scale in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("k", 1e3)):
+        if n >= scale:
+            return f"{neg}{n / scale:.{prec}f}{suffix}"
+    if n == int(n):
+        return f"{neg}{int(n)}"
+    return f"{neg}{n:.{prec}f}"
+
+
+def percent(value: float, *, prec: int = 0, sign: bool = False) -> str:
+    """Format a 0..1 fraction as a percent string. ``sign=True`` prefixes ``+``
+    on positive values (for deltas).
+
+        percent(0.625)             # "62%"
+        percent(0.034, sign=True)  # "+3%"
+    """
+    p = value * 100
+    s = "+" if sign and p > 0 else ""
+    return f"{s}{p:.{prec}f}%"
+
+
+
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
@@ -1549,5 +1813,12 @@ __all__ = [
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
     "show", "to_string", "App", "Pilot", "animate",
     "gradient_at", "fmt_duration",
+    # numeric / animation
+    "clamp", "saturate", "lerp", "norm", "remap", "remapc", "smoothstep",
+    "wrap", "sign", "approach", "oscillate", "pulse", "ease",
+    # colour
+    "hsv", "mix", "lighten", "darken", "alpha",
+    # data → text
+    "spark", "bar", "fixed", "human", "percent",
     "text_input", "textarea",
 ]

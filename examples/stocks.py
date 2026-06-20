@@ -23,16 +23,15 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer, grow, memo  # noqa: E402
+from maya_py import (  # noqa: E402
+    App, T, col, row, card, spacer, grow, memo,
+    clamp, spark, fixed as _fw,
+)
 
 
-def _fw(text, width):
-    """Left-justify (and clip) a string to a fixed display width, mirroring
-    maya's ``| clip | w_<N>`` fixed-cell columns so rows align byte-for-byte."""
-    text = str(text)
-    if len(text) > width:
-        return text[:width]
-    return text + " " * (width - len(text))
+def spark_line(data, width):
+    """Thin shim onto the DSL ``spark`` (kept for call-site readability)."""
+    return spark(data, width)
 
 
 def randf(lo, hi):
@@ -41,10 +40,6 @@ def randf(lo, hi):
 
 def randi(lo, hi):
     return random.randint(lo, hi)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 # Themes: name, accent, gain, loss, muted, border, dim, label
@@ -64,27 +59,6 @@ def TH():
 
 
 SPARK_CHARS = "▁▂▃▄▅▆▇█"
-
-
-def spark_line(data, width):
-    if not data:
-        return ""
-    mn = min(data)
-    mx = max(data)
-    rng = mx - mn
-    if rng < 0.001:
-        rng = 1.0
-    step = max(1, len(data) // width)
-    n = len(data)
-    scale = 7.0 / rng
-    sc = SPARK_CHARS
-    count = min(width, (n + step - 1) // step)
-    out = []
-    ap = out.append
-    for i in range(count):
-        idx = int((data[i * step] - mn) * scale)
-        ap(sc[0 if idx < 0 else 7 if idx > 7 else idx])
-    return "".join(out)
 
 
 # Braille chart: 2x4 dots per cell. dot bit layout matches the C++ original.
