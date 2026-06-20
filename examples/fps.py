@@ -1240,6 +1240,57 @@ def _tick(s, dt):
     tick(1.0 / 30.0)
 
 
+_FPS_BAR = ("FPS │ [wasd] move │ [,/.] turn │ [space] shoot │ "
+            "[m] map │ [q] quit")
+_FPS_BG = (15, 12, 18)
+
+
+def _status_bar(w, h):
+    # Reproduce the C++ canvas status bar: dim help at col 1 with "FPS"
+    # accented, then ♥health / ▪ammo overlaid at w/2-12 and w/2-4, and
+    # K:kills ★score right-aligned — all overwriting the underlying help.
+    w = max(1, min(int(w), 400))
+    chars = [" "] * w
+    # color class per cell: 0 dim, 1 accent(gold), 2 health(green), 3 ammo(blue)
+    cls = [0] * w
+
+    def put(text, start, c):
+        for i, ch in enumerate(text):
+            x = start + i
+            if 0 <= x < w:
+                chars[x] = ch
+                cls[x] = c
+
+    put(_FPS_BAR, 1, 0)
+    put("FPS", 1, 1)
+    health = f"\u2665{G.health}"
+    if w // 2 - 12 > 0:
+        put(health, w // 2 - 12, 2)
+    ammo = f"\u25aa{G.ammo}"
+    if w // 2 - 4 > 0:
+        put(ammo, w // 2 - 4, 3)
+    right = f"K:{G.kills}  \u2605{G.score}"
+    if w > len(right) + 2:
+        put(right, w - len(right) - 1, 1)
+
+    _COL = {0: (80, 75, 90), 1: (220, 180, 70), 2: (70, 210, 90),
+            3: (90, 180, 230)}
+    cells = []
+    i = 0
+    while i < w:
+        c = cls[i]
+        j = i
+        while j < w and cls[j] == c:
+            j += 1
+        text = "".join(chars[i:j])
+        if c == 0:
+            cells.append((text, _COL[0], _FPS_BG))
+        else:
+            cells.append((text, _COL[c], _FPS_BG, 1))
+        i = j
+    return row(*cells, gap=0)
+
+
 @app.view
 def view(s):
     if G.dead or G.won:
@@ -1253,21 +1304,9 @@ def view(s):
         )
         return col(component(render_field, grow=1), over, gap=0)
 
-    hud = row(
-        T("FPS").fg((220, 180, 70)).bold,
-        T(f"  \u2665{G.health}").fg((70, 210, 90)).bold,
-        T(f"  \u25aa{G.ammo}").fg((90, 180, 230)).bold,
-        T(f"   K:{G.kills}").fg((100, 95, 110)),
-        T(f"  \u2605{G.score}").fg((220, 180, 70)).bold,
-        gap=0,
-    )
-    help_line = T(
-        "[wasd] move  [,/.] turn  [space] shoot  [m] map  [r] restart  [q] quit"
-    ).fg((80, 75, 90))
     return col(
         component(render_field, grow=1),
-        hud,
-        help_line,
+        component(_status_bar, height=1),
         gap=0,
     )
 

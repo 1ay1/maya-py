@@ -1,159 +1,301 @@
-"""doom_fire.py — the classic Doom PSX fire effect, half-block rendered.
+"""doom_fire.py — the classic Doom PSX fire effect (faithful port of doom_fire.cpp).
 
-The fire-propagation algorithm: a hot row of "embers" along the bottom, each
-pixel cooled and nudged sideways as it rises. Three palettes, adjustable wind
-and intensity. The field resizes to fill the whole terminal — grow the window
-and the fire grows with it.
+A hot source row of MAX_HEAT embers along the bottom; each pixel is cooled by a
+random decay and nudged sideways by wind as it propagates upward. Ember
+particles spawn from the high-heat core and drift up with buoyancy. Three
+palettes (CLASSIC / INFERNO / TOXIC), wind ±5, intensity 1-5. The field fills
+the whole terminal (last row reserved for the status bar) — no border, exactly
+like the C++ original.
 
-  space pause · ←/→ wind · +/- intensity · 1/2/3 palette · q/esc quit
+  q/Esc quit · space toggle source · ←/→ wind · +/- heat · 1/2/3 palette
 
     PYTHONPATH=src python examples/doom_fire.py
 """
 
-import sys
 import os
 import random
+import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import maya_py as maya
-from maya_py import App, col, row, card, b, dim_text, component
-from maya_py import halfblock
+from maya_py import App, T, col, row, component, halfblock  # noqa: E402
 
-LEVELS = 37              # fire heat levels (0 = cold)
+MAX_HEAT = 48
+NUM_PALETTES = 3
 
-
-def _classic(h):
-    u = h / LEVELS
-    if u < 0.33:
-        return (int(u * 3 * 180), 0, 0)
-    if u < 0.66:
-        v = (u - 0.33) * 3
-        return (180 + int(v * 75), int(v * 100), 0)
-    v = (u - 0.66) * 3
-    return (255, 100 + int(v * 155), int(v * 255 * 0.4))
+_rng = random.Random(42)
 
 
-def _inferno(h):
-    u = h / LEVELS
-    return (int(40 + u * 120), int(u * u * 60), int(120 + u * 135))
+def _clamp(v, lo, hi):
+    return lo if v < lo else hi if v > hi else v
 
 
-def _toxic(h):
-    u = h / LEVELS
-    return (int(u * u * 120), int(40 + u * 215), int(u * 60))
+# ── Palettes (heat 0..MAX_HEAT → (r,g,b)), byte-faithful to doom_fire.cpp ─────
+
+def classic_color(h):
+    h = _clamp(h, 0, MAX_HEAT)
+    t = h / MAX_HEAT
+    if t < 0.15:
+        u = t / 0.15
+        return (int(u * 180), 0, 0)
+    if t < 0.4:
+        u = (t - 0.15) / 0.25
+        return (int(180 + u * 75), int(u * 100), 0)
+    if t < 0.7:
+        u = (t - 0.4) / 0.3
+        return (255, int(100 + u * 155), 0)
+    u = (t - 0.7) / 0.3
+    return (255, 255, int(u * 255))
 
 
-PALETTES = [("classic", _classic), ("inferno", _inferno), ("toxic", _toxic)]
+def inferno_color(h):
+    h = _clamp(h, 0, MAX_HEAT)
+    t = h / MAX_HEAT
+    if t < 0.2:
+        u = t / 0.2
+        return (int(u * 60), 0, int(u * 100))
+    if t < 0.45:
+        u = (t - 0.2) / 0.25
+        return (int(60 + u * 160), 0, int(100 + u * 60))
+    if t < 0.7:
+        u = (t - 0.45) / 0.25
+        return (int(220 + u * 35), int(u * 140), int(160 - u * 160))
+    u = (t - 0.7) / 0.3
+    return (255, int(140 + u * 115), int(u * 200))
 
-app = App("doom_fire", inline=True, fps=30)
-# fire/pw/ph are (re)allocated on first paint and on any resize.
-app.state(fire=[], pw=0, ph=0, paused=False, wind=0, intensity=LEVELS, pal=0)
+
+def toxic_color(h):
+    h = _clamp(h, 0, MAX_HEAT)
+    t = h / MAX_HEAT
+    if t < 0.2:
+        u = t / 0.2
+        return (0, int(u * 60), 0)
+    if t < 0.5:
+        u = (t - 0.2) / 0.3
+        return (0, int(60 + u * 195), int(u * 30))
+    if t < 0.75:
+        u = (t - 0.5) / 0.25
+        return (int(u * 200), 255, int(30 - u * 30))
+    u = (t - 0.75) / 0.25
+    return (int(200 + u * 55), 255, int(u * 255))
 
 
-def _ensure(s, w, h):
-    if w != s.pw or h != s.ph:
-        s.pw, s.ph = w, h
-        s.fire = [0] * (w * h)
-        _seed(s)
+PALETTES = [("CLASSIC", classic_color), ("INFERNO", inferno_color),
+            ("TOXIC", toxic_color)]
 
 
-def _seed(s):
-    if not s.fire:
-        return
-    base = (s.ph - 1) * s.pw
-    for x in range(s.pw):
-        s.fire[base + x] = s.intensity
+# ── State ────────────────────────────────────────────────────────────────────
+
+app = App("doom_fire", inline=False, fps=60)
+app.state(fire=[], w=0, h=0, source=True, wind=0, palette=0, intensity=3,
+          embers=[])  # ember: [x, y, vx, vy, heat, life]
+
+
+def rebuild(s, w, h):
+    s.w, s.h = w, h
+    fire_h = h * 2
+    s.fire = [0] * (w * fire_h)
+    if s.source:
+        base = (fire_h - 1) * w
+        for x in range(w):
+            s.fire[base + x] = MAX_HEAT
 
 
 def step(s):
-    if not s.fire:
+    w, h = s.w, s.h
+    if w == 0 or h == 0:
         return
-    pw, ph, f = s.pw, s.ph, s.fire
-    for x in range(pw):
-        for y in range(1, ph):
-            heat = f[y * pw + x]
-            decay = random.randint(0, 2)
-            nx = x + s.wind + (random.randint(0, 2) - 1)
-            nx = 0 if nx < 0 else pw - 1 if nx >= pw else nx
-            f[(y - 1) * pw + nx] = heat - decay if heat > decay else 0
-    base = (ph - 1) * pw
-    for x in range(pw):
-        f[base + x] = s.intensity
+    fire_h = h * 2
+    f = s.fire
+    aw = abs(s.wind)
+    decay_hi = 6 - s.intensity
+    ri = _rng.randint
+    # Propagate upward.
+    for y in range(fire_h - 1):
+        rowbase = y * w
+        srcbase = (y + 1) * w
+        for x in range(w):
+            if s.wind == 0:
+                wind_offset = 0
+            elif s.wind > 0:
+                wind_offset = ri(0, aw)
+            else:
+                wind_offset = -ri(0, aw)
+            src_x = _clamp(x + wind_offset + ri(-1, 1), 0, w - 1)
+            decay = ri(0, decay_hi)
+            heat = f[srcbase + src_x] - decay
+            f[rowbase + x] = heat if heat > 0 else 0
+    # Maintain the source row.
+    if s.source:
+        base = (fire_h - 1) * w
+        for x in range(w):
+            f[base + x] = MAX_HEAT
+    # Spawn ember particles from the high-heat core.
+    if s.source and _rng.randint(0, 2) == 0:
+        ex = _rng.randrange(w)
+        ey_row = fire_h // 3 + _rng.randrange(fire_h // 3)
+        heat = f[ey_row * w + ex]
+        if heat > MAX_HEAT // 2:
+            vx = (_rng.randrange(100) - 50) / 200.0 + s.wind * 0.05
+            vy = -(_rng.randrange(100) + 30) / 200.0
+            s.embers.append([float(ex), ey_row / 2.0, vx, vy, heat, 1.0])
+    # Update embers (buoyancy + cooling + fade).
+    for e in s.embers:
+        e[0] += e[2]
+        e[1] += e[3]
+        e[3] -= 0.003
+        e[5] -= 0.02
+        e[4] = int(e[4] * 0.97)
+    s.embers = [e for e in s.embers if e[5] > 0.0 and e[4] > 1]
 
+
+# ── Events ─────────────────────────────────────────────────────────────────
 
 @app.on("space")
-def _pause(s): s.paused = not s.paused
-
-
-@app.on("left")
-def _wl(s): s.wind = max(-2, s.wind - 1)
+def _toggle(s):
+    s.source = not s.source
+    if s.w and s.h:
+        fire_h = s.h * 2
+        base = (fire_h - 1) * s.w
+        v = MAX_HEAT if s.source else 0
+        for x in range(s.w):
+            s.fire[base + x] = v
 
 
 @app.on("right")
-def _wr(s): s.wind = min(2, s.wind + 1)
+def _wr(s):
+    s.wind = min(s.wind + 1, 5)
+
+
+@app.on("left")
+def _wl(s):
+    s.wind = max(s.wind - 1, -5)
 
 
 @app.on("+", "=")
-def _up(s): s.intensity = min(LEVELS, s.intensity + 2); _seed(s)
+def _up(s):
+    s.intensity = min(s.intensity + 1, 5)
 
 
 @app.on("-")
-def _dn(s): s.intensity = max(4, s.intensity - 2); _seed(s)
+def _dn(s):
+    s.intensity = max(s.intensity - 1, 1)
 
 
 @app.on("1")
-def _p1(s): s.pal = 0
+def _p1(s):
+    s.palette = 0
 
 
 @app.on("2")
-def _p2(s): s.pal = 1
+def _p2(s):
+    s.palette = 1
 
 
 @app.on("3")
-def _p3(s): s.pal = 2
+def _p3(s):
+    s.palette = 2
 
 
 @app.on("q", "esc")
-def _quit(s): app.stop()
+def _quit(s):
+    app.stop()
 
 
-def flame(s):
-    def draw(w, h):
-        # w cells wide, h cells tall → w pixels × 2h pixel rows.
-        # Guard against an unbounded height (headless render_to_string with
-        # no fixed height hands a huge number); the live App passes the real
-        # terminal height.
-        h = max(1, min(h, 60))
-        ph = h * 2
-        _ensure(s, w, ph)
-        if not s.paused:
-            step(s)
-        fn = PALETTES[s.pal][1]
-        grid = []
-        for y in range(s.ph):
-            crow = []
-            base = y * s.pw
-            for x in range(s.pw):
-                hv = s.fire[base + x]
-                crow.append(fn(hv) if hv > 0 else None)
-            grid.append(crow)
-        return halfblock(grid)
-    return component(draw, grow=1)
+# ── Render ───────────────────────────────────────────────────────────────────
+
+def _field(w, h):
+    # Fullscreen field minus the status bar row. Guard against the fullscreen
+    # layout sentinel and the per-frame cost: cap to sane terminal bounds.
+    w = max(1, min(w, 400))
+    canvas_h = max(1, min(h, 200))
+    s = app.s
+    if w != s.w or canvas_h != s.h:
+        rebuild(s, w, canvas_h)
+    step(s)
+    color_fn = PALETTES[s.palette][1]
+    f = s.fire
+    fw = s.w
+    grid = [[None] * fw for _ in range(canvas_h * 2)]
+    for cy in range(canvas_h):
+        top = grid[cy * 2]
+        bot = grid[cy * 2 + 1]
+        base_t = (cy * 2) * fw
+        base_b = (cy * 2 + 1) * fw
+        for cx in range(fw):
+            ht = f[base_t + cx]
+            hb = f[base_b + cx]
+            top[cx] = color_fn(ht) if ht > 0 else (0, 0, 0)
+            bot[cx] = color_fn(hb) if hb > 0 else (0, 0, 0)
+    # Embers on top (a bright dot in the upper pixel of its cell).
+    for e in s.embers:
+        ex = int(e[0])
+        ey = int(e[1])
+        if 0 <= ex < fw and 0 <= ey < canvas_h:
+            grid[ey * 2][ex] = color_fn(e[4])
+    return halfblock(grid)
+
+
+_BAR = ("DOOM FIRE \u2502 [1-3] palette \u2502 [+/-] heat \u2502 "
+        "[\u2190\u2192] wind \u2502 [space] toggle \u2502 [q] quit")
+_BAR_BG = (20, 20, 20)
+
+
+def _status(w, h):
+    s = app.s
+    name = PALETTES[s.palette][0]
+    right = f"{name} h:{s.intensity} w:{s.wind:+d} e:{len(s.embers)}"
+    w = max(1, min(int(w), 400))
+    # Compose a fixed-width line of (char, accent?) the way the C++ canvas does:
+    # write the dim bar at col 1, accent "DOOM FIRE" over it, then overlay the
+    # accented right stats at (w - len(right) - 1) — the bar tail is overwritten.
+    bar = _BAR
+    chars = [" "] * w
+    accent = [False] * w  # True => accent colour (orange+bold), else dim
+    # dim bar starting at column 1
+    for i, ch in enumerate(bar):
+        c = 1 + i
+        if c < w:
+            chars[c] = ch
+    # accent "DOOM FIRE"
+    for i, ch in enumerate("DOOM FIRE"):
+        c = 1 + i
+        if c < w:
+            chars[c] = ch
+            accent[c] = True
+    # right stats overlay
+    rlen = len(right)
+    if w > rlen + 2:
+        start = w - rlen - 1
+        for i, ch in enumerate(right):
+            c = start + i
+            if 0 <= c < w:
+                chars[c] = ch
+                accent[c] = True
+    # Merge into runs of (text, accent) to keep the segment count low.
+    cells = []
+    i = 0
+    while i < w:
+        a = accent[i]
+        j = i
+        while j < w and accent[j] == a:
+            j += 1
+        text = "".join(chars[i:j])
+        if a:
+            cells.append((text, (255, 140, 40), _BAR_BG, 1))
+        else:
+            cells.append((text, (100, 100, 110), _BAR_BG))
+        i = j
+    return row(*cells, gap=0)
 
 
 @app.view
 def view(s):
-    name = PALETTES[s.pal][0]
-    return card(
-        row(b("🔥 doom fire").fg((255, 140, 40)),
-            dim_text(f"{name} · wind {s.wind:+d} · "
-                     f"{'paused' if s.paused else 'burning'}"),
-            justify="between"),
-        flame(s),
-        dim_text("space pause · ←→ wind · +/- intensity · 1/2/3 palette · q quit"),
-        title="fire", gap=0, pad=0,
+    return col(
+        component(_field, grow=1),
+        component(_status, height=1),
+        gap=0,
     )
 
 
