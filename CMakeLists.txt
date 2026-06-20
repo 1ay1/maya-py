@@ -180,7 +180,7 @@ else()
     # Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        29bd2e0d45bd8df199565a1597042799f7b45bf4)
+        GIT_TAG        a1ebb0fe12518e51553949ad7e1a9083c5a1c07f)
     FetchContent_MakeAvailable(maya)
 endif()
 
