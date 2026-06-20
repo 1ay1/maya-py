@@ -145,7 +145,7 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
   `popup`, `overlay`, `user_message`, `assistant_message`, `activity_bar`,
   `file_changes`, `api_usage`, `cost_tracker`, `phase_accent`,
   `checkpoint_divider`, `turn_divider`, `streaming_cursor`,
-  `token_stream_sparkline`
+  `token_stream_sparkline`, `search_result`, `html`
 - **graphics**: `image` (1-bit braille), `canvas` (color half-block grid),
   `Canvas` (imperative drawing surface: `set_pixel`/`line`/`rect`/`fill`)
 

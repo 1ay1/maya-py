@@ -21,7 +21,7 @@ from maya_py import (
     git_graph, git_status, shortcut_row, plan_view,
     activity_bar, file_changes, api_usage, cost_tracker,
     phase_accent, checkpoint_divider, turn_divider, streaming_cursor,
-    token_stream_sparkline,
+    token_stream_sparkline, html, search_result,
 )
 
 
@@ -124,6 +124,13 @@ def gallery():
                  active=True, max_lines=3),
         inline_diff("const x = 1", "const x = 42", label="app.ts"),
         markdown("### Notes\n- maya renders **GFM** inline\n- `code` too"),
+        html("<b>bold</b>, <i>italic</i>, <code>html()</code> too"),
+        search_result(
+            [("src/main.cpp", [(12, "// TODO: fix this"),
+                               (45, "// TODO: refactor")]),
+             ("src/utils.cpp", [(8, "// TODO: optimize")])],
+            kind="grep", pattern="TODO", status="done", elapsed=0.4,
+        ),
         toast([("Build succeeded", "success"), ("3 warnings", "warning")]),
         divider("command palette", color="slate"),
         picker(

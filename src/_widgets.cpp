@@ -95,6 +95,8 @@
 #include <maya/widget/turn_divider.hpp>
 #include <maya/widget/streaming_cursor.hpp>
 #include <maya/widget/token_stream_sparkline.hpp>
+#include <maya/widget/html.hpp>
+#include <maya/widget/search_result.hpp>
 
 #include "_pyevent.hpp"
 
@@ -629,6 +631,16 @@ void init_widgets(py::module_& m) {
         .value("Bar", CursorStyle::Bar)
         .value("Pulse", CursorStyle::Pulse);
 
+    py::enum_<SearchKind>(w, "SearchKind")
+        .value("Grep", SearchKind::Grep)
+        .value("Glob", SearchKind::Glob);
+
+    py::enum_<SearchStatus>(w, "SearchStatus")
+        .value("Pending", SearchStatus::Pending)
+        .value("Searching", SearchStatus::Searching)
+        .value("Done", SearchStatus::Done)
+        .value("Failed", SearchStatus::Failed);
+
     // ── sparkline(data, label, color, show_min_max, show_last) ──────────
     w.def("sparkline",
           [](std::vector<float> data, std::string label, std::optional<Color> color,
@@ -1109,6 +1121,86 @@ void init_widgets(py::module_& m) {
           py::arg("rate") = 0.0f, py::arg("total") = 0,
           py::arg("history") = std::vector<float>{},
           py::arg("color") = std::nullopt, py::arg("live") = false);
+
+    // ── html(source, theme) ────────────────────────────────────────
+    // Render a subset of HTML to an Element (same engine the markdown widget
+    // uses for inline tags). theme: "dark"|"light"|"dark_ansi"|"light_ansi".
+    w.def("html",
+          [](std::string source, const std::string& theme_name) {
+              Theme th = theme::dark;
+              if (theme_name == "light") th = theme::light;
+              else if (theme_name == "dark_ansi") th = theme::dark_ansi;
+              else if (theme_name == "light_ansi") th = theme::light_ansi;
+              return static_cast<Element>(maya::html::Html{std::move(source), th});
+          },
+          py::arg("source"), py::arg("theme") = "dark");
+
+    // ── search_result(groups, kind, pattern, status, elapsed, expanded) ────
+    // A Grep/Glob results panel. groups: list of dicts/tuples
+    // (file_path, matches) where each match is (line, content) or a string.
+    // kind: a SearchKind enum or "grep"|"glob". status: a SearchStatus enum or
+    // "pending"|"searching"|"done"|"failed".
+    w.def("search_result",
+          [](const py::list& groups, const py::object& kind, std::string pattern,
+             const py::object& status, float elapsed, bool expanded,
+             int max_matches_per_file) {
+              SearchKind k = SearchKind::Grep;
+              if (py::isinstance<py::str>(kind)) {
+                  if (kind.cast<std::string>() == "glob") k = SearchKind::Glob;
+              } else if (!kind.is_none()) {
+                  k = kind.cast<SearchKind>();
+              }
+              SearchResult sr{k, std::move(pattern)};
+              if (py::isinstance<py::str>(status)) {
+                  std::string s = status.cast<std::string>();
+                  if (s == "searching") sr.set_status(SearchStatus::Searching);
+                  else if (s == "done") sr.set_status(SearchStatus::Done);
+                  else if (s == "failed") sr.set_status(SearchStatus::Failed);
+              } else if (!status.is_none()) {
+                  sr.set_status(status.cast<SearchStatus>());
+              }
+              sr.set_elapsed(elapsed);
+              sr.set_expanded(expanded);
+              if (max_matches_per_file > 0)
+                  sr.set_max_matches_per_file(max_matches_per_file);
+              auto parse_matches = [](const py::handle& src) {
+                  std::vector<SearchMatch> out;
+                  for (const auto& m : py::cast<py::list>(src)) {
+                      SearchMatch sm{};
+                      if (py::isinstance<py::str>(m)) {
+                          sm.content = m.cast<std::string>();
+                      } else if (py::isinstance<py::dict>(m)) {
+                          auto d = m.cast<py::dict>();
+                          if (d.contains("line"))    sm.line = d["line"].cast<int>();
+                          if (d.contains("content")) sm.content = d["content"].cast<std::string>();
+                      } else {
+                          auto t = m.cast<py::sequence>();
+                          sm.line = t[0].cast<int>();
+                          if (py::len(t) > 1) sm.content = t[1].cast<std::string>();
+                      }
+                      out.push_back(std::move(sm));
+                  }
+                  return out;
+              };
+              for (const auto& g : groups) {
+                  SearchFileGroup grp{};
+                  if (py::isinstance<py::dict>(g)) {
+                      auto d = g.cast<py::dict>();
+                      if (d.contains("file_path")) grp.file_path = d["file_path"].cast<std::string>();
+                      if (d.contains("matches"))   grp.matches = parse_matches(d["matches"]);
+                  } else {
+                      auto t = g.cast<py::sequence>();
+                      grp.file_path = t[0].cast<std::string>();
+                      if (py::len(t) > 1) grp.matches = parse_matches(t[1]);
+                  }
+                  sr.add_group(std::move(grp));
+              }
+              return static_cast<Element>(sr);
+          },
+          py::arg("groups"), py::arg("kind") = py::none(),
+          py::arg("pattern") = "", py::arg("status") = py::none(),
+          py::arg("elapsed") = 0.0f, py::arg("expanded") = true,
+          py::arg("max_matches_per_file") = 0);
 
     // ── bar_chart(bars, max_value, default_color) ───────────────────────
     // bars: list of (label, value) or (label, value, color) tuples.

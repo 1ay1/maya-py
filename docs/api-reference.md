@@ -138,7 +138,7 @@ tuple / `Color` everywhere.
 
 **Text & labels:** `badge` `divider` `spinner` `callout` `status_banner`
 `breadcrumb` `tabs` `gradient` `link` `title_chip` `model_badge` `file_ref`
-`markdown`
+`markdown` `html`
 
 **Structure & nav:** `table` `tree` `list_view` `menu` `disclosure` `key_help`
 `calendar` `timeline` `picker` `popup` `overlay`
@@ -148,13 +148,14 @@ tuple / `Color` everywhere.
 `git_graph` `git_status` `user_message` `assistant_message` `system_banner`
 `shortcut_row` `activity_bar` `file_changes` `api_usage` `cost_tracker`
 `phase_accent` `checkpoint_divider` `turn_divider` `streaming_cursor`
-`token_stream_sparkline`
+`token_stream_sparkline` `search_result`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
 `ToastLevel` `TodoItemStatus` `TodoListStatus` `PopupStyle` `BannerLevel`
 `ToolCallStatus` `ToolCallKind` `FileChangeKind` `TurnRole` `CursorStyle`
+`SearchKind` `SearchStatus`
 
 ## Scrolling
 

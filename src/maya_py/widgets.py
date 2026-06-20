@@ -40,6 +40,8 @@ ToolCallKind = _W.ToolCallKind
 FileChangeKind = _W.FileChangeKind
 TurnRole = _W.TurnRole
 CursorStyle = _W.CursorStyle
+SearchKind = _W.SearchKind
+SearchStatus = _W.SearchStatus
 
 _ALIGN = {"left": ColumnAlign.Left, "center": ColumnAlign.Center,
           "right": ColumnAlign.Right}
@@ -336,6 +338,30 @@ def token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
     return _W.token_stream_sparkline(float(rate), int(total),
                                      [float(x) for x in history],
                                      _col(color), bool(live))
+
+
+def html(source: str, *, theme: str = "dark") -> Element:
+    """Render a subset of HTML to an Element — the same engine maya's markdown
+    widget uses for inline tags. ``theme``:
+    ``dark``/``light``/``dark_ansi``/``light_ansi``."""
+    return _W.html(str(source), str(theme))
+
+
+def search_result(groups: Sequence[Any], *, kind: Any = None, pattern: str = "",
+                  status: Any = None, elapsed: float = 0.0,
+                  expanded: bool = True, max_matches_per_file: int = 0) -> Element:
+    """A Grep/Glob search-results panel (bordered file groups + matches).
+
+    ``groups`` is a list of dicts ``{file_path, matches}`` or tuples
+    ``(file_path, matches)``; each match is ``(line, content)``, a string, or
+    ``{line, content}``. ``kind`` is grep/glob (or a ``SearchKind``); ``status``
+    is pending/searching/done/failed (or a ``SearchStatus``).
+    """
+    out = []
+    for g in groups:
+        out.append(g if isinstance(g, dict) else tuple(g))
+    return _W.search_result(out, kind, str(pattern), status, float(elapsed),
+                            bool(expanded), int(max_matches_per_file))
 
 
 def bar_chart(bars: Sequence[Any], *, max_value: float = 0.0,
@@ -1286,9 +1312,9 @@ __all__ = [
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "activity_bar", "file_changes", "api_usage", "cost_tracker",
     "phase_accent", "checkpoint_divider", "turn_divider",
-    "streaming_cursor", "token_stream_sparkline",
+    "streaming_cursor", "token_stream_sparkline", "html", "search_result",
     "error_block", "modal", "log_viewer", "command_palette", "activity_indicator",
-    "FileChangeKind", "TurnRole", "CursorStyle",
+    "FileChangeKind", "TurnRole", "CursorStyle", "SearchKind", "SearchStatus",
     "bar_chart", "gradient", "heatmap",
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
