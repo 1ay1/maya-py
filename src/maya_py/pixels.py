@@ -4,25 +4,43 @@ Each terminal cell shows TWO vertical pixels via the upper-half-block glyph
 ``▀``: its foreground paints the top pixel, its background the bottom pixel.
 That doubles vertical resolution — a 64×40 pixel field fits in 64×20 cells.
 
+There is exactly ONE rendering path: the native ``_maya._widgets.halfblock``
+C++ builder. It takes a FLAT buffer of packed ``0xRRGGBB`` ints (one per pixel,
+``-1`` = transparent → bg) and run-merges + builds the whole Element tree in
+C++. Python does no per-pixel work.
+
     from maya_py import halfblock
     grid = [[(r, g, b) or None for x in range(W)] for y in range(H)]  # H even
-    element = halfblock(grid)            # rows of run-merged segments
+    element = halfblock(grid)            # built entirely in C++
+
+For the hot loop, use :class:`PixelField`, which owns a flat packed-int buffer
+so even the per-pixel writes never allocate a tuple.
 """
 
 from __future__ import annotations
 
-from ._maya import Color
-from .easy import T, col, component, row
+from ._maya import _widgets as _W
+from .easy import component
 
-UPPER = "▀"  # ▀ upper half block
+__all__ = ["halfblock", "upscale", "PixelField", "pixel_canvas", "HalfBlockField"]
 
-__all__ = ["halfblock", "upscale", "PixelField", "pixel_canvas"]
+_native_halfblock = _W.halfblock
+HalfBlockField = _W.HalfBlockField   # native stateful pixel surface (C++)
 
 # Sane upper bounds for a terminal cell box. maya's fullscreen layout can hand
 # a component a HUGE sentinel size during measurement; clamping here keeps a
-# grid allocation from exploding to millions of rows.
+# buffer allocation from exploding to millions of pixels.
 _MAX_CELLS_W = 400
 _MAX_CELLS_H = 200
+
+
+def _pack(c):
+    """(r,g,b) | packed-int | None → packed 0xRRGGBB int, or -1 for None."""
+    if c is None:
+        return -1
+    if type(c) is int:
+        return c
+    return ((c[0] & 0xFF) << 16) | ((c[1] & 0xFF) << 8) | (c[2] & 0xFF)
 
 
 def target_size(w, h):
@@ -38,8 +56,7 @@ def target_size(w, h):
 
 def upscale(small, out_w, out_h):
     """Nearest-neighbour scale a small pixel grid up to ``out_w × out_h`` so a
-    cheaply-computed buffer FILLS the whole half-block field (identical layout
-    to a native full-resolution render, just lower detail). Returns the scaled
+    cheaply-computed buffer FILLS the whole half-block field. Returns the scaled
     grid; pass it straight to :func:`halfblock`."""
     sh = len(small)
     sw = len(small[0]) if sh else 0
@@ -55,88 +72,74 @@ def upscale(small, out_w, out_h):
 
 
 def halfblock(grid, *, bg=(0, 0, 0)):
-    """Render a 2-D pixel grid (rows of (r,g,b) tuples or None) as half-blocks.
+    """Render a 2-D pixel grid as half-blocks, entirely in C++.
 
-    ``grid`` height must be even. None means "use ``bg``". Adjacent cells with
-    the same (top,bottom) colour merge into one styled segment, so a line is a
-    handful of ``T`` runs rather than one per pixel.
+    ``grid`` is rows of ``(r,g,b)`` tuples / packed ints / ``None`` (height
+    must be even). The grid is flattened to a packed-int buffer and handed to
+    the native ``halfblock`` builder which does all run-merging + Element
+    construction. None means "use ``bg``".
     """
     h = len(grid)
     w = len(grid[0]) if h else 0
-    lines = []
-    for cy in range(0, h, 2):
-        top = grid[cy]
-        bot = grid[cy + 1] if cy + 1 < h else [None] * w
-        segs = []
-        run_n = 0
-        run_fg = run_bg = None
-        for x in range(w):
-            tp = top[x] or bg
-            bp = bot[x] or bg
-            if (tp, bp) != (run_fg, run_bg):
-                if run_n:
-                    segs.append(_seg(run_n, run_fg, run_bg))
-                run_fg, run_bg, run_n = tp, bp, 0
-            run_n += 1
-        if run_n:
-            segs.append(_seg(run_n, run_fg, run_bg))
-        lines.append(row(*segs, gap=0))
-    return col(*lines, gap=0)
-
-
-def _seg(n, fg, bg):
-    return T(UPPER * n).fg(Color.rgb(*fg)).bg(Color.rgb(*bg))
+    if w == 0 or h == 0:
+        return _native_halfblock([], 0, 0, -1)
+    pack = _pack
+    flat = [pack(c) for rowp in grid for c in rowp]
+    bg_pk = ((bg[0] & 0xFF) << 16) | ((bg[1] & 0xFF) << 8) | (bg[2] & 0xFF)
+    return _native_halfblock(flat, w, h, bg_pk)
 
 
 class PixelField:
-    """A resize-managing 2-D pixel buffer for half-block rendering.
+    """A resize-managing half-block pixel buffer (flat, packed ints).
 
-    Owns a ``w × h`` grid of ``(r,g,b)`` / ``None`` pixels and reallocates only
-    when the size changes — so you don't hand-roll the grid + resize-guard that
-    every pixel demo otherwise copies. Each terminal cell is 2 pixels tall.
+    Owns a single flat list of ``w*h`` packed ``0xRRGGBB`` ints (``-1`` =
+    transparent → bg). Writes go straight into the flat buffer — no per-pixel
+    tuple, no nested grid. ``render()`` hands the buffer to the native C++
+    half-block builder. Each terminal cell is 2 pixels tall.
 
         field = PixelField()
         def draw(w, h):
-            field.resize(w, h * 2)      # cell box -> pixel box
+            field.resize(w, h * 2)
             field.clear()
-            field.set(x, y, (255, 0, 0))
+            field.set(x, y, (255, 0, 0))     # or a packed int
             return field.render()
         component(draw, grow=1)
-
-    Or skip the wiring entirely with :func:`pixel_canvas`.
     """
 
-    __slots__ = ("w", "h", "bg", "grid")
+    __slots__ = ("w", "h", "bg", "buf")
 
     def __init__(self, bg=(0, 0, 0)):
         self.w = 0
         self.h = 0
-        self.bg = bg
-        self.grid: list[list] = []
+        self.bg = ((bg[0] & 0xFF) << 16) | ((bg[1] & 0xFF) << 8) | (bg[2] & 0xFF)
+        self.buf: list[int] = []
 
     def resize(self, w: int, h: int) -> bool:
         """Resize to ``w × h`` pixels, reallocating only on change. Returns True
         if it reallocated."""
         if w != self.w or h != self.h:
             self.w, self.h = w, h
-            self.grid = [[None] * w for _ in range(h)]
+            self.buf = [-1] * (w * h)
             return True
         return False
 
     def clear(self) -> None:
-        """Reset every pixel to None (transparent → ``bg``)."""
-        for rowp in self.grid:
-            for x in range(self.w):
-                rowp[x] = None
+        """Reset every pixel to transparent (-1 → ``bg``)."""
+        # Slice-assign a fresh fill in ONE C-level memcpy rather than a
+        # per-pixel Python loop. CPython lays the list backing store out
+        # contiguously, so this is a bulk overwrite, not n bound checks.
+        self.buf[:] = (-1,) * (self.w * self.h)
 
     def set(self, x: int, y: int, color) -> None:
-        """Set pixel (x, y); out-of-bounds is ignored so callers needn't clip."""
+        """Set pixel (x, y) to a packed int or (r,g,b); out-of-bounds ignored."""
         if 0 <= x < self.w and 0 <= y < self.h:
-            self.grid[y][x] = color
+            if type(color) is not int:
+                color = ((color[0] & 0xFF) << 16) | ((color[1] & 0xFF) << 8) | (color[2] & 0xFF)
+            self.buf[y * self.w + x] = color
 
     def render(self):
-        """Render the current grid as a half-block Element."""
-        return halfblock(self.grid, bg=self.bg)
+        """Build the buffer into a half-block Element (native, in C++)."""
+        return _native_halfblock(self.buf, self.w, self.h, self.bg)
 
 
 def pixel_canvas(draw, *, bg=(0, 0, 0), grow=1, **kw):
@@ -144,11 +147,6 @@ def pixel_canvas(draw, *, bg=(0, 0, 0), grow=1, **kw):
     :class:`PixelField` already sized to the allocated cell box (2 pixels tall
     per cell) and cleared. Mutate the field with ``field.set(...)``; it's
     rendered as half-blocks automatically.
-
-        def draw(f, w, h):
-            for x in range(w):
-                f.set(x, h - 1, (0, 200, 255))
-        pixel_canvas(draw)         # fills its box, animate by re-rendering
     """
     field = PixelField(bg=bg)
 

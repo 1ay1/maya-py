@@ -322,9 +322,9 @@ __all__ += [
 ]
 
 # ── Pixel rendering (half-block) ─────────────────────────────────────
-from .pixels import halfblock, upscale, target_size, PixelField, pixel_canvas  # noqa: E402
+from .pixels import halfblock, upscale, target_size, PixelField, pixel_canvas, HalfBlockField  # noqa: E402
 
-__all__ += ["halfblock", "upscale", "target_size", "PixelField", "pixel_canvas"]
+__all__ += ["halfblock", "upscale", "target_size", "PixelField", "pixel_canvas", "HalfBlockField"]
 
 
 # Single-source the version from installed package metadata so it can't drift

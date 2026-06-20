@@ -250,6 +250,16 @@ def box_simple(
     gap: int = -1,
     grow: float = -1.0,
 ) -> Element: ...
+def box_titled(
+    children: list[Element],
+    direction: int,
+    gap: int,
+    grow: float,
+    border: int,
+    pad: int,
+    title: str,
+    border_color: int = -1,
+) -> Element: ...
 def vstack(*args: Any, **kwargs: Any) -> Element: ...
 def hstack(*args: Any, **kwargs: Any) -> Element: ...
 def zstack(*args: Any, **kwargs: Any) -> Element: ...

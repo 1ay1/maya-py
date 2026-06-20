@@ -366,6 +366,40 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("children"), py::arg("direction"),
           py::arg("gap") = -1, py::arg("grow") = -1.0f);
 
+    // box_titled(children, direction, gap, grow, border, pad, title,
+    //            border_color) -> Element  [FAST PATH for card()]
+    //
+    // card()/titled panels are the most common container, but a `title=`
+    // forced them onto the full box() path (kwargs dict + ~25 opts.contains()
+    // probes in C++). This builds the exact card shape — a bordered, padded
+    // box with a centred ` title ` on the top edge — from positional scalars,
+    // no dict, no probing. children is a pre-coerced Element list; border is a
+    // BorderStyle index (<0 = none); pad<0 = unset; title empty = no title;
+    // border_color packed 0xRRGGBB or <0 unset.
+    m.def("box_titled",
+          [](const std::vector<Element>& children, int direction, int gap,
+             float grow, int border, int pad, const std::string& title,
+             long border_color) {
+              auto b = maya::box();
+              b.direction(direction == 0 ? FlexDirection::Row
+                                         : FlexDirection::Column);
+              if (gap >= 0)  b.gap(gap);
+              if (grow >= 0) b.grow(grow);
+              if (pad >= 0)  b.padding(pad, pad, pad, pad);
+              if (border >= 0)
+                  b.border(static_cast<BorderStyle>(border));
+              if (border_color >= 0)
+                  b.border_color(Color::rgb((border_color >> 16) & 0xFF,
+                                            (border_color >> 8) & 0xFF,
+                                            border_color & 0xFF));
+              if (!title.empty())
+                  b.border_text(" " + title + " ");
+              return b(children);
+          },
+          py::arg("children"), py::arg("direction"), py::arg("gap") = -1,
+          py::arg("grow") = -1.0f, py::arg("border") = -1, py::arg("pad") = -1,
+          py::arg("title") = "", py::arg("border_color") = -1);
+
     // box(*children, **opts) -> Element
     //
     // Full mirror of maya's BoxBuilder. Recognised opts:

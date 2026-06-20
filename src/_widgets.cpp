@@ -492,12 +492,130 @@ struct PyCanvas {
     }
 };
 
+// ── HalfBlockField — a native, stateful half-block pixel surface ──────────
+//
+// Owns a flat w*h buffer of packed 0xRRGGBB ints (-1 = transparent → bg).
+// THE fast pixel path: particle demos keep one of these and per frame call
+//   fade(num, den)         — scale every lit pixel toward black (motion trails)
+//   splat(xs, ys, cols)    — additively blend a whole particle batch, ONE call
+//   element()              — run-merge + build the half-block Element in C++
+// Python never iterates pixels: a frame is 2–3 boundary crossings total.
+struct HalfBlockField {
+    int w_ = 0, h_ = 0;       // pixel dims (h_ even); cell rows = h_/2
+    int32_t bg_ = 0;          // packed bg for transparent pixels
+    std::vector<int32_t> buf_;
+
+    HalfBlockField(int32_t bg) : bg_(bg < 0 ? 0 : bg) {}
+
+    bool resize(int w, int h) {
+        if (w == w_ && h == h_) return false;
+        w_ = w < 0 ? 0 : w;
+        h_ = h < 0 ? 0 : h;
+        buf_.assign(static_cast<size_t>(w_) * h_, -1);
+        return true;
+    }
+
+    void clear() { std::fill(buf_.begin(), buf_.end(), -1); }
+
+    // Scale every lit pixel's channels by num/den (trail fade). -1 stays -1.
+    void fade(int num, int den) {
+        if (den <= 0) return;
+        for (auto& v : buf_) {
+            if (v <= 0) continue;
+            int r = (((v >> 16) & 0xFF) * num) / den;
+            int g = (((v >> 8) & 0xFF) * num) / den;
+            int b = ((v & 0xFF) * num) / den;
+            v = (r << 16) | (g << 8) | b;
+        }
+    }
+
+    // Additively blend a batch: for each i, buf[ys[i]*w + xs[i]] += cols[i],
+    // saturating per channel. Out-of-bounds points are skipped. One crossing
+    // for the whole particle swarm.
+    void splat(const std::vector<int>& xs, const std::vector<int>& ys,
+               const std::vector<int32_t>& cols) {
+        size_t n = xs.size();
+        if (ys.size() < n) n = ys.size();
+        if (cols.size() < n) n = cols.size();
+        for (size_t i = 0; i < n; ++i) {
+            int x = xs[i], y = ys[i];
+            if (static_cast<unsigned>(x) >= static_cast<unsigned>(w_) ||
+                static_cast<unsigned>(y) >= static_cast<unsigned>(h_))
+                continue;
+            int32_t add = cols[i];
+            size_t j = static_cast<size_t>(y) * w_ + x;
+            int32_t cur = buf_[j];
+            if (cur < 0) cur = 0;
+            int r = ((cur >> 16) & 0xFF) + ((add >> 16) & 0xFF);
+            int g = ((cur >> 8) & 0xFF) + ((add >> 8) & 0xFF);
+            int b = (cur & 0xFF) + (add & 0xFF);
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            buf_[j] = (r << 16) | (g << 8) | b;
+        }
+    }
+
+    // Set a single pixel to a packed colour (overwrite, not blend).
+    void set(int x, int y, int32_t col) {
+        if (static_cast<unsigned>(x) < static_cast<unsigned>(w_) &&
+            static_cast<unsigned>(y) < static_cast<unsigned>(h_))
+            buf_[static_cast<size_t>(y) * w_ + x] = col;
+    }
+
+    Element build() const {
+        if (w_ == 0 || h_ == 0) return dsl::nothing();
+        auto to_color = [](int32_t pk) {
+            return Color::rgb((pk >> 16) & 0xFF, (pk >> 8) & 0xFF, pk & 0xFF);
+        };
+        const Color bg_col = to_color(bg_);
+        const int cell_rows = h_ / 2;
+        const char* GLYPH = "\xe2\x96\x80";  // U+2580 "▀"
+        std::vector<Element> rows;
+        rows.reserve(static_cast<size_t>(cell_rows));
+        for (int cy = 0; cy < cell_rows; ++cy) {
+            const int32_t* top = &buf_[static_cast<size_t>(cy) * 2 * w_];
+            const int32_t* bot = top + w_;
+            std::string content;
+            content.reserve(static_cast<size_t>(w_) * 3);
+            std::vector<StyledRun> runs;
+            int32_t run_top = 0x7fffffff, run_bot = 0x7fffffff;
+            size_t run_start = 0;
+            int run_n = 0;
+            auto flush = [&] {
+                if (run_n == 0) return;
+                Style s = Style{}
+                    .with_fg(run_top >= 0 ? to_color(run_top) : bg_col)
+                    .with_bg(run_bot >= 0 ? to_color(run_bot) : bg_col);
+                runs.push_back(StyledRun{run_start, content.size() - run_start, s});
+            };
+            for (int x = 0; x < w_; ++x) {
+                int32_t tp = top[x], bp = bot[x];
+                if (tp != run_top || bp != run_bot) {
+                    flush();
+                    run_top = tp; run_bot = bp;
+                    run_start = content.size();
+                    run_n = 0;
+                }
+                content += GLYPH;
+                ++run_n;
+            }
+            flush();
+            rows.push_back(Element{TextElement{
+                .content = std::move(content),
+                .style = {},
+                .wrap = TextWrap::NoWrap,
+                .runs = std::move(runs),
+            }});
+        }
+        return dsl::v(std::move(rows)).build();
+    }
+};
+
 void init_widgets(py::module_& m) {
     auto w = m.def_submodule("_widgets", "maya widget renderers");
 
     // ── Input — interactive text field (single-line / password / multiline) ──
-    // The first real interactive widget hosted in Python: feed it App events
-    // with handle(), read .value, place .element() in the view.
     py::class_<PyInput>(w, "Input")
         .def(py::init<bool, bool>(),
              py::arg("password") = false, py::arg("multiline") = false)
@@ -1874,6 +1992,98 @@ void init_widgets(py::module_& m) {
         .def("fill", [](PixelCanvas& c, Color color) { c.fill(color); }, py::arg("color"))
         .def("clear", &PixelCanvas::clear)
         .def("element", [](const PixelCanvas& c) { return static_cast<Element>(c); });
+
+    // ── halfblock(flat, w, h, bg) -> Element  [THE pixel→Element path] ───
+    //
+    // The single canonical way to turn a raw pixel buffer into a half-block
+    // Element. `flat` is a FLAT Python list of w*h packed 0xRRGGBB ints, one
+    // per pixel in row-major order; a value < 0 means "transparent" → `bg`.
+    // `h` must be even (two pixels per cell row). EVERYTHING happens in C++:
+    //   • read the buffer through the raw CPython array API (no per-cell cast),
+    //   • merge runs of identical (top,bottom) colour into one StyledRun,
+    //   • build one TextElement per cell-row and vstack them.
+    // Python does zero per-pixel work — it only hands over the array.
+    w.def("halfblock",
+          [](const py::list& flat, int wpx, int hpx, int32_t bg) -> Element {
+              if (wpx <= 0 || hpx <= 0) return dsl::nothing();
+              const long bg_pk = bg;  // <0 stays "unset"; >=0 packed colour
+              auto to_color = [](long pk) {
+                  return Color::rgb((pk >> 16) & 0xFF, (pk >> 8) & 0xFF, pk & 0xFF);
+              };
+              const Color bg_col = bg_pk >= 0 ? to_color(bg_pk) : Color{};
+
+              PyObject* lst = flat.ptr();
+              const int cell_rows = hpx / 2;
+              const char* GLYPH = "\xe2\x96\x80";  // U+2580 "▀"
+
+              std::vector<Element> rows;
+              rows.reserve(static_cast<size_t>(cell_rows));
+
+              for (int cy = 0; cy < cell_rows; ++cy) {
+                  const Py_ssize_t top_base = static_cast<Py_ssize_t>(cy) * 2 * wpx;
+                  const Py_ssize_t bot_base = top_base + wpx;
+
+                  std::string content;
+                  content.reserve(static_cast<size_t>(wpx) * 3);
+                  std::vector<StyledRun> runs;
+
+                  // Run-merge: emit a StyledRun only when (top,bottom) changes.
+                  long run_top = 0x7fffffff, run_bot = 0x7fffffff;
+                  size_t run_start = 0;
+                  int run_n = 0;
+
+                  auto flush = [&] {
+                      if (run_n == 0) return;
+                      Style s = Style{}
+                          .with_fg(run_top >= 0 ? to_color(run_top) : bg_col)
+                          .with_bg(run_bot >= 0 ? to_color(run_bot) : bg_col);
+                      runs.push_back(StyledRun{run_start, content.size() - run_start, s});
+                  };
+
+                  for (int x = 0; x < wpx; ++x) {
+                      long tp = PyLong_AsLong(PyList_GET_ITEM(lst, top_base + x));
+                      long bp = PyLong_AsLong(PyList_GET_ITEM(lst, bot_base + x));
+                      if (tp < 0) tp = bg_pk;
+                      if (bp < 0) bp = bg_pk;
+                      if (tp != run_top || bp != run_bot) {
+                          flush();
+                          run_top = tp; run_bot = bp;
+                          run_start = content.size();
+                          run_n = 0;
+                      }
+                      content += GLYPH;
+                      ++run_n;
+                  }
+                  flush();
+
+                  rows.push_back(Element{TextElement{
+                      .content = std::move(content),
+                      .style = {},
+                      .wrap = TextWrap::NoWrap,
+                      .runs = std::move(runs),
+                  }});
+              }
+              return dsl::v(std::move(rows)).build();
+          },
+          py::arg("flat"), py::arg("w"), py::arg("h"), py::arg("bg") = -1);
+
+    // ── HalfBlockField — native stateful pixel surface [THE hot pixel path] ─
+    // Owns its flat packed-int buffer in C++. A particle frame is:
+    //   f.fade(88, 100)            — trail fade, all pixels, in C++
+    //   f.splat(xs, ys, cols)      — additively blend the whole swarm, ONE call
+    //   f.element()                — run-merge + build, in C++
+    // No Python pixel loop anywhere.
+    py::class_<HalfBlockField>(w, "HalfBlockField")
+        .def(py::init<int32_t>(), py::arg("bg") = 0)
+        .def_readonly("w", &HalfBlockField::w_)
+        .def_readonly("h", &HalfBlockField::h_)
+        .def("resize", &HalfBlockField::resize, py::arg("w"), py::arg("h"))
+        .def("clear", &HalfBlockField::clear)
+        .def("fade", &HalfBlockField::fade, py::arg("num"), py::arg("den"))
+        .def("splat", &HalfBlockField::splat,
+             py::arg("xs"), py::arg("ys"), py::arg("cols"))
+        .def("set", &HalfBlockField::set, py::arg("x"), py::arg("y"), py::arg("col"))
+        .def("element", &HalfBlockField::build);
 
     // ── picker(rows, title, accent, selected, header, footer, ...) ──────
     // A bordered command-palette / fuzzy-picker panel. `rows` are structured

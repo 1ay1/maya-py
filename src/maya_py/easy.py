@@ -579,8 +579,37 @@ STRIKE = _STRIKE
 INVERSE = _INVERSE
 
 
+# Opts box_titled handles natively (the card fast-path). Anything outside this
+# set falls back to the full _box() kwargs path.
+_CARD_OPTS = frozenset(("pad", "border", "border_color", "gap", "grow"))
+_DIR_COL = _maya.FlexDirection.Column
+
+
 def card(*children, title=None, **opts) -> Element:
     """A bordered, padded vertical box. The everyday container."""
+    # FAST PATH: the overwhelmingly common card — only pad/border/title/gap/
+    # grow/border_color, with a scalar int pad and an enum/string border. Build
+    # it in ONE positional crossing via box_titled, skipping the kwargs dict +
+    # the C++ box()'s ~25 opts.contains() probes. Tuple pad or any other opt
+    # falls through to the full path below.
+    if opts.keys() <= _CARD_OPTS:
+        pad = opts.get("pad", 1)
+        border = opts.get("border", _maya.BorderStyle.Round)
+        if type(border) is str:
+            border = _lookup(_BORDERS, border, "border")
+        if (pad is None or type(pad) is int) and type(border) is not tuple:
+            bcol = opts.get("border_color")
+            gap = opts.get("gap", -1)
+            grow = opts.get("grow", -1.0)
+            return _maya.box_titled(
+                _children(children), 1,
+                gap if gap is not None else -1,
+                float(grow) if grow is not None else -1.0,
+                int(border) if border is not None else -1,
+                pad if pad is not None else -1,
+                title if title is not None else "",
+                _resolve_col(bcol) if bcol is not None else -1,
+            )
     opts.setdefault("pad", 1)
     opts.setdefault("border", _maya.BorderStyle.Round)
     return col(*children, title=title, **opts)
