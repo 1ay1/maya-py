@@ -170,6 +170,78 @@ def status_banner(text: str, *, kind: str = "info") -> Element:
     return _W.status_banner(text, kind)
 
 
+def error_block(error_type: str, message: str = "", *, detail: str = "",
+                hint: str = "", severity: str = "error",
+                trace: Sequence[str] = ()) -> Element:
+    """A boxed error panel: a severity icon + ``error_type`` + ``message``,
+    with optional ``detail`` / ``hint`` lines and a stack ``trace``.
+    ``severity``: error/warning/info.
+
+        error_block("RateLimitError", "429 Too Many Requests",
+                    detail="Retry after 30 seconds",
+                    hint="Batch your requests or lower the rate")
+    """
+    return _W.error_block(str(error_type), str(message), str(detail), str(hint),
+                          str(severity), [str(t) for t in trace])
+
+
+def modal(title: str, *, content: Any = None, buttons: Sequence[Any] = (),
+          focused: int = 0) -> Element:
+    """A centered dialog: a title bar, a body, and a footer of action buttons.
+
+    ``content`` is text or an Element. ``buttons`` is a list of labels or
+    ``(label, variant)`` tuples where variant is default/primary/danger.
+    ``focused`` highlights that button index.
+
+        modal("Delete file?", content="This cannot be undone.",
+              buttons=[("Cancel", "default"), ("Delete", "danger")], focused=1)
+    """
+    body = None if content is None else (
+        content if isinstance(content, Element) else _as_element(content))
+    btns = []
+    for b in buttons:
+        btns.append(b if isinstance(b, str) else tuple(b))
+    return _W.modal(str(title), body, btns, int(focused))
+
+
+def log_viewer(entries: Sequence[Any], *, visible: int = 0,
+               scroll: int = 0) -> Element:
+    """A scrolling log panel. Each entry is a
+    ``(timestamp, message, level)`` tuple or a dict
+    ``{timestamp, message, level}``; ``level``: debug/info/warn/error.
+
+        log_viewer([("12:00:01", "Started", "info"),
+                    ("12:00:02", "Disk full", "error")], visible=10)
+    """
+    out = []
+    for e in entries:
+        out.append(e if isinstance(e, dict) else tuple(str(x) for x in e))
+    return _W.log_viewer(out, int(visible), int(scroll))
+
+
+def command_palette(commands: Sequence[Any], *, cursor: int = 0) -> Element:
+    """A fuzzy command menu (the ``Ctrl-K`` palette). Each command is a name,
+    a ``(name, description, shortcut)`` tuple, or a dict with those keys.
+    ``cursor`` is the highlighted row.
+
+        command_palette([("Open File", "", "^O"),
+                         ("Save", "write the buffer", "^S")], cursor=0)
+    """
+    out = []
+    for c in commands:
+        out.append(c if isinstance(c, (str, dict)) else tuple(str(x) for x in c))
+    return _W.command_palette(out, int(cursor))
+
+
+def activity_indicator(detail: str = "", *, color: Any = None) -> Element:
+    """The animated “working…” ticker (a rotating word pool + sweep). Pass an
+    optional trailing token like an elapsed time as ``detail``.
+
+        activity_indicator("3.4s", color="cyan")
+    """
+    return _W.activity_indicator(str(detail), _col(color))
+
+
 def breadcrumb(segments: Sequence[str]) -> Element:
     """A ``home › projects › file`` path trail."""
     return _W.breadcrumb([str(s) for s in segments])
@@ -826,6 +898,7 @@ __all__ = [
     "PopupStyle", "BannerLevel", "ToolCallStatus", "ToolCallKind",
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
+    "error_block", "modal", "log_viewer", "command_palette", "activity_indicator",
     "bar_chart", "gradient", "heatmap",
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",

@@ -81,6 +81,11 @@
 #include <maya/widget/git_graph.hpp>
 #include <maya/widget/git_status.hpp>
 #include <maya/widget/shortcut_row.hpp>
+#include <maya/widget/error_block.hpp>
+#include <maya/widget/modal.hpp>
+#include <maya/widget/log_viewer.hpp>
+#include <maya/widget/command_palette.hpp>
+#include <maya/widget/activity_indicator.hpp>
 
 #include "_pyevent.hpp"
 
@@ -361,6 +366,140 @@ void init_widgets(py::module_& m) {
               return static_cast<Element>(StatusBanner{std::move(c)});
           },
           py::arg("text"), py::arg("kind") = "info");
+
+    // ── error_block(error_type, message, detail, hint, severity, trace) ─
+    // A boxed error panel: severity icon + type + message, optional detail/
+    // hint lines and a stack trace. severity: "error"|"warning"|"info".
+    w.def("error_block",
+          [](std::string error_type, std::string message, std::string detail,
+             std::string hint, const std::string& severity,
+             std::vector<std::string> trace) {
+              ErrorBlock e{std::move(error_type), std::move(message)};
+              if (!detail.empty()) e.set_detail(std::move(detail));
+              if (!hint.empty())   e.set_hint(std::move(hint));
+              ErrorSeverity sev = ErrorSeverity::Error;
+              if (severity == "warning" || severity == "warn") sev = ErrorSeverity::Warning;
+              else if (severity == "info") sev = ErrorSeverity::Info;
+              e.set_severity(sev);
+              if (!trace.empty()) {
+                  e.set_show_trace(true);
+                  for (auto& line : trace) e.add_trace_line(std::move(line));
+              }
+              return static_cast<Element>(e);
+          },
+          py::arg("error_type"), py::arg("message") = "",
+          py::arg("detail") = "", py::arg("hint") = "",
+          py::arg("severity") = "error",
+          py::arg("trace") = std::vector<std::string>{});
+
+    // ── modal(title, content, buttons, focused) ─────────────────────────
+    // A centered dialog: title bar, body element, footer of action buttons.
+    // buttons: list of str, or (label, variant) where variant is
+    // "default"|"primary"|"danger". `focused` highlights that button index.
+    w.def("modal",
+          [](std::string title, std::optional<Element> content,
+             const py::list& buttons, int focused) {
+              std::vector<ModalButton> bs;
+              for (const auto& item : buttons) {
+                  ModalButton b{};
+                  if (py::isinstance<py::str>(item)) {
+                      b.label = item.cast<std::string>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      b.label = t[0].cast<std::string>();
+                      if (py::len(t) > 1) {
+                          std::string v = t[1].cast<std::string>();
+                          if (v == "primary") b.variant = ModalButton::Primary;
+                          else if (v == "danger") b.variant = ModalButton::Danger;
+                      }
+                  }
+                  bs.push_back(std::move(b));
+              }
+              Element body = content ? *content : Element{TextElement{.content = ""}};
+              Modal m{std::move(title), std::move(body), std::move(bs)};
+              m.show();
+              // Highlight a button by faking focus + setting the index signal.
+              m.focus_node().focused.set(true);
+              if (focused > 0)
+                  const_cast<Signal<int>&>(m.focused_button()).set(focused);
+              return static_cast<Element>(m);
+          },
+          py::arg("title"), py::arg("content") = std::nullopt,
+          py::arg("buttons") = py::list{}, py::arg("focused") = 0);
+
+    // ── log_viewer(entries, visible, level) ─────────────────────────────
+    // A scrolling log panel. entries: list of (timestamp, message, level) or
+    // dicts {timestamp, message, level}. level: "debug"|"info"|"warn"|"error".
+    w.def("log_viewer",
+          [](const py::list& entries, int visible, int scroll) {
+              auto parse_lvl = [](const std::string& s) {
+                  if (s == "debug") return LogLevel::Debug;
+                  if (s == "warn" || s == "warning") return LogLevel::Warn;
+                  if (s == "error") return LogLevel::Error;
+                  return LogLevel::Info;
+              };
+              LogViewer lv{};
+              if (visible > 0) lv.set_visible(visible);
+              for (const auto& item : entries) {
+                  LogEntry e{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("timestamp")) e.timestamp = d["timestamp"].cast<std::string>();
+                      if (d.contains("message"))   e.message = d["message"].cast<std::string>();
+                      if (d.contains("level"))     e.level = parse_lvl(d["level"].cast<std::string>());
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      e.timestamp = t[0].cast<std::string>();
+                      if (py::len(t) > 1) e.message = t[1].cast<std::string>();
+                      if (py::len(t) > 2) e.level = parse_lvl(t[2].cast<std::string>());
+                  }
+                  lv.push(std::move(e));
+              }
+              return static_cast<Element>(lv);
+          },
+          py::arg("entries"), py::arg("visible") = 0, py::arg("scroll") = 0);
+
+    // ── command_palette(commands, cursor, query) ────────────────────────
+    // A fuzzy command menu. commands: list of (name, description, shortcut)
+    // or dicts {name, description, shortcut}.
+    w.def("command_palette",
+          [](const py::list& commands, int cursor) {
+              std::vector<Command> cs;
+              for (const auto& item : commands) {
+                  Command c{};
+                  if (py::isinstance<py::str>(item)) {
+                      c.name = item.cast<std::string>();
+                  } else if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("name"))        c.name = d["name"].cast<std::string>();
+                      if (d.contains("description")) c.description = d["description"].cast<std::string>();
+                      if (d.contains("shortcut"))    c.shortcut = d["shortcut"].cast<std::string>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      c.name = t[0].cast<std::string>();
+                      if (py::len(t) > 1) c.description = t[1].cast<std::string>();
+                      if (py::len(t) > 2) c.shortcut = t[2].cast<std::string>();
+                  }
+                  cs.push_back(std::move(c));
+              }
+              CommandPalette p{std::move(cs)};
+              p.show();
+              if (cursor > 0) const_cast<Signal<int>&>(p.cursor()).set(cursor);
+              return static_cast<Element>(p);
+          },
+          py::arg("commands"), py::arg("cursor") = 0);
+
+    // ── activity_indicator(detail, color) ───────────────────────────────
+    // The animated "working…" ticker (rotating word pool + sweep). Pass an
+    // optional trailing token (e.g. an elapsed time) as `detail`.
+    w.def("activity_indicator",
+          [](std::string detail, std::optional<Color> color) {
+              ActivityIndicator::Config cfg{};
+              cfg.detail = std::move(detail);
+              if (color) cfg.edge_color = *color;
+              return static_cast<Element>(ActivityIndicator{cfg});
+          },
+          py::arg("detail") = "", py::arg("color") = std::nullopt);
 
     // ── breadcrumb(segments) ────────────────────────────────────────────
     w.def("breadcrumb",
