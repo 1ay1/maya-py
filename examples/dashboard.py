@@ -533,9 +533,7 @@ app = App.inline("NEXUS", fps=30)
 app.state(_t=0.0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on("space")
@@ -603,9 +601,7 @@ def _t4(s):
     W.theme = 3
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 30.0)
+app.simulate(tick)
 
 
 def _screen(w, _h):

@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
-    App, T, col, row, card, spacer, grow, sparkline, clamp, randf, randi, spin, bar,
+    App, T, col, row, card, spacer, grow, sparkline, clamp, randf, randi, spin, bar, keyhints,
 )
 
 
@@ -514,11 +514,8 @@ def build_status_bar():
         T("  progress:").fg((140, 140, 160)),
         T(f"{overall_pct}%").bold.fg((0, 200, 255)),
         spacer(),
-        T(" ␣").bold.fg((180, 220, 255)), T(":deploy").fg((120, 120, 140)),
-        T(" r").bold.fg((180, 220, 255)), T(":rollback").fg((120, 120, 140)),
-        T(" f").bold.fg((180, 220, 255)), T(":force").fg((120, 120, 140)),
-        T(" 1-3").bold.fg((180, 220, 255)), T(":env").fg((120, 120, 140)),
-        T(" q").bold.fg((180, 220, 255)), T(":quit ").fg((120, 120, 140)),
+        keyhints(("␣", "deploy"), ("r", "rollback"), ("f", "force"),
+                 ("1-3", "env"), ("q", "quit ")),
         gap=0, pad=(0, 1), bg=(30, 30, 42),
     )
 
@@ -569,14 +566,10 @@ def _prod(s):
     add_log(1, "Switched to PROD environment - caution!")
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 15.0)
+app.simulate(tick)
 
 
 @app.view

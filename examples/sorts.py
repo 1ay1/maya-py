@@ -583,9 +583,7 @@ def _showall(s):
     W.solo = -1
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on_frame

@@ -42,8 +42,7 @@ s = scroll_state()
 app.state(s=s)
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view

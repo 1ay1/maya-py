@@ -305,9 +305,7 @@ app = App.inline("matrix", fps=30)
 app.state(_t=0.0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on("space")

@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from maya_py import (  # noqa: E402
     App, T, b, col, row, card, grow, spacer,
     gauge, sparkline, heatmap, line_chart, bar_chart, badge, callout,
-    clamp, randf, randi, spin,
+    clamp, randf, randi, spin, keyhints,
 )
 
 
@@ -425,11 +425,8 @@ def build_status_bar():
         T(overall).fg(overall_sty).bold,
         T(f"  FUEL:{int(s.fuel * 100)}%").fg(status_color(s.fuel)),
         spacer(),
-        T(" ␣").bold.fg((180, 220, 255)), T(":burn").fg((120, 120, 140)),
-        T(" a").bold.fg((180, 220, 255)), T(":abort").fg((120, 120, 140)),
-        T(" d").bold.fg((180, 220, 255)), T(":diag").fg((120, 120, 140)),
-        T(" 1-3").bold.fg((180, 220, 255)), T(":phase").fg((120, 120, 140)),
-        T(" q").bold.fg((180, 220, 255)), T(":quit ").fg((120, 120, 140)),
+        keyhints(("␣", "burn"), ("a", "abort"), ("d", "diag"), ("1-3", "phase"),
+                 ("q", "quit ")),
         gap=0, pad=(0, 1), bg=(30, 30, 42),
     )
 
@@ -501,14 +498,10 @@ def _p3(s):
     W.toasts.append(["Phase set: ORBIT INSERTION", "info", 2.0])
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 15.0)
+app.simulate(tick)
 
 
 @app.view

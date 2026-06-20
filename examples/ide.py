@@ -607,9 +607,7 @@ def _resize(s, cols, rows):
     s.term_h = rows
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on("tab")

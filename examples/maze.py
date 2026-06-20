@@ -384,8 +384,7 @@ def _replay(st):
         start_solve(st)
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view

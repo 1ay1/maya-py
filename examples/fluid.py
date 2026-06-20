@@ -366,9 +366,7 @@ for _i in range(5):
     app.on(str(_i + 1))(_mk_pal(_i))
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 # Mouse: real left-drag injects density + velocity. The fluid grid is fixed

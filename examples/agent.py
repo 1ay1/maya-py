@@ -63,8 +63,7 @@ def _adv(st):
 def _restart(st): reset(st)
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 def todo_state(phase):

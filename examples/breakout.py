@@ -105,8 +105,7 @@ def _sp(s):
 def _restart(s): new_game(s)
 
 
-@app.on("q", "esc")
-def _quit(s): app.stop()
+app.quit_on("q", "esc")
 
 
 def step(s):

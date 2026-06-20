@@ -649,14 +649,10 @@ def _reset(s):
     G.reset()
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _tick(s, dt):
-    game_tick(1.0 / 30.0)
+app.simulate(game_tick)
 
 
 def _field(w, h):

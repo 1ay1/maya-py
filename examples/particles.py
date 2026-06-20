@@ -599,9 +599,7 @@ def _burst(s):
                 bx, by, vx, vy, 0.0, ay, lt, lt, r, g, b, size, 1))
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on_frame

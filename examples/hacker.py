@@ -492,14 +492,10 @@ def _cover(s):
         S.toasts.append(["WIPING EVIDENCE", "warning", 3.5])
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 15.0)
+app.simulate(tick)
 
 
 @app.view

@@ -63,9 +63,7 @@ def draw(w, h, t):
 app = App.inline("surface", fps=30, t=0.0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on_frame

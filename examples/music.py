@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
-    heatmap, sparkline, progress, badge, clamp, randf, bar,
+    heatmap, sparkline, progress, badge, clamp, randf, bar, keyhints,
 )
 
 
@@ -301,13 +301,8 @@ def build_status_bar():
         T("  shuffle:").fg((140, 140, 160)),
         T("on" if S.shuffle_on else "off").fg((0, 220, 120) if S.shuffle_on else (80, 80, 100)),
         spacer(),
-        T(" spc").fg((180, 220, 255)).bold, T(":play").fg((120, 120, 140)),
-        T(" n").fg((180, 220, 255)).bold, T(":next").fg((120, 120, 140)),
-        T(" p").fg((180, 220, 255)).bold, T(":prev").fg((120, 120, 140)),
-        T(" s").fg((180, 220, 255)).bold, T(":shuf").fg((120, 120, 140)),
-        T(" r").fg((180, 220, 255)).bold, T(":rep").fg((120, 120, 140)),
-        T(" +/-").fg((180, 220, 255)).bold, T(":vol").fg((120, 120, 140)),
-        T(" q").fg((180, 220, 255)).bold, T(":quit ").fg((120, 120, 140)),
+        keyhints(("spc", "play"), ("n", "next"), ("p", "prev"), ("s", "shuf"),
+                 ("r", "rep"), ("+/-", "vol"), ("q", "quit ")),
         gap=0, pad=(0, 1), bg=(30, 30, 42),
     )
 
@@ -365,14 +360,10 @@ def _scrollup(s):
     S.playlist_scroll = max(0, S.playlist_scroll - 1)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 15.0)
+app.simulate(tick)
 
 
 @app.view

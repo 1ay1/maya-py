@@ -496,14 +496,10 @@ def _theme(s):
     themes.next()
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 20.0)
+app.simulate(tick)
 
 
 @app.view

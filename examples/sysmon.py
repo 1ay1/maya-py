@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer, clamp, randf, randi, spin, bar  # noqa: E402
+from maya_py import App, T, col, row, card, spacer, clamp, randf, randi, spin, bar, keyhints  # noqa: E402
 
 
 def usage_color(v):
@@ -355,12 +355,8 @@ def build_status_bar():
         T(sc_str).fg((255, 200, 60)),
         T(f"  f:{s.frame_count}").fg((100, 100, 120)),
         spacer(),
-        T(" q").fg((180, 220, 255)).bold, T(":quit").fg((120, 120, 140)),
-        T(" p").fg((180, 220, 255)).bold, T(":pause").fg((120, 120, 140)),
-        T(" s").fg((180, 220, 255)).bold, T(":sort").fg((120, 120, 140)),
-        T(" l").fg((180, 220, 255)).bold, T(":log").fg((120, 120, 140)),
-        T(" 1-3").fg((180, 220, 255)).bold, T(":speed").fg((120, 120, 140)),
-        T(" ␣").fg((180, 220, 255)).bold, T(":burst").fg((120, 120, 140)),
+        keyhints(("q", "quit"), ("p", "pause"), ("s", "sort"), ("l", "log"),
+                 ("1-3", "speed"), ("␣", "burst")),
         gap=0, pad=(0, 1), bg=(30, 30, 42),
     )
 
@@ -409,14 +405,10 @@ def _burst(s):
         S.activity_log.pop(0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 15.0)
+app.simulate(tick)
 
 
 @app.view

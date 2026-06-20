@@ -1230,14 +1230,10 @@ def _restart(s):
     reset_game()
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _tick(s, dt):
-    tick(1.0 / 30.0)
+app.simulate(tick)
 
 
 _FPS_BAR = ("FPS │ [wasd] move │ [,/.] turn │ [space] shoot │ "

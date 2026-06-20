@@ -221,9 +221,7 @@ def _p3(s):
     s.palette = 2
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 # ── Render ───────────────────────────────────────────────────────────────────

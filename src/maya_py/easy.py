@@ -1200,6 +1200,54 @@ class App:
         self._view = fn
         return fn
 
+    def quit_on(self, *keys: str) -> "App":
+        """Bind one or more keys to quit the app — the one-liner that replaces
+        the ``@app.on("q", "esc")`` / ``def _quit(s): app.stop()`` boilerplate
+        every example repeated.
+
+            app.quit_on("q", "esc")
+
+        Returns ``self`` so it chains off the constructor::
+
+            app = App.fullscreen("demo", fps=30).quit_on("q", "esc")
+        """
+        keys = keys or ("q", "esc")
+        self.on(*keys)(lambda _s: self.stop())
+        return self
+
+    def simulate(self, fn=None, *, dt: float | None = None):
+        """Register a fixed-step simulation tick — the ``@app.on_frame`` +
+        ``fn(s, _): tick(STEP)`` pattern, distilled.
+
+        Unlike :meth:`on_frame` (which passes the *real* elapsed ``dt``), this
+        calls your function with a **fixed** ``dt`` every frame — the
+        deterministic step most sims actually want. ``dt`` defaults to
+        ``1 / fps`` (the frame period), so a 15-fps app ticks at ``1/15``.
+
+        Your function may take ``(state, dt)`` **or** just ``(dt)`` — the
+        common module-level ``def tick(dt): ...`` updater drops straight in::
+
+            app.simulate(tick)       # tick(dt) on a module-level State
+
+            @app.simulate            # fixed dt = 1/fps
+            def step(s, dt): s.t += dt
+
+            @app.simulate(dt=0.1)    # explicit fixed step
+            def step(s, dt): ...
+        """
+        def register(f):
+            step = dt if dt is not None else (1.0 / self.fps if self.fps > 0 else 1.0 / 30)
+            try:
+                nargs = f.__code__.co_argcount
+            except AttributeError:
+                nargs = 2
+            if nargs <= 1:
+                self.on_frame(lambda s, _real_dt: f(step))
+            else:
+                self.on_frame(lambda s, _real_dt: f(s, step))
+            return f
+        return register if fn is None else register(fn)
+
     def stop(self) -> None:
         """Request the app to quit."""
         self._running = False
@@ -1905,6 +1953,23 @@ def percent(value: float, *, prec: int = 0, sign: bool = False) -> str:
     return f"{s}{p:.{prec}f}%"
 
 
+def keyhints(*pairs, key: Any = (180, 220, 255), label: Any = (120, 120, 140)):
+    """A row of ``key:label`` hint chips — the status-bar footer every live demo
+    hand-built as a wall of ``T(" q").bold + T(":quit")`` pairs.
+
+    Each ``pair`` is ``(key, label)``; the key renders bold in the ``key`` colour
+    and the label dim in the ``label`` colour. Returns an inline ``row`` you drop
+    straight into a footer (usually after a ``spacer()``).
+
+        keyhints(("q", "quit"), ("␣", "pause"), ("1-3", "speed"))
+    """
+    chips = []
+    for k, lab in pairs:
+        chips.append(T(f" {k}").fg(key).bold)
+        chips.append(T(f":{lab}").fg(label))
+    return row(*chips, gap=0)
+
+
 # ── Random + spinners — the tiny helpers every live demo hand-rolled ─────────
 import random as _random
 
@@ -2120,7 +2185,7 @@ __all__ = [
     # colour
     "hsv", "mix", "lighten", "darken", "alpha",
     # data → text
-    "spark", "bar", "fixed", "human", "percent",
+    "spark", "bar", "fixed", "human", "percent", "keyhints",
     # random + spinners
     "randf", "randi", "spin",
     # theme

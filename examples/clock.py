@@ -120,8 +120,7 @@ def _fmt(st): st.h24 = not st.h24
 def _smooth(st): st.smooth = not st.smooth
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 WDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]

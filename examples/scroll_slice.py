@@ -68,8 +68,7 @@ def _home(st): st.off = 0
 def _end(st): st.off = TOTAL - VH
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view

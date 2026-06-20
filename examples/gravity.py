@@ -343,8 +343,7 @@ def _clear(st):
     st.target = 0
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view

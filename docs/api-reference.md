@@ -93,8 +93,10 @@ See [Layout](layout.md#keyword-options).
 | `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
 | `App.s` | property | The live state bag. |
 | `App.on` | `@app.on(*keys)` | Bind keys to `fn(state)`. |
+| `App.quit_on` | `app.quit_on(*keys) -> App` | Bind keys to quit (chains off the ctor). Replaces the `@app.on("q","esc")` / `app.stop()` boilerplate. Defaults to `q`/`esc`. |
 | `App.on_key` | `@app.on_key` | Catch-all `fn(state, event)`. |
-| `App.on_frame` | `@app.on_frame` | Per-frame tick `fn(state, dt)` before view (enables redraw). |
+| `App.on_frame` | `@app.on_frame` | Per-frame tick `fn(state, dt)` before view (enables redraw). `dt` is the *real* elapsed time. |
+| `App.simulate` | `@app.simulate` / `app.simulate(fn, *, dt=None)` | Fixed-step tick: calls your updater with a **constant** `dt` (defaults to `1/fps`) every frame. Accepts `(state, dt)` or just `(dt)`. |
 | `App.on_paste` | `@app.on_paste` | `fn(state, text)` on bracketed paste. |
 | `App.on_resize` | `@app.on_resize` | `fn(state, cols, rows)` on terminal resize. |
 | `App.focus` | `app.focus(*widgets)` | Register interactive widgets; focused one gets keys, Tab cycles. |
@@ -266,6 +268,7 @@ redefine `clamp` or hand-roll a sparkline again. All top-level imports. See
 | `fixed` | `fixed(text, width, align="left") -> str` | Pad / clip to exactly `width` cells (`left`/`right`/`center`) — column alignment. |
 | `human` | `human(n, *, prec=1) -> str` | Compact magnitude format: `1234 → 1.2k`, `5.6M`. |
 | `percent` | `percent(value, *, prec=0, sign=False) -> str` | Format a 0..1 fraction as `62%`; `sign=True` prefixes `+` on deltas. |
+| `keyhints` | `keyhints(*pairs, key=(180,220,255), label=(120,120,140)) -> Element` | A row of `key:label` hint chips for a status-bar footer. Each `pair` is `(key, label)`; key bold, label dim. Drop after a `spacer()`. |
 
 ### Random & spinners
 

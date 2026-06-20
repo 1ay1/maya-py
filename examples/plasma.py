@@ -27,9 +27,7 @@ from maya_py import App, fullscreen_pixels, hsv, wrap  # noqa: E402
 app = App.fullscreen("plasma", fps=30, t=0.0, hue=0.0, sat=0.85)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on(" ")

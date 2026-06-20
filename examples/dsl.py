@@ -45,9 +45,7 @@ themes = ThemeSet(
 app = App.inline("dsl", fps=30, t=0.0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.on("t")

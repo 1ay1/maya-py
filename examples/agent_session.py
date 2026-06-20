@@ -86,8 +86,7 @@ def _next(st):
     _begin(st)
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 def todo_state(sc, phase):

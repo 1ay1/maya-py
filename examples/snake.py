@@ -280,9 +280,7 @@ def _restart(s):
         reset_game(s)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 # ── Render ───────────────────────────────────────────────────────────────────

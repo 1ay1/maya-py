@@ -45,8 +45,7 @@ app.state(t=0.0, paused=False)
 def _pause(s): s.paused = not s.paused
 
 
-@app.on("q", "esc")
-def _quit(s): app.stop()
+app.quit_on("q", "esc")
 
 
 def plot(s):

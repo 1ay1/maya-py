@@ -321,14 +321,10 @@ app = App.inline("agent session", fps=30)
 app.state(_t=0.0)
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 30.0)
+app.simulate(tick)
 
 
 @app.view

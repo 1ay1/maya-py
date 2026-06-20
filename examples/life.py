@@ -153,8 +153,7 @@ def _gun(s): _place(s, GLIDER_GUN, 6, 8, "glider gun")
 def _pulsar(s): _place(s, PULSAR, s.pw // 2 - 6, s.ph // 2 - 3, "pulsar")
 
 
-@app.on("q", "esc")
-def _quit(s): app.stop()
+app.quit_on("q", "esc")
 
 
 def board(s):

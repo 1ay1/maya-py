@@ -182,9 +182,7 @@ s.step_y = 1
 app.state(s=s, vh=20)
 
 
-@app.on("q", "esc")
-def _quit(st):
-    app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view

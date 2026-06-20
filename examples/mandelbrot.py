@@ -263,14 +263,10 @@ def _reset(s):
     W.cx, W.cy, W.zoom, W.auto = -0.5, 0.0, 1.0, True
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    tick(1.0 / 30.0)
+app.simulate(tick)
 
 
 @app.view

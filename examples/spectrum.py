@@ -401,14 +401,10 @@ def _track(s):
         W.peak_vel[i] = 0.0
 
 
-@app.on("q", "esc")
-def _quit(s):
-    app.stop()
+app.quit_on("q", "esc")
 
 
-@app.on_frame
-def _frame(s, dt):
-    generate_spectrum(1.0 / 30.0)
+app.simulate(generate_spectrum)
 
 
 def _field(w, _h):

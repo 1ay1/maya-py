@@ -286,8 +286,7 @@ def _fewer(st): st.target = max(10, st.target - 30); maintain(st)
 def _re(st): reshuffle(st)
 
 
-@app.on("q", "esc")
-def _quit(st): app.stop()
+app.quit_on("q", "esc")
 
 
 @app.view
