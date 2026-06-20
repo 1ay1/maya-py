@@ -795,6 +795,23 @@ def rgb_lerp(a: Any, b: Any, t: float) -> tuple[int, int, int]:
             int(ab + (bb - ab) * t))
 
 
+def cell_grid(grid, width: int, height: int, *, gap: int = 0) -> Element:
+    """Build a full-colour cell grid Element in ONE native call (run-merged).
+
+    ``grid`` is a list of rows; each row is a list of cells where a cell is
+    ``None`` / a 1-char str (that glyph, inherited colour), ``(ch, fg)``, or
+    ``(ch, fg, bg)``. ``fg``/``bg`` may be a packed ``0xRRGGBB`` int, an
+    ``(r, g, b)`` tuple, or ``None`` for unset.
+
+    This is the native replacement for the hand-rolled
+    ``col(*[row(*specs) for ...])`` pattern that panel painters build from a
+    ``[[cell-or-None] * w] * h`` grid: it allocates ONE TextElement per row
+    with merged style runs instead of one element per cell, in a single
+    boundary crossing — pixel-identical output, far less Python dispatch.
+    """
+    return _maya.cell_grid(grid, int(width), int(height), int(gap))
+
+
 def ramp(stops: Sequence[Any], n: int) -> list[int]:
     """Build an ``n``-entry colour lookup table interpolated across ``stops``.
 
@@ -1376,7 +1393,7 @@ __all__ = [
     "file_ref", "inline_diff", "flame_chart", "waterfall", "token_stream",
     "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
-    "Surface", "Pen", "ramp", "rgb_lerp",
+    "Surface", "Pen", "ramp", "rgb_lerp", "cell_grid",
     "popup", "overlay", "user_message", "assistant_message", "system_banner",
     "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",
     "git_graph", "git_status", "shortcut_row", "plan_view",

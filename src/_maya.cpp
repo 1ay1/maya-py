@@ -66,6 +66,21 @@ static Element coerce_child(const py::handle& h) {
     return h.cast<Element>();
 }
 
+// First UTF-8 codepoint of a byte range (U' ' if empty / malformed).
+static inline char32_t decode_first_cp(const char* s, std::size_t len) {
+    if (len == 0 || s == nullptr) return U' ';
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+    unsigned char b = *p; char32_t cp; int n;
+    if (b < 0x80) return b;
+    else if ((b >> 5) == 0x6) { cp = b & 0x1F; n = 2; }
+    else if ((b >> 4) == 0xE) { cp = b & 0x0F; n = 3; }
+    else if ((b >> 3) == 0x1E){ cp = b & 0x07; n = 4; }
+    else return b;
+    for (int k = 1; k < n && k < static_cast<int>(len); ++k)
+        cp = (cp << 6) | (p[k] & 0x3F);
+    return cp;
+}
+
 // Build a styled TextElement from packed scalars (shared by styled_text and
 // the bulk/fused row builders). fg/bg: packed 0xRRGGBB or <0 for unset.
 // attrs bitmask: 1=bold 2=dim 4=italic 8=underline 16=strike 32=inverse.
@@ -407,6 +422,144 @@ PYBIND11_MODULE(_maya, m) {
           },
           py::arg("flat"), py::arg("row_lens"), py::arg("inner_dir"),
           py::arg("outer_gap") = -1, py::arg("inner_gap") = -1);
+
+    // cell_grid(grid, w, h, gap) -> Element   [RUN-MERGED FULL-COLOUR GRID]
+    //
+    // The canonical native builder for a 2-D cell grid where EVERY cell may
+    // carry its own fg AND bg — the pattern hand-drawn panels build as a
+    // Python `[[cell-or-None] * w] * h` then convert to `col(row(*specs)...)`.
+    // That conversion is the bottleneck: it allocates one styled-text Element
+    // PER CELL (w*h of them) and crosses the boundary once PER ROW.
+    //
+    // This takes the raw grid and builds ONE TextElement per row with
+    // RUN-MERGED StyledRuns (consecutive same-(fg,bg) cells share a run), in a
+    // single crossing. Fewer elements => the grid renders faster too. Output
+    // is pixel-identical to the per-cell form (same glyph + same fg/bg at each
+    // column; run-merging only changes the element tree, not the painted
+    // cells).
+    //
+    // Each cell is one of:
+    //   None / a 1-char str        -> that glyph, inherited colours
+    //   (ch, fg)                    -> glyph + fg
+    //   (ch, fg, bg)                -> glyph + fg + bg
+    // fg/bg are a packed 0xRRGGBB int, an (r,g,b) tuple/list, or <0 / None for
+    // unset. Missing rows / short rows are padded with blank inherited cells.
+    m.def("cell_grid",
+          [](const py::list& grid, int w, int h, int gap) -> Element {
+              // Resolve a colour handle to packed 0xRRGGBB or -1 (unset).
+              auto pack = [](PyObject* o) -> long {
+                  if (o == nullptr || o == Py_None) return -1;
+                  if (PyLong_Check(o)) return PyLong_AsLong(o);
+                  // (r,g,b) tuple or list
+                  if (PyTuple_Check(o)) {
+                      if (PyTuple_GET_SIZE(o) < 3) return -1;
+                      long r = PyLong_AsLong(PyTuple_GET_ITEM(o, 0));
+                      long g = PyLong_AsLong(PyTuple_GET_ITEM(o, 1));
+                      long b = PyLong_AsLong(PyTuple_GET_ITEM(o, 2));
+                      return (r << 16) | (g << 8) | b;
+                  }
+                  if (PyList_Check(o)) {
+                      if (PyList_GET_SIZE(o) < 3) return -1;
+                      long r = PyLong_AsLong(PyList_GET_ITEM(o, 0));
+                      long g = PyLong_AsLong(PyList_GET_ITEM(o, 1));
+                      long b = PyLong_AsLong(PyList_GET_ITEM(o, 2));
+                      return (r << 16) | (g << 8) | b;
+                  }
+                  return -1;
+              };
+              auto style_of = [](long fg, long bg, int attrs) -> Style {
+                  Style s{};
+                  if (fg >= 0)
+                      s = s.with_fg(Color::rgb((fg >> 16) & 0xFF,
+                                               (fg >> 8) & 0xFF, fg & 0xFF));
+                  if (bg >= 0)
+                      s = s.with_bg(Color::rgb((bg >> 16) & 0xFF,
+                                               (bg >> 8) & 0xFF, bg & 0xFF));
+                  if (attrs & 1)  s = s.with_bold();
+                  if (attrs & 2)  s = s.with_dim();
+                  if (attrs & 4)  s = s.with_italic();
+                  if (attrs & 8)  s = s.with_underline();
+                  if (attrs & 16) s = s.with_strikethrough();
+                  if (attrs & 32) s = s.with_inverse();
+                  return s;
+              };
+              PyObject* g = grid.ptr();
+              const Py_ssize_t nrows_in = PyList_GET_SIZE(g);
+              std::vector<Element> rows;
+              rows.reserve(static_cast<std::size_t>(h));
+              for (int y = 0; y < h; ++y) {
+                  PyObject* rowobj = (y < nrows_in)
+                      ? PyList_GET_ITEM(g, y) : nullptr;
+                  const bool is_list = rowobj && PyList_Check(rowobj);
+                  const Py_ssize_t ncells = is_list
+                      ? PyList_GET_SIZE(rowobj) : 0;
+                  std::string content;
+                  content.reserve(static_cast<std::size_t>(w) * 2);
+                  std::vector<StyledRun> runs;
+                  // run accumulator
+                  long run_fg = -2, run_bg = -2; int run_at = 0;  // -2 = none
+                  std::size_t run_start = 0;
+                  auto flush = [&] {
+                      if (run_fg == -2) return;
+                      if (run_fg >= 0 || run_bg >= 0 || run_at != 0)
+                          runs.push_back(StyledRun{
+                              run_start, content.size() - run_start,
+                              style_of(run_fg, run_bg, run_at)});
+                      run_fg = -2; run_bg = -2; run_at = 0;
+                  };
+                  for (int x = 0; x < w; ++x) {
+                      char32_t ch = U' ';
+                      long fg = -1, bg = -1; int at = 0;
+                      if (x < ncells) {
+                          PyObject* cell = PyList_GET_ITEM(rowobj, x);
+                          if (cell == Py_None) {
+                              ch = U' ';
+                          } else if (PyUnicode_Check(cell)) {
+                              Py_ssize_t sl = 0;
+                              const char* sd = PyUnicode_AsUTF8AndSize(cell, &sl);
+                              ch = decode_first_cp(sd, static_cast<std::size_t>(sl));
+                          } else if (PyTuple_Check(cell)) {
+                              Py_ssize_t cn = PyTuple_GET_SIZE(cell);
+                              if (cn >= 1) {
+                                  PyObject* cs = PyTuple_GET_ITEM(cell, 0);
+                                  if (PyUnicode_Check(cs)) {
+                                      Py_ssize_t sl = 0;
+                                      const char* sd =
+                                          PyUnicode_AsUTF8AndSize(cs, &sl);
+                                      ch = decode_first_cp(
+                                          sd, static_cast<std::size_t>(sl));
+                                  }
+                              }
+                              if (cn >= 2) fg = pack(PyTuple_GET_ITEM(cell, 1));
+                              if (cn >= 3) bg = pack(PyTuple_GET_ITEM(cell, 2));
+                              if (cn >= 4) {
+                                  PyObject* ao = PyTuple_GET_ITEM(cell, 3);
+                                  if (PyLong_Check(ao))
+                                      at = static_cast<int>(PyLong_AsLong(ao));
+                              }
+                          }
+                      }
+                      if (fg != run_fg || bg != run_bg || at != run_at) {
+                          flush();
+                          run_fg = fg; run_bg = bg; run_at = at;
+                          run_start = content.size();
+                      }
+                      detail::encode_utf8(ch, content);
+                  }
+                  flush();
+                  rows.push_back(Element{TextElement{
+                      .content = std::move(content),
+                      .style = {},
+                      .wrap = TextWrap::NoWrap,
+                      .runs = std::move(runs),
+                  }});
+              }
+              auto ob = maya::box();
+              ob.direction(FlexDirection::Column);
+              if (gap >= 0) ob.gap(gap);
+              return ob(rows);
+          },
+          py::arg("grid"), py::arg("w"), py::arg("h"), py::arg("gap") = 0);
 
     // box_simple(children, direction, gap, grow) -> Element  [FAST PATH]
     //

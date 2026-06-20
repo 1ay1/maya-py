@@ -20,7 +20,8 @@ import random
 
 import _bootstrap  # noqa: F401,E402
 
-from maya_py import App, T, box, col, component, row, halfblock, clamp  # noqa: E402
+from maya_py import (App, T, box, col, component, row, halfblock, clamp,  # noqa: E402
+                     cell_grid)
 
 NUM_BARS = 64
 NUM_WATERFALL = 128
@@ -345,23 +346,10 @@ def paint_waterfall(w, h):
 
 
 def _grid_to_rows(grid, w, h):
-    rows = []
-    for y in range(h):
-        gr = grid[y]
-        specs = []
-        for x in range(w):
-            cell = gr[x]
-            if cell is None:
-                specs.append(" ")
-            elif len(cell) == 2:
-                ch, fg = cell
-                specs.append((ch, (fg[0] << 16) | (fg[1] << 8) | fg[2]))
-            else:
-                ch, fg, bg = cell
-                specs.append((ch, (fg[0] << 16) | (fg[1] << 8) | fg[2],
-                              (bg[0] << 16) | (bg[1] << 8) | bg[2]))
-        rows.append(row(*specs, gap=0))
-    return col(*rows, gap=0)
+    # One native run-merged build instead of w*h spec tuples + h row() frames.
+    # cell_grid accepts (ch, fg) / (ch, fg, bg) with fg/bg as (r,g,b) tuples
+    # (or None cells) directly — pixel-identical to the old per-cell form.
+    return cell_grid(grid, w, h)
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
