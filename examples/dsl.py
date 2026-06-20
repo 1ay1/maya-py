@@ -26,6 +26,7 @@ from maya_py import (  # noqa: E402
     App, T, col, row, card, b, dim_text,
     clamp, lerp, remap, smoothstep, wrap, oscillate, pulse, ease,
     hsv, mix, lighten, darken, spark, bar, fixed, human, percent,
+    randf, spin, statusbar,
     Theme, ThemeSet,
 )
 
@@ -50,7 +51,7 @@ def _cycle_theme(s):
     themes.next()
 
 
-@app.on_frame
+@app.simulate
 def _tick(s, dt):
     s.t += dt
 
@@ -114,6 +115,29 @@ def data_panel(t):
     )
 
 
+def motion_panel(t):
+    """Spinners, pulses and a little RNG — the live-demo motion vocabulary."""
+    frame = int(t * 12)
+    spinners = [("dots", "dots"), ("line", "line"), ("bar", "bar"),
+                ("arc", "arc"), ("circle", "circle")]
+    sp_row = []
+    for label, kind in spinners:
+        sp_row.append(dim_text(label))
+        sp_row.append(T(spin(frame, kind)).fg("sky").bold)
+    blink = pulse(t, period=0.8)
+    spark_vals = [randf(0.2, 1.0) for _ in range(16)]
+    return card(
+        b("motion · spinners · rng"),
+        row(*sp_row, gap=1),
+        row(dim_text(fixed("pulse", 7)),
+            T("● REC" if blink else "○ rec").fg("red" if blink else "slate"),
+            dim_text("  (0.8s blink)"), gap=1),
+        row(dim_text(fixed("randf", 7)), T(spark(spark_vals, 16)).fg("gold"),
+            dim_text("jittered noise"), gap=1),
+        title="motion", gap=0,
+    )
+
+
 def theme_panel(t):
     """Named colour roles from the active theme — no integer index constants."""
     th = themes.current
@@ -141,10 +165,12 @@ def theme_panel(t):
 def view(s):
     return col(
         row(b("maya-py DSL").fg(hsv(wrap(s.t * 0.1, 1.0))),
-            dim_text("— numeric · colour · data · theme, off one clock"), gap=1),
+            dim_text("— numeric · colour · data · motion · theme, off one clock"), gap=1),
         row(numeric_panel(s.t), colour_panel(s.t), gap=1),
-        row(data_panel(s.t), theme_panel(s.t), gap=1),
-        dim_text("t cycle theme · q quit"),
+        row(data_panel(s.t), motion_panel(s.t), gap=1),
+        theme_panel(s.t),
+        statusbar(dim_text(" maya-py DSL tour"),
+                  hints=[("t", "cycle theme"), ("q", "quit")]),
         gap=0,
     )
 
