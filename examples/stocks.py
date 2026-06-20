@@ -23,7 +23,16 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer  # noqa: E402
+from maya_py import App, T, col, row, card, spacer, grow  # noqa: E402
+
+
+def _fw(text, width):
+    """Left-justify (and clip) a string to a fixed display width, mirroring
+    maya's ``| clip | w_<N>`` fixed-cell columns so rows align byte-for-byte."""
+    text = str(text)
+    if len(text) > width:
+        return text[:width]
+    return text + " " * (width - len(text))
 
 
 def randf(lo, hi):
@@ -341,8 +350,9 @@ def build_watchlist():
             tabs.append(T(f" {lab} ").dim)
     tab_row = row(*tabs, gap=1)
     header = row(
-        T("").dim, T("SYMBOL").dim.bold, T("LAST").dim.bold, T("CHG").dim.bold,
-        T("CHG%").dim.bold, T("MCAP").dim.bold, T("VOL").dim.bold,
+        T(_fw("", 2)).dim, T(_fw("SYMBOL", 6)).dim.bold, T(_fw("LAST", 10)).dim.bold,
+        T(_fw("CHG", 10)).dim.bold, T(_fw("CHG%", 10)).dim.bold,
+        T(_fw("MCAP", 8)).dim.bold, T(_fw("VOL", 7)).dim.bold,
         T("CHART").dim.bold, gap=1,
     )
     rows = [tab_row, header]
@@ -356,17 +366,17 @@ def build_watchlist():
         recent = st[S_HIST][-min(TF_POINTS[s.timeframe], len(st[S_HIST])):]
         spark = spark_line(recent, 16)
         rows.append(row(
-            T(marker).fg(sel_col),
-            T(st[S_SYM]).fg(sym_col),
-            T(fmt_price(st[S_PRICE])).fg(sel_col),
-            chg_T(f"{chg:+.2f}", chg),
-            chg_T(f"{pct:+.2f}%", chg),
-            T(fmt_mcap(st[S_MCAP])).fg(muted),
-            T(fmt_vol(st[S_VOL])).fg(muted),
+            T(_fw(marker, 2)).fg(sel_col),
+            T(_fw(st[S_SYM], 6)).fg(sym_col),
+            T(_fw(fmt_price(st[S_PRICE]), 10)).fg(sel_col),
+            chg_T(_fw(f"{chg:+.2f}", 10), chg),
+            chg_T(_fw(f"{pct:+.2f}%", 10), chg),
+            T(_fw(fmt_mcap(st[S_MCAP]), 8)).fg(muted),
+            T(_fw(fmt_vol(st[S_VOL]), 7)).fg(muted),
             T(spark).fg(TH()[TH_GAIN] if chg >= 0 else TH()[TH_LOSS]),
             gap=1,
         ))
-    return card(*rows, title=" WATCHLIST ", border_color=TH()[TH_BORDER], pad=(0, 1))
+    return card(*rows, title="WATCHLIST", border_color=TH()[TH_BORDER], pad=(0, 1))
 
 
 def build_chart():
@@ -386,7 +396,7 @@ def build_chart():
     title_row = row(
         T(st[S_SYM]).fg(accent).bold,
         T(" " + st[S_NAME]).fg(muted),
-        spacer(),
+        grow(T("")),
         T(f"${fmt_price(st[S_PRICE])}").fg((255, 255, 255)).bold,
         chg_T(" " + fmt_change(st[S_PRICE], st[S_PREV]), chg),
         gap=0,
@@ -396,26 +406,26 @@ def build_chart():
         label_val = mx - (mx - mn) * r / (chart_h - 1) if chart_h > 1 else mx
         sep = "┤" if r == 0 else "│"
         body.append(row(
-            T(f"{label_val:7.2f}").fg(muted),
+            T(_fw(f"{label_val:7.2f}", 8)).fg(muted),
             T(sep).dim,
             T(chart_rows[r]).fg(chart_col),
             gap=0,
         ))
-    xaxis = row(T(" " * 8), T("└" + "─" * chart_w).dim, gap=0)
+    xaxis = row(T(_fw("", 8)), T("└" + "─" * chart_w).dim, gap=0)
     stats = row(
-        T("Open").fg(muted), T(fmt_price(st[S_OPEN])).fg((200, 200, 210)),
-        T("High").fg(muted), T(fmt_price(st[S_HIGH])).fg(TH()[TH_GAIN]),
-        T("Low").fg(muted), T(fmt_price(st[S_LOW])).fg(TH()[TH_LOSS]),
-        T("Vol").fg(muted), T(fmt_vol(st[S_VOL])).fg((200, 200, 210)),
-        T("MCap").fg(muted), T(fmt_mcap(st[S_MCAP])).fg((200, 200, 210)),
+        T(_fw("Open", 5)).fg(muted), T(_fw(fmt_price(st[S_OPEN]), 10)).fg((200, 200, 210)),
+        T(_fw("High", 5)).fg(muted), T(_fw(fmt_price(st[S_HIGH]), 10)).fg(TH()[TH_GAIN]),
+        T(_fw("Low", 5)).fg(muted), T(_fw(fmt_price(st[S_LOW]), 10)).fg(TH()[TH_LOSS]),
+        T(_fw("Vol", 5)).fg(muted), T(_fw(fmt_vol(st[S_VOL]), 7)).fg((200, 200, 210)),
+        T(_fw("MCap", 5)).fg(muted), T(fmt_mcap(st[S_MCAP])).fg((200, 200, 210)),
         gap=1,
     )
     vdata = st[S_VHIST][-pts:]
     vol_spark = spark_line(vdata, chart_w)
-    vol_row = row(T("Volume").fg(muted), T("│").dim, T(vol_spark).fg(muted), gap=0)
+    vol_row = row(T(_fw("Volume", 8)).fg(muted), T("│").dim, T(vol_spark).fg(muted), gap=0)
     return card(
         title_row, *body, xaxis, stats, vol_row,
-        title=f" {st[S_SYM]} · {TF_LABELS[s.timeframe]} ",
+        title=f"{st[S_SYM]} · {TF_LABELS[s.timeframe]}",
         border_color=TH()[TH_BORDER], pad=(0, 1),
     )
 
@@ -430,32 +440,32 @@ def build_news():
         icon = "▲" if sent > 0 else ("▼" if sent < 0 else "─")
         col_c = gain if sent > 0 else (loss if sent < 0 else muted)
         rows.append(row(
-            T(icon).fg(col_c),
-            T(source).fg(TH()[TH_LABEL]),
+            T(_fw(icon, 2)).fg(col_c),
+            T(_fw(source, 11)).fg(TH()[TH_LABEL]),
             T(headline).fg(muted),
-            spacer(),
+            grow(T("")),
             T(fmt_time(age)).fg((50, 50, 60)),
             gap=1,
         ))
     while len(rows) < 5:
         rows.append(T(""))
-    return card(*rows, title=" NEWS ", border_color=TH()[TH_BORDER], pad=(0, 1))
+    return card(*rows, title="NEWS", border_color=TH()[TH_BORDER], pad=(0, 1))
 
 
 def build_footer():
     accent = TH()[TH_ACCENT]
     muted = TH()[TH_MUTED]
 
-    def key(k, lab):
-        return [T(k).fg(accent).bold, T(lab).fg(muted)]
+    def key(k, kw, lab, lw):
+        return [T(_fw(k, kw)).fg(accent).bold, T(_fw(lab, lw)).fg(muted)]
 
     parts = []
-    parts += key(" ↑↓", "select")
-    parts += key("←→", "time")
-    parts += key("r", "event")
-    parts += key("␣", "mkt")
-    parts += key("t", "theme")
-    parts += key("q", "quit")
+    parts += key(" ↑↓", 4, "select", 7)
+    parts += key("←→", 3, "time", 5)
+    parts += key("r", 2, "event", 6)
+    parts += key("␣", 2, "mkt", 4)
+    parts += key("t", 2, "theme", 6)
+    parts += [T(_fw("q", 2)).fg(accent).bold, T("quit").fg(muted)]
     parts.append(spacer())
     parts.append(T("powered by ").fg((55, 55, 70)))
     parts.append(T("maya").fg(accent))
