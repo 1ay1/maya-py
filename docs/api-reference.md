@@ -51,6 +51,7 @@ from maya_py import T, card, col, row, App, memo   # etc.
 |--------|-----------|-------------|
 | `col` | `col(*children, **opts) -> Element` | Vertical stack. |
 | `when` | `when(cond, then, else_=nothing()) -> node` | Conditional element — `then` if truthy else `else_`; branches may be lazy callables. |
+| `For` | `For(items, render, *, into=col, empty=None, **opts) -> Element` | Declarative list rendering: map `items` through `render(item)` (or `render(item, i)`) into a container (`into`, default `col`). `empty` is shown when `items` is empty. |
 | `row` | `row(*children, **opts) -> Element` | Horizontal stack. |
 | `card` | `card(*children, title=None, **opts) -> Element` | Bordered padded box (defaults `pad=1`, round border). |
 | `field` | `field(label, value, *, label_color="slate", value_color=None) -> Element` | `Label: value` row. |
@@ -123,6 +124,27 @@ See [Layout](layout.md#keyword-options).
 | `Cmd` | class | MVU command (side effect) returned from `update`. Constructors: `none`, `quit`, `batch`, `after`, `task`, `set_title`, `write_clipboard`, … See [Program](program.md). |
 | `Sub` | class | MVU subscription (input source). Constructors: `none`, `batch`, `on_key`, `on_mouse`, `every`, `on_animation_frame`, … See [Program](program.md). |
 
+### Testing (headless harness)
+
+Drive an app or program in-process — no PTY, no real terminal. Events are
+synthesized natively and frames render to plain strings, so assertions are
+deterministic. See [apps.md](apps.md) (§ Testing apps headlessly) and the
+`make_*` factories.
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `App.test` | `app.test(*, width=80) -> Pilot` | A headless driver for an `App`. |
+| `Pilot` | class | App driver: `.press(*keys)`, `.type(text)`, `.click(col,row)`, `.scroll(dir)`, `.paste(text)`, `.resize(cols,rows)`, `.tick(dt)`, `.render() -> str`, `.running`, `.state`. Methods chain. |
+| `Program.test` | `prog.test(*, strict=True) -> ProgramPilot` | A headless driver for a `Program` (MVU). |
+| `program_test` | `program_test(init, update, view=None, *, strict=True) -> ProgramPilot` | Function-form twin of `Program.test`. |
+| `ProgramPilot` | class | Program driver: `.send(*msgs)` dispatches messages through `update`; `.model`, `.cmds`, `.last_cmd`, `.view()`, `.view_string(width=80)`. `strict=True` raises `ImpureUpdateError` if `update`/`view` mutate the model. |
+| `ImpureUpdateError` | exception | Raised in strict mode when `update`/`view` mutates the model in place. |
+| `make_key` | `make_key(key, ctrl=False, alt=False, shift=False, super=False) -> Event` | Synthesize a key event. |
+| `make_mouse` | `make_mouse(col, row, button, kind) -> Event` | Synthesize a mouse press/release/move. |
+| `make_scroll` | `make_scroll(direction, col, row) -> Event` | Synthesize a wheel scroll. |
+| `make_paste` | `make_paste(text) -> Event` | Synthesize a bracketed paste. |
+| `make_resize` | `make_resize(cols, rows) -> Event` | Synthesize a terminal resize. |
+
 ---
 
 ## Widgets
@@ -132,23 +154,25 @@ Full docs + examples in [Widgets](widgets.md). Colours accept name / hex /
 tuple / `Color` everywhere.
 
 **Charts & meters:** `sparkline` `gauge` `progress` `bar_chart` `line_chart`
-`heatmap` `flame_chart` `waterfall`
+`heatmap` `flame_chart` `waterfall` `activity_indicator`
 
 **Controls:** `checkbox` `toggle` `radio` `select` `slider` `button`
 
 **Text & labels:** `badge` `divider` `spinner` `callout` `status_banner`
 `breadcrumb` `tabs` `gradient` `link` `title_chip` `model_badge` `file_ref`
-`markdown` `html`
+`markdown` `html` `error_block`
 
 **Structure & nav:** `table` `tree` `list_view` `menu` `disclosure` `key_help`
-`calendar` `timeline` `picker` `popup` `overlay`
+`calendar` `timeline` `picker` `popup` `overlay` `modal` `command_palette`
+`log_viewer`
 
 **Agent UI:** `thinking` `todo_list` `toast` `inline_diff` `tool_call`
-`plan_view` `phase_chip` `context_window` `context_gauge` `diff_view`
-`git_graph` `git_status` `user_message` `assistant_message` `system_banner`
-`shortcut_row` `activity_bar` `file_changes` `api_usage` `cost_tracker`
-`phase_accent` `checkpoint_divider` `turn_divider` `streaming_cursor`
-`token_stream_sparkline` `search_result` `changes_strip` `welcome_screen`
+`plan_view` `phase_chip` `phase_accent` `context_window` `context_gauge`
+`diff_view` `git_graph` `git_status` `user_message` `assistant_message`
+`system_banner` `shortcut_row` `activity_bar` `file_changes` `api_usage`
+`cost_tracker` `checkpoint_divider` `turn_divider` `streaming_cursor`
+`token_stream` `token_stream_sparkline` `search_result` `changes_strip`
+`welcome_screen`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
@@ -323,6 +347,10 @@ themes.next()                 # cycle (wraps)
 | `halfblock` | `halfblock(grid, *, bg=(0,0,0)) -> Element` | Render a 2-D pixel grid as upper-half-block (`▀`) cells (2 px tall each). |
 | `PixelField` | `PixelField(bg=(0,0,0))` | Resize-managing pixel buffer: `.resize(w,h)`, `.clear()`, `.set(x,y,color)`, `.render()`. |
 | `pixel_canvas` | `pixel_canvas(draw, *, bg=(0,0,0), grow=1)` | Size-aware element handing `draw(field, w, h)` a sized `PixelField`. |
+| `target_size` | `target_size(w, h) -> (out_w, out_h)` | Clamp a component cell box to sane bounds, returning the half-block *pixel* size (`out_h = h*2`). Guards the fullscreen-layout sentinel. |
+| `upscale` | `upscale(small, out_w, out_h) -> grid` | Nearest-neighbour scale a small pixel grid up to `out_w × out_h` so a cheap buffer fills the whole field. Feed to `halfblock`. |
+| `Surface` | `Surface(w, h, *, bg=None, fg=None)` | Fluent braille/char drawing surface (native `Grid`): `.box/.write/.hline/.rect/.panel/.pen/.element`. Sub-cell graphics in one native pass — see [widgets.md](widgets.md). |
+| `Pen` | `surface.pen(x, y, w, h) -> Pen` | A braille pen over a cell region (2×4 px/cell): `.curve/.fill_between/.line/.path/.points/.ring/.ray/.stroke`. Each method is one native batch call. |
 
 ---
 
@@ -363,6 +391,11 @@ See [Performance](performance.md).
 | `BannerLevel` | `Info` `Success` `Warning` `Error` |
 | `ToolCallStatus` | `Pending` `Running` `Completed` `Failed` `Confirmation` |
 | `ToolCallKind` | `Read` `Edit` `Execute` `Search` `Delete` `Move` `Fetch` `Think` `Agent` `Other` |
+| `FileChangeKind` | `Created` `Modified` `Deleted` `Renamed` |
+| `TurnRole` | `User` `Assistant` `System` `Tool` |
+| `CursorStyle` | `Block` `Dots` `Bar` `Pulse` |
+| `SearchKind` | `Grep` `Glob` |
+| `SearchStatus` | `Pending` `Searching` `Done` `Failed` |
 
 ### Enum shortcuts (top-level)
 

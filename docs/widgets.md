@@ -33,29 +33,35 @@ and [examples/dashboard.py](https://github.com/1ay1/maya-py/blob/master/examples
 
 ---
 
-## The count: 44 native renderers
+## The count: 77 native renderers
 
-The other manual pages say **"44 native renderers."** That is correct. Here is
-the reasoning, counted from `widgets.py`'s `__all__`:
+The catalog covers **77 native renderers**, every one a thin wrapper over a
+maya C++ widget. Counted from `widgets.py`'s `__all__`:
 
 | Category | Renderers | n |
 |----------|-----------|---|
-| charts & meters | sparkline, gauge, progress, bar_chart, line_chart, heatmap, flame_chart, waterfall | 8 |
+| charts & meters | sparkline, gauge, progress, bar_chart, line_chart, heatmap, flame_chart, waterfall, activity_indicator | 9 |
 | controls | checkbox, toggle, radio, select, slider, button | 6 |
-| text & labels | badge, divider, spinner, callout, status_banner, breadcrumb, tabs, gradient, link, title_chip, model_badge, file_ref, markdown | 13 |
-| structure & nav | table, tree, list_view, menu, disclosure, key_help, calendar, timeline, picker, popup, overlay | 11 |
-| agent UI | thinking, todo_list, toast, inline_diff, tool_call, plan_view, phase_chip, context_window, context_gauge, diff_view, git_graph, git_status, user_message, assistant_message, system_banner, shortcut_row | 16 |
+| text & labels | badge, divider, spinner, callout, status_banner, system_banner, breadcrumb, tabs, gradient, link, title_chip, model_badge, file_ref, markdown, html, phase_chip, phase_accent | 17 |
+| structure & nav | table, tree, list_view, menu, disclosure, key_help, calendar, timeline, picker, popup, overlay, modal, command_palette, log_viewer | 14 |
+| agent UI | thinking, todo_list, toast, inline_diff, tool_call, plan_view, context_window, context_gauge, diff_view, git_graph, git_status, user_message, assistant_message, shortcut_row, activity_bar, file_changes, api_usage, cost_tracker, checkpoint_divider, turn_divider, streaming_cursor, token_stream, token_stream_sparkline, search_result, changes_strip, welcome_screen | 26 |
 | graphics | image, canvas | 2 |
 | scrolling | viewport, scrollbar | 2 |
-| **Total** | | **58** |
+| color helpers | gradient *(listed under text)* | — |
+| **Total** | | **77** |
 
-What is **not** counted: the `Canvas` class is an imperative *drawing surface*,
-not a presentational renderer (it ultimately emits the same half-block paint as
-`canvas(...)`); and `scroll_state()` / `scroll_handle(...)` are *state helpers*,
-not renderers — they produce/route a `ScrollState`, they don't return an
-`Element`. The widget enums (`GaugeStyle`, `ColumnAlign`, `ButtonVariant`,
-`TaskStatus`, `ToastLevel`, `TodoItemStatus`, `TodoListStatus`, `PopupStyle`,
-`BannerLevel`, `ToolCallStatus`, `ToolCallKind`) are option types.
+(The category buckets are presentational; the `__all__` total is what binds.)
+
+What is **not** counted as a renderer: the `Canvas`/`Surface` classes are
+imperative *drawing surfaces*, not presentational renderers (they ultimately
+emit the same half-block / braille paint as `canvas(...)`); `scroll_state()` /
+`scroll_handle(...)` are *state helpers* that produce/route a `ScrollState`;
+and `rgb_lerp(...)` / `ramp(...)` are *colour* helpers (they return tuples /
+int LUTs, not an `Element`). The widget enums (`GaugeStyle`, `ColumnAlign`,
+`ButtonVariant`, `TaskStatus`, `ToastLevel`, `TodoItemStatus`,
+`TodoListStatus`, `PopupStyle`, `BannerLevel`, `ToolCallStatus`,
+`ToolCallKind`, `FileChangeKind`, `TurnRole`, `CursorStyle`, `SearchKind`,
+`SearchStatus`, `ScrollbarStyle`) are option types.
 Layout primitives (`card`, `row`, `col`, `tcol`/`trow`, …) live in
 [layout.md](layout.md), not here.
 
@@ -495,6 +501,51 @@ from maya_py import markdown, show
 show(markdown("# Title\n\n- **bold** item\n- `code` item\n\n> a quote"))
 ```
 
+### `html`
+
+```python
+html(source: str, *, theme: str = "dark") -> Element
+```
+
+Renders a subset of HTML to an Element — the same engine maya's markdown widget
+uses for inline tags. `theme` is `dark` / `light` / `dark_ansi` / `light_ansi`.
+
+```python
+from maya_py import html, show
+show(html("<b>bold</b> and <i>italic</i> and <code>mono</code>"))
+```
+
+### `error_block`
+
+```python
+error_block(error_type: str, message: str = "", *, detail: str = "", hint: str = "",
+            severity: str = "error", trace: Sequence[str] = ()) -> Element
+```
+
+A structured error card: a typed header, a message, optional `detail` / `hint`
+lines, and a `trace` stack. `severity` is `error` / `warning` / `info`.
+
+```python
+from maya_py import error_block, show
+show(error_block("TypeError", "cannot add int and str",
+                 hint="cast with str() or int()",
+                 trace=["file.py:12 in add()", "main.py:3 in <module>"]))
+```
+
+### `activity_indicator`
+
+```python
+activity_indicator(detail: str = "", *, color=None) -> Element
+```
+
+The animated "working…" ticker (a rotating word pool + sweep). Pass an optional
+trailing token like an elapsed time as `detail`.
+
+```python
+from maya_py import activity_indicator, show
+show(activity_indicator("3.4s", color="cyan"))
+```
+
 ---
 
 ## Structure & navigation
@@ -685,6 +736,56 @@ show(picker(
 ))
 ```
 
+### `modal`
+
+```python
+modal(title: str, *, content=None, buttons: Sequence[Any] = (), focused: int = 0) -> Element
+```
+
+A centered dialog: a title bar, a body, and a footer of action buttons.
+`content` is text or an Element; `buttons` is a list of labels or
+`(label, variant)` tuples where `variant` is `default` / `primary` / `danger`;
+`focused` highlights that button index. Pair it with `overlay(base, modal(...))`
+to float it over your UI.
+
+```python
+from maya_py import modal, show
+show(modal("Delete file?", content="This cannot be undone.",
+           buttons=[("Cancel", "default"), ("Delete", "danger")], focused=1))
+```
+
+### `command_palette`
+
+```python
+command_palette(commands: Sequence[Any], *, cursor: int = 0) -> Element
+```
+
+A fuzzy command menu (the `Ctrl-K` palette). Each command is a name, a
+`(name, description, shortcut)` tuple, or a dict with those keys. `cursor` is
+the highlighted row.
+
+```python
+from maya_py import command_palette, show
+show(command_palette([("Open File", "", "^O"),
+                      ("Save", "write the buffer", "^S")], cursor=0))
+```
+
+### `log_viewer`
+
+```python
+log_viewer(entries: Sequence[Any], *, visible: int = 0, scroll: int = 0) -> Element
+```
+
+A scrolling log panel. Each entry is a `(timestamp, message, level)` tuple or a
+dict `{timestamp, message, level}`; `level` is `debug` / `info` / `warn` /
+`error`. `visible>0` windows the rows; `scroll` is the top offset.
+
+```python
+from maya_py import log_viewer, show
+show(log_viewer([("12:00:01", "Started", "info"),
+                 ("12:00:02", "Disk full", "error")], visible=10))
+```
+
 ---
 
 ## Agent UI
@@ -859,6 +960,186 @@ git_status(*, branch: str = "", ahead: int = 0, behind: int = 0, modified: int =
 
 A git-status summary (branch, ahead/behind, dirty counts). `compact` renders a
 single line; otherwise an expanded list including `changed_files`.
+
+### `activity_bar`
+
+```python
+activity_bar(*, model: str = "", input_tokens: int = 0, output_tokens: int = 0,
+             cost: float = 0.0, context_pct: int = 0, status: str = "") -> Element
+```
+
+A single-line model/usage status strip (the Claude Code / Zed activity bar):
+`model · ↑in ↓out · $cost · ctx%`. Omitted fields drop out.
+
+```python
+from maya_py import activity_bar, show
+show(activity_bar(model="claude-opus-4", input_tokens=12000, output_tokens=3400,
+                  cost=0.21, context_pct=42, status="streaming"))
+```
+
+### `file_changes`
+
+```python
+file_changes(changes: Sequence[Any], *, compact: bool = False) -> Element
+```
+
+A session file-change summary with `+`/`~`/`-` status icons and ±line counts.
+Each change is a dict `{path, kind, added, removed}` or a tuple
+`(path, kind, added, removed)`; `kind` is `created` / `modified` / `deleted` /
+`renamed` (or a `FileChangeKind`).
+
+```python
+from maya_py import file_changes, show
+show(file_changes([
+    ("src/auth.py", "modified", 18, 4),
+    ("src/new.py", "created", 60, 0),
+    ("old.py", "deleted", 0, 120),
+]))
+```
+
+### `api_usage`
+
+```python
+api_usage(*, requests: int = 0, request_limit: int = 0, tokens: int = 0,
+          token_limit: int = 0, latency_ms: int = 0, errors: int = 0,
+          compact: bool = False) -> Element
+```
+
+An API rate-limit / usage panel: request + token mini-bars that shade
+green → yellow → red as they approach their limits, plus latency and error
+count. A limit of `0` hides that row.
+
+### `cost_tracker`
+
+```python
+cost_tracker(turns: Sequence[Any], *, compact: bool = False) -> Element
+```
+
+A per-turn + cumulative token/cost breakdown. Each turn is a dict with keys
+`input` / `output` / `cache_read` / `cache_write` / `cost` / `latency_ms`, or a
+tuple `(input, output, cost)`.
+
+### `token_stream`
+
+```python
+token_stream(*, total_tokens: int = 0, tokens_per_sec: float = 0.0,
+             peak_rate: float = 0.0, elapsed: float = 0.0,
+             history: Sequence[float] = (), color=None, compact: bool = False) -> Element
+```
+
+A live token-generation visualiser: a sparkline of `history` plus
+rate / total / peak / elapsed stats. `compact` collapses it to one line.
+
+### `token_stream_sparkline`
+
+```python
+token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
+                       history: Sequence[float] = (), color=None,
+                       live: bool = False) -> Element
+```
+
+A fixed-width `⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234` streaming status slot. Every segment
+is a stable display width, so neighbouring chips don't shift as numbers tick.
+`live=False` dims it (frozen).
+
+### `streaming_cursor`
+
+```python
+streaming_cursor(label: str = "", *, style=None, active: bool = True,
+                 frame: int = 0) -> Element
+```
+
+An animated typing/streaming indicator. `style` is `block` / `dots` / `bar` /
+`pulse` (or a `CursorStyle`); `frame` advances the animation; `active=False`
+freezes it.
+
+### `checkpoint_divider`
+
+```python
+checkpoint_divider(label: str = "", *, color=None) -> Element
+```
+
+A full-width `↺ Restore checkpoint` rule marking a snapshot point.
+
+### `turn_divider`
+
+```python
+turn_divider(role=None, *, turn_number: int = 0, show_role: bool = True) -> Element
+```
+
+A conversation-turn separator (`─── ✦ Claude #3 ───`). `role` is `user` /
+`assistant` / `system` / `tool` (or a `TurnRole`); `turn_number` numbers it.
+
+### `phase_accent`
+
+```python
+phase_accent(*, color=None, position: str = "top") -> Element
+```
+
+A soft-shelf full-width rule (a row of `▁`/`▔` half-blocks) in a phase colour.
+`position` is `top` or `bottom` — pair it above/below a phase block.
+
+### `search_result`
+
+```python
+search_result(groups: Sequence[Any], *, kind=None, pattern: str = "",
+              status=None, elapsed: float = 0.0, expanded: bool = True,
+              max_matches_per_file: int = 0) -> Element
+```
+
+A Grep/Glob search-results panel (bordered file groups + matches). `groups` is
+a list of dicts `{file_path, matches}` or tuples `(file_path, matches)`; each
+match is `(line, content)`, a string, or `{line, content}`. `kind` is `grep` /
+`glob` (or a `SearchKind`); `status` is `pending` / `searching` / `done` /
+`failed` (or a `SearchStatus`).
+
+```python
+from maya_py import search_result, show
+show(search_result([
+    ("src/auth.py", [(12, "def login(user):"), (88, "    return token")]),
+    ("src/api.py", [(4, "import auth")]),
+], kind="grep", pattern="auth", status="done", elapsed=0.03))
+```
+
+### `changes_strip`
+
+```python
+changes_strip(changes: Sequence[Any], *, border_color=None, text_color=None,
+              accept_color=None, reject_color=None) -> Element
+```
+
+A bordered "session has pending changes" banner over a file list — the same
+change shape as `file_changes`. Empty `changes` renders to an empty Element, so
+you can drop it into a stack unconditionally.
+
+### `welcome_screen`
+
+```python
+welcome_screen(*, tagline: str = "", model_badge: Element | None = None,
+               profile_label: str = "", profile_color=None,
+               starters_title: str = "", starters: Sequence[str] = (),
+               hint_intro: str = "", hints: Sequence[Any] = (),
+               sigil_color=None, accent_color=None,
+               sigil_draw_ms: int = 0, max_rows: int = 0) -> Element
+```
+
+An empty-thread brand splash: a pixel-art wordmark, `tagline`, a model +
+profile chip row, an optional `starters` card, and a hint footer. `model_badge`
+is a built Element (e.g. `model_badge("Opus 4")`); `hints` is a list of
+`(key, label)` or `(key, label, color)` tuples. `sigil_draw_ms=0` renders the
+completed mark statically; raise it for the cascade-in intro inside an app loop.
+
+```python
+from maya_py import welcome_screen, model_badge, show
+show(welcome_screen(
+    tagline="your terminal coding agent",
+    model_badge=model_badge("Opus 4"),
+    profile_label="default",
+    starters_title="Try",
+    starters=["Explain this repo", "Fix the failing test"],
+    hints=[("q", "quit"), ("?", "help")],
+))
+```
 
 ### `user_message` / `assistant_message`
 
@@ -1091,6 +1372,11 @@ Values copied from source:
 | `BannerLevel` | `Info`, `Success`, `Warning`, `Error` | `system_banner(level=)` |
 | `ToolCallStatus` | `Pending`, `Running`, `Completed`, `Failed`, `Confirmation` | `tool_call(status=)` |
 | `ToolCallKind` | `Read`, `Edit`, `Execute`, `Search`, `Delete`, `Move`, `Fetch`, `Think`, `Agent`, `Other` | `tool_call(kind=)` |
+| `FileChangeKind` | `Created`, `Modified`, `Deleted`, `Renamed` | `file_changes` / `changes_strip` kind |
+| `TurnRole` | `User`, `Assistant`, `System`, `Tool` | `turn_divider(role=)` |
+| `CursorStyle` | `Block`, `Dots`, `Bar`, `Pulse` | `streaming_cursor(style=)` |
+| `SearchKind` | `Grep`, `Glob` | `search_result(kind=)` |
+| `SearchStatus` | `Pending`, `Searching`, `Done`, `Failed` | `search_result(status=)` |
 | `ScrollbarStyle` | `line`, `block`, `slim`, `heavy`, `double_line`, `dotted`, `dashed`, `braille`, `ascii`, `shadow`, `minimal`, `neon`, `retro`, `danger`, `pixel` | `scrollbar(style=)` |
 
 `ScrollbarStyle` members are factory functions returning a configured style

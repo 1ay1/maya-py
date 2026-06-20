@@ -29,7 +29,7 @@ A full reference manual lives in [`docs/`](https://1ay1.github.io/maya-py/):
 - [Text & Style](https://1ay1.github.io/maya-py/text-and-style/) — `T`, markup helpers, colors.
 - [Layout](https://1ay1.github.io/maya-py/layout/) — `col`, `row`, `card`, `field`, `hr`, options.
 - [Apps](https://1ay1.github.io/maya-py/apps/) — the `App` class, key bindings, state, the view.
-- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 58 native renderers: charts, controls, agent UI, scrolling.
+- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 77 native renderers: charts, controls, agent UI, scrolling.
 - [Rendering](https://1ay1.github.io/maya-py/rendering/) — `show`, `to_string`, `animate`, `run`.
 - [Performance](https://1ay1.github.io/maya-py/performance/) — `memo`, the boundary tax, benchmarks.
 - [API Reference](https://1ay1.github.io/maya-py/api-reference/) — every public symbol.
@@ -131,21 +131,22 @@ Available — every color argument takes a name / `(r,g,b)` / `"#rrggbb"` /
 `Color`, same as everywhere else:
 
 - **charts & meters**: `sparkline`, `gauge`, `progress`, `bar_chart`,
-  `line_chart`, `heatmap`, `flame_chart`, `waterfall`
+  `line_chart`, `heatmap`, `flame_chart`, `waterfall`, `activity_indicator`
 - **controls** (rendered in any state — pass `checked`/`on`/`selected`/`cursor`):
   `checkbox`, `toggle`, `radio`, `select`, `slider`, `button`
 - **text & labels**: `badge`, `divider`, `spinner`, `callout`, `status_banner`,
   `breadcrumb`, `tabs`, `gradient`, `link`, `title_chip`, `model_badge`,
-  `file_ref`, `markdown`
+  `file_ref`, `markdown`, `html`, `error_block`
 - **structure & nav**: `table`, `tree`, `list_view`, `menu`, `disclosure`,
-  `key_help`, `calendar`, `timeline`, `picker` (bordered command palette)
+  `key_help`, `calendar`, `timeline`, `picker` (bordered command palette),
+  `modal`, `command_palette`, `log_viewer`
 - **agent UI**: `thinking`, `todo_list`, `toast`, `inline_diff`,
   `tool_call`, `plan_view`, `phase_chip`, `context_gauge`, `context_window`,
   `diff_view`, `git_graph`, `git_status`, `shortcut_row`, `system_banner`,
   `popup`, `overlay`, `user_message`, `assistant_message`, `activity_bar`,
   `file_changes`, `api_usage`, `cost_tracker`, `phase_accent`,
-  `checkpoint_divider`, `turn_divider`, `streaming_cursor`,
-  `token_stream_sparkline`, `search_result`, `html`, `changes_strip`,
+  `checkpoint_divider`, `turn_divider`, `streaming_cursor`, `token_stream`,
+  `token_stream_sparkline`, `search_result`, `changes_strip`,
   `welcome_screen`
 - **graphics**: `image` (1-bit braille), `canvas` (color half-block grid),
   `Canvas` (imperative drawing surface: `set_pixel`/`line`/`rect`/`fill`)
@@ -170,7 +171,8 @@ List/tuple inputs are flexible: list items accept `"str"`,
 `(label, description, icon)`, or `{...}` dicts; timeline/todo statuses accept
 strings (`"completed"`, `"in_progress"`, ...) or the exported enums
 (`TaskStatus`, `TodoItemStatus`, `ToastLevel`, `ButtonVariant`,
-`ToolCallKind`, `ToolCallStatus`, `PopupStyle`, `BannerLevel`).
+`ToolCallKind`, `ToolCallStatus`, `PopupStyle`, `BannerLevel`,
+`FileChangeKind`, `TurnRole`, `CursorStyle`, `SearchKind`, `SearchStatus`).
 
 ### Scrolling: viewport + scrollbar
 

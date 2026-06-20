@@ -22,7 +22,7 @@ freely.
 3. [Layout](layout.md) — `col`, `row`, `card`, `field`, `hr`, `spacer`, and all box options.
 4. [Apps](apps.md) — the `App` class, key bindings, state, the view function.
 5. [The Program model (MVU)](program.md) — pure `init`/`update`/`view`/`subscribe`, `Cmd` effects, `Sub` sources — the same model as C++ `run<P>`.
-6. [Widgets](widgets.md) — 44 native renderers: charts, controls, tables, agent UI, scrolling.
+6. [Widgets](widgets.md) — 77 native renderers: charts, controls, tables, agent UI, scrolling.
 7. [Rendering](rendering.md) — `show`, `to_string`, `animate`, `live`, `run`.
 8. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
 9. [API Reference](api-reference.md) — every public symbol, one table.
