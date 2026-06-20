@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, box, col, component, row, halfblock  # noqa: E402
+from maya_py import App, T, box, col, component, row, halfblock, clamp  # noqa: E402
 
 NUM_BARS = 64
 NUM_WATERFALL = 128
@@ -36,13 +36,7 @@ ROWS = 24  # fixed render height (fullscreen sentinel can't be used for grids)
 MODE_NAMES = ["BARS", "MIRROR", "CIRCULAR", "WATERFALL"]
 TRACK_NAMES = ["EDM", "AMBIENT", "ROCK", "SYNTHWAVE", "GLITCH"]
 
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
-
-
-def clampi(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
+clampi = clamp
 
 
 # ── Color gradients ──────────────────────────────────────────────────────────

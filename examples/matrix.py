@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, box, col, component, row, BOLD  # noqa: E402
+from maya_py import App, T, box, col, component, row, BOLD, clamp as clampi  # noqa: E402
 
 # CHARSET: half-width katakana U+FF66..U+FF9D (56), digits, latin A-Z.
 CHARSET = (
@@ -46,10 +46,6 @@ RAINBOW_HUES = 64
 ROWS = 22
 MSG_DURATION = 90
 MSG_TEXT = "WAKE UP NEO"
-
-
-def clampi(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 def hsv_to_rgb(h, s, v):

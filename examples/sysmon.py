@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer  # noqa: E402
+from maya_py import App, T, col, row, card, spacer, clamp  # noqa: E402
 
 
 def randi(lo, hi):
@@ -30,10 +30,6 @@ def randi(lo, hi):
 
 def randf(lo, hi):
     return random.uniform(lo, hi)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 def usage_color(v):

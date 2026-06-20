@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
-    App, T, col, row, card, spacer, grow, sparkline,
+    App, T, col, row, card, spacer, grow, sparkline, clamp,
 )
 
 
@@ -42,10 +42,6 @@ def randi(lo, hi):
 
 def randf(lo, hi):
     return random.uniform(lo, hi)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 DOT_SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]

@@ -25,16 +25,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
-    heatmap, sparkline, progress, badge,
+    heatmap, sparkline, progress, badge, clamp,
 )
 
 
 def randf(lo, hi):
     return random.uniform(lo, hi)
-
-
-def clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
 
 
 # Track: title, artist, genre, duration, freq_base, freq_mod, low(rgb), high(rgb)

@@ -24,7 +24,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, component, halfblock  # noqa: E402
+from maya_py import App, T, col, row, component, halfblock, clamp as clampi  # noqa: E402
 
 NUM_ALGOS = 8
 ARRAY_SIZE = 80
@@ -47,11 +47,7 @@ C_ACTIVE = (80, 160, 255)    # blue
 C_SORTED = (255, 200, 40)    # amber
 
 
-def clampi(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
-
-
-# ── HSV value colours ────────────────────────────────────────────────────────
+# ── HSV value colours ───────────────────────────────────────────
 
 def value_color(val, max_val):
     t = val / max_val if max_val > 0 else 0.0
