@@ -461,22 +461,30 @@ def draw_spirograph(s, x, y, w, h):
     pal = ramp([th.bg, th.accent, th.hot], 8)
     cpx, cpy = pen.pw // 2, pen.ph // 2
     scale = min(pen.pw // 20, pen.ph // 20) or 1
-    prev = [(-999, -999), (-999, -999)]
     n = len(W.spiro_trail)
+    # Split the interleaved trail into two per-pattern vertex streams, each
+    # carrying its own ramp colour (computed from the GLOBAL index i, exactly
+    # as the old per-segment loop did), then stroke each in one native call.
+    pts0, col0, pts1, col1 = [], [], [], []
+    e0, e1 = pts0.extend, pts1.extend
+    a0, a1 = col0.append, col1.append
+    nn = n if n else 1
     for i, (sx, sy, pat) in enumerate(W.spiro_trail):
-        ppx, ppy = int(cpx + sx * scale), int(cpy + sy * scale)
-        si = clampi(int((i / n if n else 0) * 7), 0, 7)
+        ppx = int(cpx + sx * scale)
+        ppy = int(cpy + sy * scale)
+        si = int((i / nn) * 7)        # identical to old int((i/n)*7)
+        if si < 0:
+            si = 0
+        elif si > 7:
+            si = 7
         if pat == 1:
-            si = clampi(7 - si, 0, 7)
-        pp = prev[pat]
-        if pp[0] != -999:
-            if abs(ppx - pp[0]) < pen.pw / 3 and abs(ppy - pp[1]) < pen.ph / 3:
-                pen.line(pp[0], pp[1], ppx, ppy, fg=pal[si])
-            else:
-                pen.plot_fg(ppx, ppy, pal[si])
+            si = 7 - si
+            e1((ppx, ppy)); a1(pal[si])
         else:
-            pen.plot_fg(ppx, ppy, pal[si])
-        prev[pat] = (ppx, ppy)
+            e0((ppx, ppy)); a0(pal[si])
+    mdx, mdy = pen.pw / 3, pen.ph / 3
+    pen.path_shaded(pts0, col0, max_dx=mdx, max_dy=mdy)
+    pen.path_shaded(pts1, col1, max_dx=mdx, max_dy=mdy)
 
 
 def draw_particles(s, w, h):

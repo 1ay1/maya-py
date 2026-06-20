@@ -949,6 +949,18 @@ class Pen:
         self._g.polyline(self.ox, self.oy, self.bw, self.bh, pts, self._c(fg))
         return self
 
+    def path_shaded(self, pts, cols, *, max_dx: float = -1.0,
+                    max_dy: float = -1.0) -> "Pen":
+        """Connect ``pts`` (flat ``[px0,py0,px1,py1,...]``) with PER-VERTEX
+        colours from ``cols`` (one packed int per vertex, as from :func:`ramp`).
+        When ``max_dx``/``max_dy`` are set, a segment whose endpoints jump more
+        than that far apart is drawn as a single dot instead of a line (so a
+        wrap-around doesn't streak across the panel). One native call — the
+        batch form of a per-segment ``line`` loop with a colour ramp."""
+        self._g.polyline_shaded(self.ox, self.oy, self.bw, self.bh,
+                                pts, cols, float(max_dx), float(max_dy))
+        return self
+
     def ring(self, cx: int, cy: int, rx: float, ry: float, *,
              fg: Any = None, steps: int = 0) -> "Pen":
         """Plot an ellipse outline centred at pixel ``(cx, cy)`` — one native

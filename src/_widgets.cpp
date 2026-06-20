@@ -368,6 +368,40 @@ struct PyCanvas {
                          pts[i - 2], pts[i - 1], pts[i], pts[i + 1], fg);
     }
 
+    // Connect a vertex list with PER-SEGMENT colours, breaking the line into
+    // a dot when consecutive vertices jump more than (max_dx, max_dy) apart.
+    // This is the spirograph / scope-trail pattern: a long sequence of points
+    // each carrying its own ramp colour, where a wrap-around must NOT draw a
+    // line straight across the panel. `pts` is [x0,y0,x1,y1,...]; `cols` is one
+    // packed colour per vertex; max_dx/max_dy < 0 disables the gap check.
+    // Collapses N Python line() calls into ONE crossing — byte-identical to the
+    // per-segment loop it replaces (same braille_line / braille_plot calls).
+    void polyline_shaded(int ox, int oy, int bw, int bh,
+                         const std::vector<int>& pts,
+                         const std::vector<int32_t>& cols,
+                         double max_dx, double max_dy) {
+        size_t n = pts.size() & ~size_t{1};
+        size_t nv = n / 2;
+        if (nv == 0) return;
+        bool have_prev = false;
+        int prevx = 0, prevy = 0;
+        const bool gap = (max_dx >= 0.0 && max_dy >= 0.0);
+        for (size_t v = 0; v < nv; ++v) {
+            int x = pts[v * 2], y = pts[v * 2 + 1];
+            int32_t c = v < cols.size() ? cols[v] : -1;
+            if (have_prev) {
+                if (!gap ||
+                    (std::abs(x - prevx) < max_dx && std::abs(y - prevy) < max_dy))
+                    braille_line(ox, oy, bw, bh, prevx, prevy, x, y, c);
+                else
+                    braille_plot(ox, oy, bw, bh, x, y, c);
+            } else {
+                braille_plot(ox, oy, bw, bh, x, y, c);
+            }
+            prevx = x; prevy = y; have_prev = true;
+        }
+    }
+
     // Per-column filled area chart from a sampled curve. `ys` holds one target
     // pixel-y per pixel-column (0..pw-1); the column between ys[x] and
     // `baseline_py` is flooded. If `ramp` is non-empty, each cell is shaded by
@@ -679,6 +713,10 @@ void init_widgets(py::module_& m) {
         .def("polyline", &PyCanvas::polyline,
              py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
              py::arg("pts"), py::arg("fg") = -1)
+        .def("polyline_shaded", &PyCanvas::polyline_shaded,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("pts"), py::arg("cols"),
+             py::arg("max_dx") = -1.0, py::arg("max_dy") = -1.0)
         .def("fill_curve", &PyCanvas::fill_curve,
              py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
              py::arg("ys"), py::arg("baseline_py"), py::arg("fg") = -1,
