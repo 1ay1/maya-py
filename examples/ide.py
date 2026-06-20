@@ -319,8 +319,21 @@ def _clip_row(cells, width):
     return row(*_clip_cells(cells, width), gap=0)
 
 
+def _panel_widths(avail):
+    """Replicate maya's flex-shrink distribution of the three main columns.
+
+    Measured from the C++ binary (explorer width(22), sidebar width(28),
+    editor grow(1)) under flex pressure: both fixed panels shrink linearly
+    at 1/5 of available width while the editor absorbs the remainder.
+    """
+    explorer = max(8, min(EXPLORER_W, avail // 5 - 2))
+    sidebar = max(10, min(SIDEBAR_W, avail // 5 + 3))
+    editor = max(10, avail - explorer - sidebar)
+    return explorer, editor, sidebar
+
+
 # ── UI Builders ──────────────────────────────────────────────────────────────
-def build_file_tree(s):
+def build_file_tree(s, pw):
     rows = []
     for i, (name, depth, is_dir, expanded, ext) in enumerate(file_tree):
         indent = "  " * depth
@@ -350,10 +363,10 @@ def build_file_tree(s):
             cells.append((indent, (50, 55, 70)))
         cells.append((icon, (150, 156, 170)))
         cells.append((name, name_color, None, name_attrs))
-        rows.append(_clip_row(cells, EXPLORER_W - 4))
+        rows.append(_clip_row(cells, pw - 4))
 
     return card(*rows, title="EXPLORER", border_color=BORDER, pad=(0, 1),
-                width=EXPLORER_W, shrink=0)
+                width=pw, shrink=0)
 
 
 def build_tab_bar(s):
@@ -375,13 +388,17 @@ def build_breadcrumb(s):
     return breadcrumb(tabs[s.active_tab][3])
 
 
-def build_code_editor(s):
+def build_code_editor(s, vis):
     lines = code_buffers[s.active_tab]
 
     def draw(w, h):
         cw = max(1, min(int(w), 400))
+        # maya's vstack clips overflow keeping the tail: show the last `vis`
+        # lines so the bottom of the buffer stays visible (matches C++).
+        start = max(0, len(lines) - vis)
         rows = []
-        for i, (text, runs) in enumerate(lines):
+        for i in range(start, len(lines)):
+            text, runs = lines[i]
             num_str = "%3d " % (i + 1)
             cells = [(num_str, LINE_NUM)]
             cells.extend(_runs_to_cells(text, runs))
@@ -397,19 +414,20 @@ def build_minimap(s):
     return sparkline(density, color=(60, 80, 120))
 
 
-def build_editor_panel(s):
+def build_editor_panel(s, pw, code_h):
     return card(
         build_tab_bar(s),
         build_breadcrumb(s),
-        row(build_code_editor(s), build_minimap(s), gap=1),
+        row(build_code_editor(s, code_h), build_minimap(s), gap=1),
         title=tabs[s.active_tab][0],
         border_color=BORDER,
         pad=(0, 1),
-        grow=1,
+        width=pw,
+        shrink=0,
     )
 
 
-def build_outline_panel(s):
+def build_outline_panel(s, pw):
     syms = outlines[s.active_tab]
     rows = []
     for name, kind, line in syms:
@@ -426,11 +444,11 @@ def build_outline_panel(s):
             (icon, icon_color),
             (name, (200, 204, 212)),
             (line_str, (92, 99, 112)),
-        ], SIDEBAR_W - 4))
+        ], pw - 4))
     return card(*rows, title="OUTLINE", border_color=BORDER, pad=(0, 1))
 
 
-def build_diagnostics_panel(s):
+def build_diagnostics_panel(s, pw):
     rows = []
     for file, line, message, severity in diagnostics:
         if severity == 0:
@@ -444,12 +462,12 @@ def build_diagnostics_panel(s):
         rest = _clip_cells([
             (loc, (100, 180, 255)),
             (" " + message, None, None, DIM),
-        ], SIDEBAR_W - 4 - 6)
+        ], pw - 4 - 6)
         rows.append(row(b, row(*rest, gap=0), gap=1))
     return card(*rows, title="DIAGNOSTICS", border_color=BORDER, pad=(0, 1))
 
 
-def build_git_panel(s):
+def build_git_panel(s, pw):
     rows = []
     for file, added, removed, status in git_changes:
         if status == "M":
@@ -469,16 +487,16 @@ def build_git_panel(s):
             (adds, (152, 195, 121)),
             (" ", PLAIN),
             (dels, del_color),
-        ], SIDEBAR_W - 4))
+        ], pw - 4))
     return card(*rows, title="GIT CHANGES", border_color=BORDER, pad=(0, 1))
 
 
-def build_right_sidebar(s):
+def build_right_sidebar(s, pw):
     return col(
-        build_outline_panel(s),
-        build_diagnostics_panel(s),
-        build_git_panel(s),
-        width=SIDEBAR_W,
+        build_outline_panel(s, pw),
+        build_diagnostics_panel(s, pw),
+        build_git_panel(s, pw),
+        width=pw,
         shrink=0,
     )
 
@@ -544,14 +562,30 @@ def build_status_bar(s):
 
 # ── Render ───────────────────────────────────────────────────────────────────
 def render(s):
-    columns = []
-    if s.show_left:
-        columns.append(build_file_tree(s))
-    columns.append(build_editor_panel(s))
-    if s.show_right:
-        columns.append(build_right_sidebar(s))
+    def draw_main(w, h):
+        avail = max(30, int(w))
+        exp_w, ed_w, sb_w = _panel_widths(avail)
+        # Reclaim space from any hidden panels so the editor fills the row.
+        if not s.show_left:
+            ed_w += exp_w
+        if not s.show_right:
+            ed_w += sb_w
+        # Editor card: 2 border rows + tab bar + breadcrumb above the code.
+        # Available vertical space = terminal height, minus the status bar (1)
+        # and the terminal panel (6) when shown, minus this card's chrome (4).
+        used = 1
+        if s.show_bottom:
+            used += 6
+        code_h = max(1, s.term_h - used - 4)
+        columns = []
+        if s.show_left:
+            columns.append(build_file_tree(s, exp_w))
+        columns.append(build_editor_panel(s, ed_w, code_h))
+        if s.show_right:
+            columns.append(build_right_sidebar(s, sb_w))
+        return row(*columns, gap=0)
 
-    main_row = row(*columns, grow=1)
+    main_row = component(draw_main, grow=1)
 
     main_stack = [main_row]
     if s.show_bottom:
@@ -565,7 +599,12 @@ def render(s):
 app = App("ide", inline=False, fps=10)
 app.state(active_tab=0, show_left=True, show_right=True, show_bottom=True,
           building=False, build_progress=0.0, build_done=False, frame=0,
-          selected_file=3)
+          selected_file=3, term_h=28)
+
+
+@app.on_resize
+def _resize(s, cols, rows):
+    s.term_h = rows
 
 
 @app.on("q", "esc")
