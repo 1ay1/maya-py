@@ -229,6 +229,7 @@ def print(element, *args, width: int | None = None, **kwargs):  # noqa: A001
 from .easy import (  # noqa: E402
     T, b, i, u, dim as _dim_markup, c, color,
     col, row, trow, tcol, card, field, hr, spacer, memo,
+    rows,
     center, stack, component, nothing, grow, when, For,
     pct, cells, auto, sides,
     BOLD, DIM, ITALIC, UNDERLINE, STRIKE, INVERSE,
@@ -253,6 +254,7 @@ dim_text = _dim_markup
 __all__ += [
     "T", "b", "i", "u", "dim_text", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
+    "rows",
     "center", "stack", "component", "grow", "when", "For",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",

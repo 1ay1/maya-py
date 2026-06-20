@@ -345,6 +345,69 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("flat"), py::arg("n"), py::arg("direction"),
           py::arg("gap") = -1, py::arg("grow") = -1.0f);
 
+    // styled_grid(flat, row_lens, inner_dir, outer_gap, inner_gap) -> Element
+    //                                                          [FUSED x N rows]
+    //
+    // The single biggest saver for LIST-heavy UIs (a col of N rows, or a row
+    // of N cols, where every cell is plain styled text). Builds the ENTIRE
+    // nested tree — the outer box AND all its inner boxes — in ONE crossing.
+    //
+    // `flat` is every cell of every inner box, concatenated, 4 scalars each:
+    //   [s,fg,bg,a,  s,fg,bg,a,  ...]   (same layout as styled_text_row)
+    // `row_lens` is the cell count of each inner box, in order; their sum * 4
+    // must equal len(flat). The outer box runs perpendicular to the inner
+    // boxes: inner_dir 0=Row means each inner box is a horizontal row and the
+    // outer stacks them as a Column (the col(row,row,…) shape); inner_dir 1
+    // is the transpose. This replaces N styled_text_row() + N Python row()
+    // frames + 1 box_simple() with a single call — no per-row boundary cross,
+    // no per-row Python dispatch.
+    m.def("styled_grid",
+          [](const py::list& flat, const py::list& row_lens, int inner_dir,
+             int outer_gap, int inner_gap) {
+              PyObject* lst = flat.ptr();
+              PyObject* lens = row_lens.ptr();
+              const Py_ssize_t nrows = PyList_GET_SIZE(lens);
+              FlexDirection idir = inner_dir == 0 ? FlexDirection::Row
+                                                  : FlexDirection::Column;
+              FlexDirection odir = inner_dir == 0 ? FlexDirection::Column
+                                                  : FlexDirection::Row;
+              std::vector<Element> rows;
+              rows.reserve(static_cast<std::size_t>(nrows));
+              int cursor = 0;   // running cell index into `flat` (×4 for scalar)
+              for (Py_ssize_t r = 0; r < nrows; ++r) {
+                  const int cells = static_cast<int>(
+                      PyLong_AsLong(PyList_GET_ITEM(lens, r)));
+                  std::vector<Element> kids;
+                  kids.reserve(static_cast<std::size_t>(cells));
+                  for (int i = 0; i < cells; ++i) {
+                      const int o = (cursor + i) * 4;
+                      PyObject* ps = PyList_GET_ITEM(lst, o);
+                      Py_ssize_t slen = 0;
+                      const char* sdata = PyUnicode_AsUTF8AndSize(ps, &slen);
+                      std::string s = sdata
+                          ? std::string(sdata, static_cast<std::size_t>(slen))
+                          : std::string{};
+                      long fg = PyLong_AsLong(PyList_GET_ITEM(lst, o + 1));
+                      long bg = PyLong_AsLong(PyList_GET_ITEM(lst, o + 2));
+                      int  at = static_cast<int>(
+                          PyLong_AsLong(PyList_GET_ITEM(lst, o + 3)));
+                      kids.push_back(Element{
+                          make_styled_text(std::move(s), fg, bg, at)});
+                  }
+                  cursor += cells;
+                  auto ib = maya::box();
+                  ib.direction(idir);
+                  if (inner_gap >= 0) ib.gap(inner_gap);
+                  rows.push_back(ib(kids));
+              }
+              auto ob = maya::box();
+              ob.direction(odir);
+              if (outer_gap >= 0) ob.gap(outer_gap);
+              return ob(rows);
+          },
+          py::arg("flat"), py::arg("row_lens"), py::arg("inner_dir"),
+          py::arg("outer_gap") = -1, py::arg("inner_gap") = -1);
+
     // box_simple(children, direction, gap, grow) -> Element  [FAST PATH]
     //
     // The overwhelming-majority box: a plain row/col with at most a gap and

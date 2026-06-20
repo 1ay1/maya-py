@@ -243,6 +243,13 @@ def styled_text_row(
     gap: int = -1,
     grow: float = -1.0,
 ) -> Element: ...
+def styled_grid(
+    flat: list,
+    row_lens: list,
+    inner_dir: int,
+    outer_gap: int = -1,
+    inner_gap: int = -1,
+) -> Element: ...
 def box(*args: Any, **kwargs: Any) -> Element: ...
 def box_simple(
     children: list[Element],

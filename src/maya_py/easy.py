@@ -770,6 +770,85 @@ def _arity2(fn) -> bool:
     return len(required) >= 2
 
 
+# ── rows() — a whole list of text rows in ONE C++ crossing ───────────────────
+def _flatten_into(ext, cells) -> int:
+    """Append a row of cells to the shared flat ``[s,fg,bg,a, …]`` list via
+    ``ext`` (a bound ``list.extend``), returning the cell count — or -1 if any
+    cell isn't a flattenable text cell (str / tuple-spec / plain-int T). The
+    caller bails to the per-element path on -1.
+    """
+    n = 0
+    for x in cells:
+        tx = type(x)
+        if (tx is tuple or tx is list) and x and type(x[0]) is str:
+            ln = len(x)
+            fg = _resolve_col(x[1]) if ln > 1 else -1
+            bg = _resolve_col(x[2]) if ln > 2 else -1
+            at = x[3] if ln > 3 else 0
+            ext((x[0], fg, bg, at))
+        elif tx is T:
+            fg = x._fg
+            bg = x._bg
+            if type(fg) is not int or type(bg) is not int:
+                return -1
+            ext((x._s, fg, bg, x._attrs))
+        elif tx is str:
+            ext((x, -1, -1, 0))
+        else:
+            return -1
+        n += 1
+    return n
+
+
+def rows(row_specs, *, gap: int = 0, inner_gap: int = -1,
+         transpose: bool = False) -> Element:
+    """Build a whole list of text rows in a SINGLE C++ crossing — the fastest
+    way to render a long, flat list (logs, tables, leaderboards, chat lines).
+
+    ``row_specs`` is an iterable of rows; each row is an iterable of cells
+    (a ``str``, a ``(text, fg[, bg[, attrs]])`` tuple, or a plain-int ``T``).
+    The entire ``col(row(…), row(…), …)`` tree — every inner row AND the outer
+    column — is constructed natively, so N rows cost ONE boundary crossing and
+    zero per-row Python frames (vs ``col(*[row(…) for …])`` which pays N).
+
+    ``gap`` spaces the rows (outer, default 0); ``inner_gap`` spaces cells
+    within each row (default -1 = none). ``transpose=True`` makes each spec a
+    *column* and the outer box a row instead.
+
+        rows([(f'{i}.', 'slate'), (name, 'sky'), (status,)] for i, ... )
+
+    If any cell isn't flattenable (a nested box / Element), the whole call
+    falls back to ``col(*[row(*r) for r in row_specs])`` — same result, slower.
+    """
+    flat = []
+    ext = flat.extend
+    row_lens = []
+    ap = row_lens.append
+    inner_dir = 1 if transpose else 0
+    all_single = True
+    for r in row_specs:
+        cells = r if type(r) is list else list(r)
+        k = _flatten_into(ext, cells)
+        if k < 0:
+            # A non-text cell slipped in — rebuild the lot the general way.
+            built = [_stack(rs if type(rs) is tuple else tuple(rs),
+                            inner_dir, inner_gap, -1.0)
+                     for rs in row_specs]
+            return _maya.box_simple(built, 1 if not transpose else 0,
+                                    gap, -1.0)
+        if k != 1:
+            all_single = False
+        ap(k)
+    if not row_lens:
+        return _maya.nothing()
+    # Every row is a single cell → this is just a flat stack of text lines.
+    # styled_text_row fuses them into ONE box (no per-row wrapper), which is
+    # both faster AND the structure col(*[…]) produces — so stay byte-identical.
+    if all_single and not transpose:
+        return _maya.styled_text_row(flat, len(row_lens), 1, gap, -1.0)
+    return _maya.styled_grid(flat, row_lens, inner_dir, gap, inner_gap)
+
+
 # ── dimension sugar ─────────────────────────────────────────────────────────
 # width=/height=/etc already accept int, "N%", "auto", or a float in (0,1].
 # These build an explicit Dimension when you want to be unambiguous.
@@ -2246,6 +2325,7 @@ class ThemeSet:
 __all__ = [
     "T", "b", "i", "u", "dim", "c", "color",
     "col", "row", "trow", "tcol", "card", "field", "hr", "spacer", "memo",
+    "rows",
     "center", "stack", "component", "nothing", "grow", "when", "For",
     "pct", "cells", "auto", "sides",
     "BOLD", "DIM", "ITALIC", "UNDERLINE", "STRIKE", "INVERSE",
