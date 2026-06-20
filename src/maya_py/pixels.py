@@ -16,7 +16,42 @@ from .easy import T, col, component, row
 
 UPPER = "▀"  # ▀ upper half block
 
-__all__ = ["halfblock", "PixelField", "pixel_canvas"]
+__all__ = ["halfblock", "upscale", "PixelField", "pixel_canvas"]
+
+# Sane upper bounds for a terminal cell box. maya's fullscreen layout can hand
+# a component a HUGE sentinel size during measurement; clamping here keeps a
+# grid allocation from exploding to millions of rows.
+_MAX_CELLS_W = 400
+_MAX_CELLS_H = 200
+
+
+def target_size(w, h):
+    """Clamp a component's (w, h) cell box to sane terminal bounds, returning
+    the output *pixel* dimensions ``(out_w, out_h)`` for a half-block field
+    (out_h = h*2). Guards against maya's fullscreen layout sentinel."""
+    out_w = max(1, min(int(w), _MAX_CELLS_W))
+    out_h = max(2, min(int(h) * 2, _MAX_CELLS_H))
+    if out_h % 2:
+        out_h += 1
+    return out_w, out_h
+
+
+def upscale(small, out_w, out_h):
+    """Nearest-neighbour scale a small pixel grid up to ``out_w × out_h`` so a
+    cheaply-computed buffer FILLS the whole half-block field (identical layout
+    to a native full-resolution render, just lower detail). Returns the scaled
+    grid; pass it straight to :func:`halfblock`."""
+    sh = len(small)
+    sw = len(small[0]) if sh else 0
+    if sw == out_w and sh == out_h:
+        return small
+    if sw == 0 or sh == 0:
+        return [[None] * out_w for _ in range(out_h)]
+    grid = [None] * out_h
+    for oy in range(out_h):
+        srow = small[oy * sh // out_h]
+        grid[oy] = [srow[ox * sw // out_w] for ox in range(out_w)]
+    return grid
 
 
 def halfblock(grid, *, bg=(0, 0, 0)):

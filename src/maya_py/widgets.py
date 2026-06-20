@@ -444,6 +444,18 @@ def waterfall(entries: Sequence[Any], *, time_scale: float = 0.0,
                         bool(show_labels), int(frame), bool(show_times))
 
 
+def token_stream(*, total_tokens: int = 0, tokens_per_sec: float = 0.0,
+                 peak_rate: float = 0.0, elapsed: float = 0.0,
+                 history: Sequence[float] = (), color: Any = None,
+                 compact: bool = False) -> Element:
+    """Live token-generation rate visualizer: a sparkline of ``history`` plus
+    rate/total/peak/elapsed stats. ``compact`` collapses it to one line."""
+    return _W.token_stream(int(total_tokens), float(tokens_per_sec),
+                           float(peak_rate), float(elapsed),
+                           [float(x) for x in history], _col(color),
+                           bool(compact))
+
+
 def thinking(content: str = "", *, active: bool = False, expanded: bool = True,
              max_lines: int = 0) -> Element:
     """A collapsible 'thinking' block (agent reasoning trace)."""
@@ -818,7 +830,8 @@ __all__ = [
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
-    "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
+    "file_ref", "inline_diff", "flame_chart", "waterfall", "token_stream",
+    "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
     "popup", "overlay", "user_message", "assistant_message", "system_banner",
     "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",

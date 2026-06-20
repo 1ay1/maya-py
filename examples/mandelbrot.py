@@ -25,7 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, box, col, component, halfblock, row  # noqa: E402
+from maya_py import App, T, box, col, component, halfblock, row, upscale, target_size  # noqa: E402
 
 MAX_PW = 60
 MAX_PH = 36
@@ -186,12 +186,17 @@ def tick(dt):
     w.iter_count = clampi(int(256 + 40 * math.log2(1.0 / w.zoom)), 256, MAX_ITER)
 
 
-def _field(w, _h):
-    pw = max(1, min(MAX_PW, w))
-    ph = max(2, min(MAX_PH, (w * MAX_PH) // max(1, MAX_PW)))
+def _field(w, h):
+    # Compute a small CAPPED buffer (bounded frame time), then upscale to fill
+    # the whole half-block field so the fractal fills the screen exactly like
+    # the threaded C++ original. The aspect uses the OUTPUT dims so the framing
+    # matches; raise MAX_PW/MAX_PH to trade fps for detail.
+    out_w, out_h = target_size(w, h)
+    pw = max(1, min(MAX_PW, out_w))
+    ph = max(2, min(MAX_PH, out_h))
     if ph % 2:
         ph += 1
-    aspect = pw / ph
+    aspect = out_w / out_h
     grid = [[None] * pw for _ in range(ph)]
     for py in range(ph):
         v = (2.0 * (py + 0.5) / ph - 1.0)
@@ -201,7 +206,7 @@ def _field(w, _h):
             u = (2.0 * (px + 0.5) / pw - 1.0) * aspect
             cr = W.cx + u * W.zoom
             rowg[px] = get_color(mandelbrot(cr, ci))
-    return halfblock(grid)
+    return halfblock(upscale(grid, out_w, out_h))
 
 
 # ── App ──────────────────────────────────────────────────────────────────────

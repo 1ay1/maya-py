@@ -263,7 +263,7 @@ from .widgets import (  # noqa: E402
     checkbox, toggle, radio, select, slider, button, calendar,
     line_chart, link, key_help, timeline, tree, list_view, menu,
     disclosure, toast, todo_list, title_chip, model_badge,
-    file_ref, inline_diff, flame_chart, waterfall, thinking,
+    file_ref, inline_diff, flame_chart, waterfall, token_stream, thinking,
     markdown, image, canvas, Canvas, picker,
     popup, overlay, user_message, assistant_message, system_banner,
     phase_chip, context_gauge, context_window, diff_view, tool_call,
@@ -281,7 +281,8 @@ __all__ += [
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",
     "disclosure", "toast", "todo_list", "title_chip", "model_badge",
-    "file_ref", "inline_diff", "flame_chart", "waterfall", "thinking",
+    "file_ref", "inline_diff", "flame_chart", "waterfall", "token_stream",
+    "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
     "popup", "overlay", "user_message", "assistant_message", "system_banner",
     "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",
@@ -291,9 +292,9 @@ __all__ += [
 ]
 
 # ── Pixel rendering (half-block) ─────────────────────────────────────
-from .pixels import halfblock, PixelField, pixel_canvas  # noqa: E402
+from .pixels import halfblock, upscale, target_size, PixelField, pixel_canvas  # noqa: E402
 
-__all__ += ["halfblock", "PixelField", "pixel_canvas"]
+__all__ += ["halfblock", "upscale", "target_size", "PixelField", "pixel_canvas"]
 
 
 # Single-source the version from installed package metadata so it can't drift

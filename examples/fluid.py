@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import maya_py as maya  # noqa: E402
-from maya_py import App, T, col, component, halfblock, row  # noqa: E402
+from maya_py import App, T, col, component, halfblock, row, upscale, target_size  # noqa: E402
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -403,25 +403,12 @@ def _frame(s, dt):
 
 
 def _field(w, h):
-    # The grid is a FIXED GRID_N x GRID_M (bounded frame time); emit it as
-    # half-blocks at its natural size — each display row = 2 fluid rows.
+    # The simulation grid is a FIXED GRID_N x GRID_M (bounded frame time). Build
+    # its color grid, then NEAREST-NEIGHBOUR UPSCALE it to fill the whole
+    # half-block field so the fluid fills the screen exactly like the C++
+    # original — identical layout, lower detail.
     pal = G.palette
-    fluid_rows = G.M // 2
-    grid = [[None] * G.N for _ in range(fluid_rows)]
     dens = G.dens
-    for ty in range(fluid_rows):
-        fy_top = ty * 2
-        fy_bot = ty * 2 + 1
-        rowg = grid[ty]
-        base_top = fy_top * G.N
-        base_bot = fy_bot * G.N
-        for x in range(G.N):
-            d_top = dens[base_top + x]
-            d_bot = dens[base_bot + x] if fy_bot < G.M else 0.0
-            rowg[x] = density_to_color(d_top, pal) if d_top > 0.02 else (0, 0, 0)
-            # halfblock takes a single grid; encode top/bot via two rows.
-    # Build a full M-row color grid (top + bottom interleaved) so halfblock
-    # pairs them correctly into ▀ glyphs.
     full = [[None] * G.N for _ in range(G.M)]
     for fy in range(G.M):
         base = fy * G.N
@@ -429,7 +416,8 @@ def _field(w, h):
         for x in range(G.N):
             d = dens[base + x]
             fr[x] = density_to_color(d, pal) if d > 0.02 else (0, 0, 0)
-    return halfblock(full)
+    out_w, out_h = target_size(w, h)
+    return halfblock(upscale(full, out_w, out_h))
 
 
 @app.view

@@ -36,7 +36,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, component, halfblock, row  # noqa: E402
+from maya_py import App, T, col, component, halfblock, row, upscale, target_size  # noqa: E402
 
 # Pure-Python particle physics is far slower than the threaded C++ at 60fps, so
 # the internal pixel buffer (MAX_PW x MAX_PH pixels) and the live particle count
@@ -613,11 +613,12 @@ def _tick(s, dt):
 
 def _field(w, h):
     # Render into the CAPPED internal pixel buffer (frame time bounded), then
-    # emit as half-blocks at its natural (small) size. We deliberately do NOT
-    # stretch to fill the box — that loop would dwarf the physics at large
-    # window sizes. Raise MAX_PW / MAX_PH to trade fps for resolution.
+    # NEAREST-NEIGHBOUR UPSCALE it to fill the whole half-block field so the
+    # particle field fills the screen exactly like the C++ fullscreen original
+    # — identical layout, lower detail. Raise MAX_PW/MAX_PH for resolution.
     render_particles()
-    return halfblock(pixels_to_grid())
+    out_w, out_h = target_size(w, h)
+    return halfblock(upscale(pixels_to_grid(), out_w, out_h))
 
 
 @app.view
@@ -629,7 +630,7 @@ def view(s):
 
     status = row_status()
     return col(
-        component(_field, height=ROWS),
+        component(_field, grow=1),
         status,
         gap=0,
     )

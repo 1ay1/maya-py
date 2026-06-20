@@ -25,7 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, component, halfblock  # noqa: E402
+from maya_py import App, T, col, row, component, halfblock, upscale, target_size  # noqa: E402
 
 # Pure-Python raymarching is ~100x slower than the threaded C++. We render into
 # a small internal pixel buffer whose size is CAPPED (independent of the
@@ -660,22 +660,23 @@ def _tick(s, dt):
 
 
 def _field(w, h):
-    # Render a small CAPPED internal buffer in pure Python (bounded frame time),
-    # then emit it as half-blocks at its natural (small) size. We deliberately
-    # do NOT stretch to fill the box in Python — that loop dwarfs the raymarch
-    # at large window sizes. The result is a low-resolution view of the exact
-    # same raymarched scene; raise MAX_PW/MAX_PH to trade fps for detail.
-    pw = max(1, min(MAX_PW, w))
-    ph = max(2, min(MAX_PH, h * 2))
+    # Pure-Python raymarch is ~100x slower than the threaded C++, so we compute
+    # a small CAPPED internal buffer (bounded frame time regardless of window
+    # size) and then NEAREST-NEIGHBOUR UPSCALE it to the full cell area so the
+    # scene fills the screen exactly like the C++ original — identical layout,
+    # lower detail. Raise MAX_PW/MAX_PH to trade fps for sharpness.
+    out_w, out_h = target_size(w, h)
+    pw = max(1, min(MAX_PW, out_w))
+    ph = max(2, min(MAX_PH, out_h))
     if ph % 2:
         ph += 1
-    grid = [[None] * pw for _ in range(ph)]
+    small = [[None] * pw for _ in range(ph)]
     for y in range(ph):
-        rowp = grid[y]
+        rowp = small[y]
         for x in range(pw):
             color = render_pixel(x, y, pw, ph)
             rowp[x] = post_process(x, y, color, pw, ph)
-    return halfblock(grid)
+    return halfblock(upscale(small, out_w, out_h))
 
 
 @app.view

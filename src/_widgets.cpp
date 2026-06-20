@@ -60,6 +60,7 @@
 #include <maya/widget/inline_diff.hpp>
 #include <maya/widget/flame_chart.hpp>
 #include <maya/widget/waterfall.hpp>
+#include <maya/widget/token_stream.hpp>
 #include <maya/widget/thinking.hpp>
 #include <maya/widget/markdown.hpp>
 #include <maya/widget/image.hpp>
@@ -854,6 +855,28 @@ void init_widgets(py::module_& m) {
           py::arg("entries"), py::arg("time_scale") = 0.0f,
           py::arg("bar_width") = 30, py::arg("show_labels") = true,
           py::arg("frame") = 0, py::arg("show_times") = true);
+
+    // ── token_stream(total, rate, peak, elapsed, history, color, compact) ─
+    // Live token-rate visualizer: sparkline + stats. `history` is a list of
+    // per-tick rates (floats).
+    w.def("token_stream",
+          [](int total_tokens, float tokens_per_sec, float peak_rate,
+             float elapsed, const std::vector<float>& history,
+             std::optional<Color> color, bool compact) {
+              TokenStream ts{};
+              ts.set_total_tokens(total_tokens);
+              ts.set_tokens_per_sec(tokens_per_sec);
+              ts.set_peak_rate(peak_rate);
+              ts.set_elapsed(elapsed);
+              ts.set_rate_history(history);
+              if (color) ts.set_color(*color);
+              ts.set_compact(compact);
+              return static_cast<Element>(ts);
+          },
+          py::arg("total_tokens") = 0, py::arg("tokens_per_sec") = 0.0f,
+          py::arg("peak_rate") = 0.0f, py::arg("elapsed") = 0.0f,
+          py::arg("history") = std::vector<float>{},
+          py::arg("color") = std::nullopt, py::arg("compact") = false);
 
     // ── thinking(content, active, expanded, max_lines) ──────────────────
     w.def("thinking",

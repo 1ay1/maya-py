@@ -31,7 +31,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, component, halfblock  # noqa: E402
+from maya_py import App, T, col, row, component, halfblock, upscale, target_size  # noqa: E402
 
 # Pure-Python raycasting is far slower than the threaded C++. We render into a
 # small internal pixel buffer whose size is CAPPED (independent of the terminal
@@ -1094,9 +1094,12 @@ def draw_minimap(grid, gw, gh):
 # ── Render the full frame into a half-block grid ─────────────────────────────
 
 def render_field(w, h):
-    # CAP the internal pixel buffer (bounded frame time regardless of window).
-    pw = max(16, min(MAX_PW, w))
-    ph = max(2, min(MAX_PH, h * 2))
+    # CAP the internal pixel buffer (bounded frame time), then UPSCALE to fill
+    # the whole half-block field so the view fills the screen exactly like the
+    # threaded C++ original — identical layout, lower detail.
+    out_w, out_h = target_size(w, h)
+    pw = max(16, min(MAX_PW, out_w))
+    ph = max(2, min(MAX_PH, out_h))
     if ph % 2:
         ph += 1
     buffer_resize(pw, ph)
@@ -1151,7 +1154,7 @@ def render_field(w, h):
     if G.show_map:
         draw_minimap(grid, gw, gh)
 
-    return halfblock(grid)
+    return halfblock(upscale(grid, out_w, out_h))
 
 
 # ── App ─────────────────────────────────────────────────────────────────────

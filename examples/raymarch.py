@@ -27,7 +27,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, component, halfblock, row  # noqa: E402
+from maya_py import App, T, col, component, halfblock, row, upscale, target_size  # noqa: E402
 
 # Pure-Python raymarching is ~100x slower than the threaded C++. We render into
 # a small internal pixel buffer whose size is CAPPED (independent of the
@@ -590,11 +590,12 @@ def game_tick(dt):
 
 def _field(w, h):
     # Render a small CAPPED internal buffer in pure Python (bounded frame time),
-    # then emit it as half-blocks at its natural (small) size. We deliberately
-    # do NOT stretch to fill the box in Python — that loop dwarfs the raymarch
-    # at large window sizes. Raise MAX_PW/MAX_PH to trade fps for detail.
-    pixel_w = max(1, min(MAX_PW, w))
-    pixel_h = max(2, min(MAX_PH, h * 2))
+    # then NEAREST-NEIGHBOUR UPSCALE it to fill the whole half-block field so the
+    # scene fills the screen exactly like the threaded C++ original — identical
+    # layout, lower detail. Raise MAX_PW/MAX_PH to trade fps for detail.
+    out_w, out_h = target_size(w, h)
+    pixel_w = max(1, min(MAX_PW, out_w))
+    pixel_h = max(2, min(MAX_PH, out_h))
     if pixel_h % 2:
         pixel_h += 1
 
@@ -632,7 +633,7 @@ def _field(w, h):
             rowg[px] = (int(clampf(c[0], 0, 1) * 255),
                         int(clampf(c[1], 0, 1) * 255),
                         int(clampf(c[2], 0, 1) * 255))
-    return halfblock(grid)
+    return halfblock(upscale(grid, out_w, out_h))
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
