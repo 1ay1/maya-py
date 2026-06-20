@@ -348,7 +348,7 @@ def view(s):
     # Status bar — mirrors the C++ bottom bar.
     bar = row(
         T("SNAKE").fg((57, 255, 20)).bold,
-        T(f"  Score: ").fg((100, 100, 120)) + T(f"{s.score}").fg((255, 200, 60)).bold,
+        T("  Score: ").fg((100, 100, 120)) + T(f"{s.score}").fg((255, 200, 60)).bold,
         T(f"  High: {s.high}").fg((100, 100, 120)),
         T(f"  Speed: {speed_level}").fg((100, 100, 120)),
         T(f"  {'WRAP' if s.wrap else 'WALL'}").fg(

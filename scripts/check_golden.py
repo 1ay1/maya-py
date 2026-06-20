@@ -54,9 +54,11 @@ SKIP = {
     "space", "space3d", "raymarch", "fps", "mandelbrot", "boids",
     "gravity", "life", "sorts", "spectrum",
     # animated/spinner or time-driven view state
-    "deploy", "messenger", "agent", "agent_session", "chat", "music",
+    "deploy", "messenger", "agent", "agent_session", "chat", "music", "dsl",
     # RNG-driven view state
     "snake", "stocks", "sysmon", "breakout", "maze", "paint",
+    # process-dependent render (activity_indicator's pointer-derived hexdump)
+    "widgets_gallery",
 }
 WIDTHS = (40, 60, 80, 100, 110, 132)
 

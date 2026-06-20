@@ -35,7 +35,7 @@ Three ideas:
 from __future__ import annotations
 
 import time as _time
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from . import _maya
 from ._maya import Color, Element, SpecialKey, Style
@@ -2060,7 +2060,7 @@ class Theme:
         except KeyError:
             raise AttributeError(
                 f"theme {self.name!r} has no role {key!r}; "
-                f"roles: {', '.join(self._roles) or '(none)'}")
+                f"roles: {', '.join(self._roles) or '(none)'}") from None
 
     def __setattr__(self, key: str, value: Any):
         raise AttributeError("Theme is immutable; use .with_(...) to derive one")
