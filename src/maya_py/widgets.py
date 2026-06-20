@@ -364,6 +364,44 @@ def search_result(groups: Sequence[Any], *, kind: Any = None, pattern: str = "",
                             bool(expanded), int(max_matches_per_file))
 
 
+def changes_strip(changes: Sequence[Any], *, border_color: Any = None,
+                  text_color: Any = None, accept_color: Any = None,
+                  reject_color: Any = None) -> Element:
+    """A bordered “session has pending changes” banner over a file list.
+
+    ``changes`` is the same shape as :func:`file_changes` — dicts
+    ``{path, kind, added, removed}`` or ``(path, kind, added, removed)`` tuples.
+    Empty changes render to an empty Element (drop it in a stack unconditionally).
+    """
+    out = []
+    for c in changes:
+        out.append(c if isinstance(c, dict) else tuple(c))
+    return _W.changes_strip(out, _col(border_color), _col(text_color),
+                            _col(accept_color), _col(reject_color))
+
+
+def welcome_screen(*, tagline: str = "", model_badge: Element | None = None,
+                   profile_label: str = "", profile_color: Any = None,
+                   starters_title: str = "", starters: Sequence[str] = (),
+                   hint_intro: str = "", hints: Sequence[Any] = (),
+                   sigil_color: Any = None, accent_color: Any = None,
+                   sigil_draw_ms: int = 0, max_rows: int = 0) -> Element:
+    """An empty-thread brand splash: a pixel-art wordmark, ``tagline``, a
+    model + profile chip row, an optional ``starters`` card, and a hint footer.
+
+    ``model_badge`` is a built Element (e.g. ``model_badge("Opus 4")``).
+    ``hints`` is a list of ``(key, label)`` or ``(key, label, color)`` tuples.
+    ``sigil_draw_ms=0`` renders the completed mark statically (no animation);
+    raise it for the cascade-in intro inside an app loop.
+    """
+    hs = [tuple(h) for h in hints]
+    return _W.welcome_screen(str(tagline), model_badge, str(profile_label),
+                             _col(profile_color), str(starters_title),
+                             [str(s) for s in starters], str(hint_intro), hs,
+                             _col(sigil_color), _col(accent_color),
+                             int(sigil_draw_ms), int(max_rows))
+
+
 def bar_chart(bars: Sequence[Any], *, max_value: float = 0.0,
               color: Any = None) -> Element:
     """A horizontal bar chart.
@@ -1313,6 +1351,7 @@ __all__ = [
     "activity_bar", "file_changes", "api_usage", "cost_tracker",
     "phase_accent", "checkpoint_divider", "turn_divider",
     "streaming_cursor", "token_stream_sparkline", "html", "search_result",
+    "changes_strip", "welcome_screen",
     "error_block", "modal", "log_viewer", "command_palette", "activity_indicator",
     "FileChangeKind", "TurnRole", "CursorStyle", "SearchKind", "SearchStatus",
     "bar_chart", "gradient", "heatmap",

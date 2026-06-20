@@ -21,7 +21,7 @@ from maya_py import (
     git_graph, git_status, shortcut_row, plan_view,
     activity_bar, file_changes, api_usage, cost_tracker,
     phase_accent, checkpoint_divider, turn_divider, streaming_cursor,
-    token_stream_sparkline, html, search_result,
+    token_stream_sparkline, html, search_result, changes_strip,
 )
 
 
@@ -166,6 +166,8 @@ def gallery():
         file_changes([("src/auth.ts", "modified", 12, 3),
                       ("src/token.ts", "created", 45, 0),
                       ("src/old.ts", "deleted", 0, 30)]),
+        changes_strip([("src/auth.ts", "modified", 12, 3),
+                       ("src/new.ts", "created", 45, 0)], border_color="gold"),
         turn_divider("assistant", turn_number=3),
         row(streaming_cursor("Generating…", style="dots", frame=2),
             token_stream_sparkline(rate=23.4, total=1234,

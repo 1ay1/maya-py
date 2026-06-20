@@ -97,6 +97,8 @@
 #include <maya/widget/token_stream_sparkline.hpp>
 #include <maya/widget/html.hpp>
 #include <maya/widget/search_result.hpp>
+#include <maya/widget/changes_strip.hpp>
+#include <maya/widget/welcome_screen.hpp>
 
 #include "_pyevent.hpp"
 
@@ -1201,6 +1203,97 @@ void init_widgets(py::module_& m) {
           py::arg("pattern") = "", py::arg("status") = py::none(),
           py::arg("elapsed") = 0.0f, py::arg("expanded") = true,
           py::arg("max_matches_per_file") = 0);
+
+    // ── changes_strip(changes, border_color, text_color, accept_color,
+    //                reject_color) ─────────────────────────────────────
+    // A bordered "session has pending changes" banner over a file list. Empty
+    // changes renders to an empty Element. changes: same shape as file_changes.
+    w.def("changes_strip",
+          [](const py::list& changes, std::optional<Color> border_color,
+             std::optional<Color> text_color, std::optional<Color> accept_color,
+             std::optional<Color> reject_color) {
+              auto parse_kind = [](const py::handle& h) -> FileChangeKind {
+                  if (py::isinstance<py::str>(h)) {
+                      std::string s = h.cast<std::string>();
+                      if (s == "created" || s == "added" || s == "+")
+                          return FileChangeKind::Created;
+                      if (s == "deleted" || s == "removed" || s == "-")
+                          return FileChangeKind::Deleted;
+                      if (s == "renamed" || s == "moved")
+                          return FileChangeKind::Renamed;
+                      return FileChangeKind::Modified;
+                  }
+                  return h.cast<FileChangeKind>();
+              };
+              ChangesStrip::Config cfg{};
+              if (border_color) cfg.border_color = *border_color;
+              if (text_color)   cfg.text_color = *text_color;
+              if (accept_color) cfg.accept_color = *accept_color;
+              if (reject_color) cfg.reject_color = *reject_color;
+              for (const auto& item : changes) {
+                  FileChange c{};
+                  if (py::isinstance<py::dict>(item)) {
+                      auto d = item.cast<py::dict>();
+                      if (d.contains("path"))    c.path = d["path"].cast<std::string>();
+                      if (d.contains("kind"))    c.kind = parse_kind(d["kind"]);
+                      if (d.contains("added"))   c.lines_added = d["added"].cast<int>();
+                      if (d.contains("removed")) c.lines_removed = d["removed"].cast<int>();
+                  } else {
+                      auto t = item.cast<py::sequence>();
+                      c.path = t[0].cast<std::string>();
+                      if (py::len(t) > 1) c.kind = parse_kind(t[1]);
+                      if (py::len(t) > 2) c.lines_added = t[2].cast<int>();
+                      if (py::len(t) > 3) c.lines_removed = t[3].cast<int>();
+                  }
+                  cfg.changes.push_back(std::move(c));
+              }
+              return static_cast<Element>(ChangesStrip{std::move(cfg)});
+          },
+          py::arg("changes"), py::arg("border_color") = std::nullopt,
+          py::arg("text_color") = std::nullopt,
+          py::arg("accept_color") = std::nullopt,
+          py::arg("reject_color") = std::nullopt);
+
+    // ── welcome_screen(...) ──────────────────────────────────────
+    // An empty-thread brand splash: a pixel-art wordmark, tagline, model+
+    // profile chip row, optional starters card and a hint footer. hints: list
+    // of (key, label) or (key, label, color). sigil_draw_ms=0 renders the
+    // completed mark statically (no animation).
+    w.def("welcome_screen",
+          [](std::string tagline, std::optional<Element> model_badge,
+             std::string profile_label, std::optional<Color> profile_color,
+             std::string starters_title, std::vector<std::string> starters,
+             std::string hint_intro, const py::list& hints,
+             std::optional<Color> sigil_color, std::optional<Color> accent_color,
+             int sigil_draw_ms, int max_rows) {
+              WelcomeScreen::Config cfg{};
+              cfg.tagline = std::move(tagline);
+              if (model_badge) cfg.model_badge = *model_badge;
+              cfg.profile_label = std::move(profile_label);
+              if (profile_color) cfg.profile_color = *profile_color;
+              if (!starters_title.empty()) cfg.starters_title = std::move(starters_title);
+              cfg.starters = std::move(starters);
+              if (!hint_intro.empty()) cfg.hint_intro = std::move(hint_intro);
+              if (sigil_color)  cfg.sigil_color = *sigil_color;
+              if (accent_color) cfg.accent_color = *accent_color;
+              cfg.sigil_draw_ms = sigil_draw_ms;
+              cfg.max_rows = max_rows;
+              for (const auto& item : hints) {
+                  auto t = item.cast<py::sequence>();
+                  WelcomeScreen::Hint h{};
+                  h.key = t[0].cast<std::string>();
+                  if (py::len(t) > 1) h.label = t[1].cast<std::string>();
+                  if (py::len(t) > 2 && !t[2].is_none()) h.key_color = t[2].cast<Color>();
+                  cfg.hints.push_back(std::move(h));
+              }
+              return static_cast<Element>(WelcomeScreen{std::move(cfg)});
+          },
+          py::arg("tagline") = "", py::arg("model_badge") = std::nullopt,
+          py::arg("profile_label") = "", py::arg("profile_color") = std::nullopt,
+          py::arg("starters_title") = "", py::arg("starters") = std::vector<std::string>{},
+          py::arg("hint_intro") = "", py::arg("hints") = py::list{},
+          py::arg("sigil_color") = std::nullopt, py::arg("accent_color") = std::nullopt,
+          py::arg("sigil_draw_ms") = 0, py::arg("max_rows") = 0);
 
     // ── bar_chart(bars, max_value, default_color) ───────────────────────
     // bars: list of (label, value) or (label, value, color) tuples.

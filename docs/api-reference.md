@@ -148,7 +148,7 @@ tuple / `Color` everywhere.
 `git_graph` `git_status` `user_message` `assistant_message` `system_banner`
 `shortcut_row` `activity_bar` `file_changes` `api_usage` `cost_tracker`
 `phase_accent` `checkpoint_divider` `turn_divider` `streaming_cursor`
-`token_stream_sparkline` `search_result`
+`token_stream_sparkline` `search_result` `changes_strip` `welcome_screen`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
