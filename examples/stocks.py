@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from maya_py import App, T, col, row, card, spacer, grow  # noqa: E402
+from maya_py import App, T, col, row, card, spacer, grow, memo  # noqa: E402
 
 
 def _fw(text, width):
@@ -75,18 +75,23 @@ def spark_line(data, width):
     if rng < 0.001:
         rng = 1.0
     step = max(1, len(data) // width)
+    n = len(data)
+    scale = 7.0 / rng
+    sc = SPARK_CHARS
+    count = min(width, (n + step - 1) // step)
     out = []
-    i = 0
-    while i < width and i * step < len(data):
-        v = data[i * step]
-        idx = clamp(int((v - mn) / rng * 7), 0, 7)
-        out.append(SPARK_CHARS[idx])
-        i += 1
+    ap = out.append
+    for i in range(count):
+        idx = int((data[i * step] - mn) * scale)
+        ap(sc[0 if idx < 0 else 7 if idx > 7 else idx])
     return "".join(out)
 
 
 # Braille chart: 2x4 dots per cell. dot bit layout matches the C++ original.
 _DOT_BITS = ((0x40, 0x04, 0x02, 0x01), (0x80, 0x20, 0x10, 0x08))
+# A cell holds 8 dot bits → 256 possible glyphs. Precompute them once so the
+# render loop is a table lookup instead of a chr()+add per cell.
+_BRAILLE = [chr(0x2800 + i) for i in range(256)]
 
 
 def braille_chart(data, width, height):
@@ -111,7 +116,8 @@ def braille_chart(data, width, height):
         sub_y = (dot_rows - 1 - dot_y) % 4
         if 0 <= cell_x < width and 0 <= cell_y < height:
             cells[cell_y][cell_x] |= _DOT_BITS[sub_x][sub_y]
-    return ["".join(chr(0x2800 + cells[r][c]) for c in range(width)) for r in range(height)]
+    bt = _BRAILLE
+    return ["".join([bt[v] for v in cells[r]]) for r in range(height)]
 
 
 # Stock: symbol, name, price, open, prev_close, day_high, day_low, volume,
@@ -459,7 +465,8 @@ def build_news():
     return card(*rows, title="NEWS", border_color=TH()[TH_BORDER], pad=(0, 1))
 
 
-def build_footer():
+@memo
+def build_footer(_theme):
     accent = TH()[TH_ACCENT]
     muted = TH()[TH_MUTED]
 
@@ -542,7 +549,7 @@ def view(s):
         build_watchlist(),
         build_chart(),
         build_news(),
-        build_footer(),
+        build_footer(theme_idx),
         gap=0,
     )
 

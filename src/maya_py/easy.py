@@ -48,6 +48,12 @@ def _pack(r: int, g: int, b: int) -> int:
     return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
 
 
+# Cache for (r,g,b) tuple → packed int. Frames re-pass identical literal
+# colour tuples; memoising the pack turns it into one dict lookup. Bounded so
+# a pathological app generating unique tuples can't grow it without limit.
+_TUPLE_CACHE: dict = {}
+
+
 def _unknown_color_msg(value: Any) -> str:
     """A helpful error for a bad color: nearest palette name + the full list.
 
@@ -108,6 +114,16 @@ def _rgb_int(value: Any) -> int:
     if type(value) is int:
         return value & 0xFFFFFF
     if type(value) is tuple or type(value) is list:
+        # Cache (r,g,b) tuples → packed int. Examples pass the SAME literal
+        # tuples every frame; a dict hit replaces three int()+shift+or ops.
+        if type(value) is tuple:
+            hit = _TUPLE_CACHE.get(value)
+            if hit is not None:
+                return hit
+            packed = _pack(int(value[0]), int(value[1]), int(value[2]))
+            if len(_TUPLE_CACHE) < 4096:
+                _TUPLE_CACHE[value] = packed
+            return packed
         return _pack(int(value[0]), int(value[1]), int(value[2]))
     if isinstance(value, int):          # int subclasses (e.g. IntEnum)
         return value & 0xFFFFFF
@@ -524,11 +540,20 @@ def _resolve_col(c) -> int:
     # Color spec -> packed int (or -1 for unset). Mirrors T.fg's fast path.
     if c is None:
         return -1
-    if type(c) is int:
+    tc = type(c)
+    if tc is int:
         return c
-    if type(c) is str:
+    if tc is str:
         hit = _PALETTE.get(c)
         return hit if hit is not None else _rgb_int(c)
+    if tc is tuple:
+        hit = _TUPLE_CACHE.get(c)
+        if hit is not None:
+            return hit
+        packed = _pack(int(c[0]), int(c[1]), int(c[2]))
+        if len(_TUPLE_CACHE) < 4096:
+            _TUPLE_CACHE[c] = packed
+        return packed
     return _rgb_int(c)
 
 
