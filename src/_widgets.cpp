@@ -90,6 +90,11 @@
 #include <maya/widget/file_changes.hpp>
 #include <maya/widget/api_usage.hpp>
 #include <maya/widget/cost_tracker.hpp>
+#include <maya/widget/phase_accent.hpp>
+#include <maya/widget/checkpoint_divider.hpp>
+#include <maya/widget/turn_divider.hpp>
+#include <maya/widget/streaming_cursor.hpp>
+#include <maya/widget/token_stream_sparkline.hpp>
 
 #include "_pyevent.hpp"
 
@@ -612,6 +617,18 @@ void init_widgets(py::module_& m) {
         .value("Deleted", FileChangeKind::Deleted)
         .value("Renamed", FileChangeKind::Renamed);
 
+    py::enum_<TurnRole>(w, "TurnRole")
+        .value("User", TurnRole::User)
+        .value("Assistant", TurnRole::Assistant)
+        .value("System", TurnRole::System)
+        .value("Tool", TurnRole::Tool);
+
+    py::enum_<CursorStyle>(w, "CursorStyle")
+        .value("Block", CursorStyle::Block)
+        .value("Dots", CursorStyle::Dots)
+        .value("Bar", CursorStyle::Bar)
+        .value("Pulse", CursorStyle::Pulse);
+
     // ── sparkline(data, label, color, show_min_max, show_last) ──────────
     w.def("sparkline",
           [](std::vector<float> data, std::string label, std::optional<Color> color,
@@ -1006,6 +1023,92 @@ void init_widgets(py::module_& m) {
               return static_cast<Element>(ct);
           },
           py::arg("turns"), py::arg("compact") = false);
+
+    // ── phase_accent(color, position) ─────────────────────────────────
+    // A soft-shelf full-width rule in a phase colour. position: "top"|"bottom".
+    w.def("phase_accent",
+          [](std::optional<Color> color, const std::string& position) {
+              PhaseAccent::Config cfg{};
+              if (color) cfg.color = *color;
+              cfg.position = (position == "bottom")
+                  ? PhaseAccent::Position::Bottom
+                  : PhaseAccent::Position::Top;
+              return static_cast<Element>(PhaseAccent{cfg});
+          },
+          py::arg("color") = std::nullopt, py::arg("position") = "top");
+
+    // ── checkpoint_divider(label, color) ──────────────────────────────
+    // A full-width "↺ Restore checkpoint" rule.
+    w.def("checkpoint_divider",
+          [](std::string label, std::optional<Color> color) {
+              CheckpointDivider::Config cfg{};
+              if (!label.empty()) cfg.label = std::move(label);
+              if (color) cfg.color = *color;
+              return static_cast<Element>(CheckpointDivider{cfg});
+          },
+          py::arg("label") = "", py::arg("color") = std::nullopt);
+
+    // ── turn_divider(role, turn_number, show_role) ──────────────────────
+    // A conversation-turn separator (─── ✦ Claude #3 ───). role: a TurnRole enum
+    // or "user"|"assistant"|"system"|"tool".
+    w.def("turn_divider",
+          [](const py::object& role, int turn_number, bool show_role) {
+              TurnRole r = TurnRole::User;
+              if (py::isinstance<py::str>(role)) {
+                  std::string s = role.cast<std::string>();
+                  if (s == "assistant") r = TurnRole::Assistant;
+                  else if (s == "system") r = TurnRole::System;
+                  else if (s == "tool") r = TurnRole::Tool;
+              } else if (!role.is_none()) {
+                  r = role.cast<TurnRole>();
+              }
+              TurnDivider d{r, turn_number};
+              d.set_show_role(show_role);
+              return static_cast<Element>(d);
+          },
+          py::arg("role") = py::none(), py::arg("turn_number") = 0,
+          py::arg("show_role") = true);
+
+    // ── streaming_cursor(label, style, active, frame) ────────────────────
+    // An animated typing/streaming indicator. style: a CursorStyle enum or
+    // "block"|"dots"|"bar"|"pulse". `frame` advances the animation.
+    w.def("streaming_cursor",
+          [](std::string label, const py::object& style, bool active, int frame) {
+              CursorStyle st = CursorStyle::Dots;
+              if (py::isinstance<py::str>(style)) {
+                  std::string s = style.cast<std::string>();
+                  if (s == "block") st = CursorStyle::Block;
+                  else if (s == "bar") st = CursorStyle::Bar;
+                  else if (s == "pulse") st = CursorStyle::Pulse;
+              } else if (!style.is_none()) {
+                  st = style.cast<CursorStyle>();
+              }
+              StreamingCursor c{};
+              c.set_style(st);
+              if (!label.empty()) c.set_label(std::move(label));
+              c.set_active(active);
+              for (int i = 0; i < frame; ++i) c.tick();
+              return static_cast<Element>(c);
+          },
+          py::arg("label") = "", py::arg("style") = py::none(),
+          py::arg("active") = true, py::arg("frame") = 0);
+
+    // ── token_stream_sparkline(rate, total, history, color, live) ──────────
+    // A fixed-width "⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234" status-bar streaming slot.
+    w.def("token_stream_sparkline",
+          [](float rate, int total, std::vector<float> history,
+             std::optional<Color> color, bool live) {
+              TokenStreamSparkline::Config cfg{};
+              cfg.rate = rate;
+              cfg.total = total;
+              cfg.history = std::move(history);
+              if (color) cfg.color = *color;
+              cfg.live = live;
+              return static_cast<Element>(TokenStreamSparkline{cfg});
+          },
+          py::arg("rate") = 0.0f, py::arg("total") = 0,
+          py::arg("history") = std::vector<float>{},
+          py::arg("color") = std::nullopt, py::arg("live") = false);
 
     // ── bar_chart(bars, max_value, default_color) ───────────────────────
     // bars: list of (label, value) or (label, value, color) tuples.

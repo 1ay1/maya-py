@@ -38,6 +38,8 @@ BannerLevel = _W.BannerLevel
 ToolCallStatus = _W.ToolCallStatus
 ToolCallKind = _W.ToolCallKind
 FileChangeKind = _W.FileChangeKind
+TurnRole = _W.TurnRole
+CursorStyle = _W.CursorStyle
 
 _ALIGN = {"left": ColumnAlign.Left, "center": ColumnAlign.Center,
           "right": ColumnAlign.Right}
@@ -297,6 +299,43 @@ def cost_tracker(turns: Sequence[Any], *, compact: bool = False) -> Element:
     for t in turns:
         out.append(t if isinstance(t, dict) else tuple(t))
     return _W.cost_tracker(out, bool(compact))
+
+
+def phase_accent(*, color: Any = None, position: str = "top") -> Element:
+    """A soft-shelf full-width rule (a row of ▁/▔ half-blocks) in a phase
+    colour. ``position`` is ``top`` or ``bottom``."""
+    return _W.phase_accent(_col(color), str(position))
+
+
+def checkpoint_divider(label: str = "", *, color: Any = None) -> Element:
+    """A full-width ``↺ Restore checkpoint`` rule marking a snapshot point."""
+    return _W.checkpoint_divider(str(label), _col(color))
+
+
+def turn_divider(role: Any = None, *, turn_number: int = 0,
+                 show_role: bool = True) -> Element:
+    """A conversation-turn separator (``─── ✦ Claude #3 ───``).
+    ``role`` is ``user``/``assistant``/``system``/``tool`` (or a ``TurnRole``)."""
+    return _W.turn_divider(role, int(turn_number), bool(show_role))
+
+
+def streaming_cursor(label: str = "", *, style: Any = None, active: bool = True,
+                     frame: int = 0) -> Element:
+    """An animated typing/streaming indicator. ``style`` is
+    ``block``/``dots``/``bar``/``pulse`` (or a ``CursorStyle``); ``frame``
+    advances the animation."""
+    return _W.streaming_cursor(str(label), style, bool(active), int(frame))
+
+
+def token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
+                           history: Sequence[float] = (), color: Any = None,
+                           live: bool = False) -> Element:
+    """A fixed-width ``⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234`` streaming status slot. Every
+    segment is a stable display width so neighbouring chips don't shift as
+    numbers tick. ``live=False`` dims it (frozen)."""
+    return _W.token_stream_sparkline(float(rate), int(total),
+                                     [float(x) for x in history],
+                                     _col(color), bool(live))
 
 
 def bar_chart(bars: Sequence[Any], *, max_value: float = 0.0,
@@ -1246,8 +1285,10 @@ __all__ = [
     "sparkline", "gauge", "progress", "badge", "divider", "spinner",
     "table", "callout", "status_banner", "breadcrumb", "tabs",
     "activity_bar", "file_changes", "api_usage", "cost_tracker",
+    "phase_accent", "checkpoint_divider", "turn_divider",
+    "streaming_cursor", "token_stream_sparkline",
     "error_block", "modal", "log_viewer", "command_palette", "activity_indicator",
-    "FileChangeKind",
+    "FileChangeKind", "TurnRole", "CursorStyle",
     "bar_chart", "gradient", "heatmap",
     "checkbox", "toggle", "radio", "select", "slider", "button", "calendar",
     "line_chart", "link", "key_help", "timeline", "tree", "list_view", "menu",

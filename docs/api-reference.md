@@ -147,12 +147,14 @@ tuple / `Color` everywhere.
 `plan_view` `phase_chip` `context_window` `context_gauge` `diff_view`
 `git_graph` `git_status` `user_message` `assistant_message` `system_banner`
 `shortcut_row` `activity_bar` `file_changes` `api_usage` `cost_tracker`
+`phase_accent` `checkpoint_divider` `turn_divider` `streaming_cursor`
+`token_stream_sparkline`
 
 **Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
 `ToastLevel` `TodoItemStatus` `TodoListStatus` `PopupStyle` `BannerLevel`
-`ToolCallStatus` `ToolCallKind` `FileChangeKind`
+`ToolCallStatus` `ToolCallKind` `FileChangeKind` `TurnRole` `CursorStyle`
 
 ## Scrolling
 

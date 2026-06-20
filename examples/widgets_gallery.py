@@ -20,6 +20,8 @@ from maya_py import (
     phase_chip, context_gauge, context_window, diff_view, tool_call,
     git_graph, git_status, shortcut_row, plan_view,
     activity_bar, file_changes, api_usage, cost_tracker,
+    phase_accent, checkpoint_divider, turn_divider, streaming_cursor,
+    token_stream_sparkline,
 )
 
 
@@ -157,6 +159,14 @@ def gallery():
         file_changes([("src/auth.ts", "modified", 12, 3),
                       ("src/token.ts", "created", 45, 0),
                       ("src/old.ts", "deleted", 0, 30)]),
+        turn_divider("assistant", turn_number=3),
+        row(streaming_cursor("Generating…", style="dots", frame=2),
+            token_stream_sparkline(rate=23.4, total=1234,
+                                   history=[1, 2, 3, 5, 8, 5, 3, 7, 9, 6],
+                                   color="cyan", live=True),
+            gap=2),
+        phase_accent(color="cyan"),
+        checkpoint_divider("Restore checkpoint", color="gold"),
         context_window(
             [("System", 12400, "blue"), ("History", 89200, "magenta"),
              ("Tools", 32100, "yellow"), ("Response", 11534, "green")],
