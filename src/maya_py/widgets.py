@@ -103,7 +103,9 @@ def sparkline(data: Sequence[float], *, label: str = "", color: Any = None,
               range_max: float | None = None) -> Element:
     """An inline mini bar chart from a sequence of numbers. ``range_min`` /
     ``range_max`` pin the value axis (otherwise it auto-scales to the data)."""
-    return _W.sparkline([float(x) for x in data], label, _col(color),
+    # The native std::vector<float> caster coerces int/float elements in C++,
+    # so pass the sequence straight through — no Python float() comprehension.
+    return _W.sparkline(data, label, _col(color),
                         show_min_max, show_last, range_min, range_max)
 
 
@@ -148,7 +150,7 @@ def table(columns: Sequence[Any], rows: Sequence[Sequence[Any]], *,
 
     ``columns`` is a list of header strings, or ``(header, width, align)``
     tuples where align is ``"left"``/``"center"``/``"right"``. ``rows`` is a
-    list of row-lists; cells are stringified.
+    list of row-lists; cells are stringified in C++ (str/int/float fast paths).
     """
     cols = []
     for c in columns:
@@ -161,8 +163,9 @@ def table(columns: Sequence[Any], rows: Sequence[Sequence[Any]], *,
             if isinstance(align, str):
                 align = _ALIGN.get(align.lower(), ColumnAlign.Left)
             cols.append((header, width, align))
-    srows = [[str(cell) for cell in row] for row in rows]
-    return _W.table(cols, srows, stripe, bordered, title, cell_padding)
+    # Cells are stringified natively — hand the raw rows straight through,
+    # skipping the per-cell str() + throwaway inner-list comprehension.
+    return _W.table(cols, rows, stripe, bordered, title, cell_padding)
 
 
 def callout(title: str, body: str = "", *, kind: str = "info") -> Element:
@@ -336,7 +339,7 @@ def token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
     segment is a stable display width so neighbouring chips don't shift as
     numbers tick. ``live=False`` dims it (frozen)."""
     return _W.token_stream_sparkline(float(rate), int(total),
-                                     [float(x) for x in history],
+                                     history,
                                      _col(color), bool(live))
 
 
@@ -486,7 +489,7 @@ def calendar(year: int, month: int, *, today: Any = None) -> Element:
 def line_chart(data: Sequence[float], *, height: int = 8, label: str = "",
                color: Any = None) -> Element:
     """A braille line chart with a y-axis."""
-    return _W.line_chart([float(x) for x in data], int(height), label,
+    return _W.line_chart(data, int(height), label,
                          _col(color))
 
 

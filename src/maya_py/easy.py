@@ -482,6 +482,16 @@ def _stack(children, direction, g, gr):
     # The moment ANY child is a built Element / nested box / component, we
     # fall back to the general per-child path (box_simple) — those can't be
     # flattened into a text row.
+    #
+    # Pre-check: a row/col of already-built Elements (the common
+    # row(card, card, …) / col(box, box, …) shape) can't be flattened at all,
+    # so the flatten loop below would scan, break on child 0, and discard its
+    # `flat` list. Detect that here and go straight to box_simple — skipping
+    # the throwaway list + the loop setup.
+    if children:
+        t0 = type(children[0])
+        if t0 is Element:
+            return _maya.box_simple(_children(children), direction, g, gr)
     flat = []
     ext = flat.extend
     n = 0
@@ -583,15 +593,23 @@ INVERSE = _INVERSE
 # set falls back to the full _box() kwargs path.
 _CARD_OPTS = frozenset(("pad", "border", "border_color", "gap", "grow"))
 _DIR_COL = _maya.FlexDirection.Column
+_ROUND = int(_maya.BorderStyle.Round)   # precomputed: the default card border
 
 
 def card(*children, title=None, **opts) -> Element:
     """A bordered, padded vertical box. The everyday container."""
-    # FAST PATH: the overwhelmingly common card — only pad/border/title/gap/
-    # grow/border_color, with a scalar int pad and an enum/string border. Build
-    # it in ONE positional crossing via box_titled, skipping the kwargs dict +
-    # the C++ box()'s ~25 opts.contains() probes. Tuple pad or any other opt
-    # falls through to the full path below.
+    # FASTEST PATH: the overwhelmingly common card — a title (or not) and no
+    # other opts. Default pad=1, Round border, no gap/grow/border_color. One
+    # positional crossing, zero dict probes.
+    if not opts:
+        return _maya.box_titled(
+            _children(children), 1, -1, -1.0,
+            _ROUND, 1, title if title is not None else "", -1,
+        )
+    # FAST PATH: only pad/border/title/gap/grow/border_color, with a scalar
+    # int pad and an enum/string border. Build it in ONE positional crossing
+    # via box_titled, skipping the kwargs dict + the C++ box()'s ~25
+    # opts.contains() probes. Tuple pad or any other opt falls through.
     if opts.keys() <= _CARD_OPTS:
         pad = opts.get("pad", 1)
         border = opts.get("border", _maya.BorderStyle.Round)

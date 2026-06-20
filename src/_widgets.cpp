@@ -846,8 +846,12 @@ void init_widgets(py::module_& m) {
 
     // ── table(columns, rows, **opts) ────────────────────────────────────
     // columns: list of str (header) OR (header, width, align) tuples.
+    // rows: list of row-sequences whose cells are str / int / float / any
+    // object. Cells are stringified HERE in C++ (str passthrough, int/float
+    // fast paths, str(obj) fallback) so the Python wrapper hands raw cells
+    // straight through — no per-cell str() frame, no throwaway inner lists.
     w.def("table",
-          [](const py::list& columns, std::vector<std::vector<std::string>> rows,
+          [](const py::list& columns, const py::list& rows,
              bool stripe, bool bordered, const std::string& title, int cell_padding) {
               std::vector<ColumnDef> cols;
               for (const auto& col : columns) {
@@ -862,13 +866,38 @@ void init_widgets(py::module_& m) {
                   }
                   cols.push_back(std::move(cd));
               }
+              // Stringify each cell into the table's row buffers directly.
+              // str  → borrow the buffer (PyUnicode_AsUTF8 via cast)
+              // bool → "True"/"False" (must precede int: bool is a py int)
+              // int  → std::to_string
+              // float→ Python str() (matches repr the comprehension produced)
+              // else → str(obj)
+              auto cell_to_string = [](const py::handle& c) -> std::string {
+                  if (py::isinstance<py::str>(c))
+                      return c.cast<std::string>();
+                  if (py::isinstance<py::bool_>(c))
+                      return c.cast<bool>() ? "True" : "False";
+                  if (py::isinstance<py::int_>(c))
+                      return std::to_string(c.cast<long long>());
+                  return py::str(c).cast<std::string>();
+              };
+              std::vector<std::vector<std::string>> srows;
+              srows.reserve(py::len(rows));
+              for (const auto& row : rows) {
+                  auto seq = py::reinterpret_borrow<py::sequence>(row);
+                  std::vector<std::string> srow;
+                  srow.reserve(py::len(seq));
+                  for (const auto& cell : seq)
+                      srow.push_back(cell_to_string(cell));
+                  srows.push_back(std::move(srow));
+              }
               TableConfig cfg{};
               cfg.stripe_rows = stripe;
               cfg.show_border = bordered;
               cfg.title = title;
               cfg.cell_padding = cell_padding;
               Table tbl{std::move(cols), cfg};
-              tbl.set_rows(std::move(rows));
+              tbl.set_rows(std::move(srows));
               return static_cast<Element>(tbl);
           },
           py::arg("columns"), py::arg("rows"),
