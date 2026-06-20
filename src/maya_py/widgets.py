@@ -622,6 +622,306 @@ class Canvas:
         return self._c.element()
 
 
+# ── Surface — a fluent braille/char drawing DSL ─────────────────────────────
+from .easy import _rgb_int as _pack  # name/tuple/#hex/Color → packed 0xRRGGBB
+
+
+def _pk(c: Any) -> int:
+    """Resolve a colour to a packed 0xRRGGBB int, or -1 for inherit/None."""
+    return -1 if c is None else _pack(c)
+
+
+def rgb_lerp(a: Any, b: Any, t: float) -> tuple[int, int, int]:
+    """Linear blend between two colours at ``t`` in ``[0, 1]`` → an ``(r,g,b)``
+    tuple. Accepts any colour spec (name / (r,g,b) / "#rrggbb" / Color)."""
+    pa, pb = _pack(a), _pack(b)
+    t = 0.0 if t < 0 else 1.0 if t > 1 else t
+    ar, ag, ab = (pa >> 16) & 0xFF, (pa >> 8) & 0xFF, pa & 0xFF
+    br, bg, bb = (pb >> 16) & 0xFF, (pb >> 8) & 0xFF, pb & 0xFF
+    return (int(ar + (br - ar) * t), int(ag + (bg - ag) * t),
+            int(ab + (bb - ab) * t))
+
+
+def ramp(stops: Sequence[Any], n: int) -> list[int]:
+    """Build an ``n``-entry colour lookup table interpolated across ``stops``.
+
+    The single biggest source of boilerplate in hand-drawn panels is building
+    per-shade colour tables (``[pack(lerp(a, b, i/7)) for i in range(8)]``).
+    ``ramp`` does it once, returning packed ints ready to pass as ``fg=``::
+
+        heat = ramp(["navy", "cyan", "white"], 16)
+        surf.plot_px(x, y, fg=heat[level])
+
+    With a single pair it's a simple two-colour gradient; with more stops the
+    table is piecewise-linear across them.
+    """
+    if n <= 0:
+        return []
+    packed = [_pack(s) for s in stops]
+    if len(packed) == 1:
+        return packed * n
+    out = []
+    segs = len(packed) - 1
+    for i in range(n):
+        f = i / (n - 1) if n > 1 else 0.0
+        pos = f * segs
+        si = int(pos)
+        if si >= segs:
+            si = segs - 1
+        local = pos - si
+        a, b = packed[si], packed[si + 1]
+        ar, ag, ab = (a >> 16) & 0xFF, (a >> 8) & 0xFF, a & 0xFF
+        br, bg, bb = (b >> 16) & 0xFF, (b >> 8) & 0xFF, b & 0xFF
+        out.append((int(ar + (br - ar) * local) << 16)
+                   | (int(ag + (bg - ag) * local) << 8)
+                   | int(ab + (bb - ab) * local))
+    return out
+
+
+class Pen:
+    """A braille pen scoped to a rectangular cell region of a :class:`Surface`.
+
+    A region ``bw`` cells wide and ``bh`` cells tall is a ``bw*2 × bh*4`` pixel
+    canvas (braille gives 2× horizontal, 4× vertical sub-cell resolution). The
+    pen remembers its origin + size so you draw in pixel-space without repeating
+    the box coordinates::
+
+        pen = surf.pen(1, 1, 28, 4)          # inside a bordered panel
+        pen.curve(lambda px: 0.5 - 0.45*sin(px), fg="cyan")   # one-liner wave
+        pen.line(0, 8, pen.pw-1, 8, fg="slate")              # baseline
+
+    Every method returns ``self`` for chaining.
+    """
+
+    __slots__ = ("_g", "ox", "oy", "bw", "bh", "pw", "ph", "_fg")
+
+    def __init__(self, grid, ox: int, oy: int, bw: int, bh: int):
+        self._g = grid
+        self.ox, self.oy, self.bw, self.bh = ox, oy, bw, bh
+        self.pw, self.ph = bw * 2, bh * 4   # pixel extent
+        self._fg = -1                        # current stroke colour (packed)
+
+    def stroke(self, color: Any) -> "Pen":
+        """Set the current stroke colour once; subsequent ``plot`` / ``line`` /
+        ``curve`` calls that omit ``fg`` use it. Resolving the colour a single
+        time per stroke (instead of per pixel) is the fast path for tight
+        per-pixel loops::
+
+            pen.stroke("cyan")
+            for px, py in points:
+                pen.plot(px, py)        # no per-dot colour resolution
+        """
+        self._fg = _pk(color)
+        return self
+
+    def _c(self, fg):
+        return self._fg if fg is None else _pk(fg)
+
+    def plot(self, px: int, py: int, *, fg: Any = None) -> "Pen":
+        """Light the braille dot at pixel ``(px, py)`` (uses the current
+        :meth:`stroke` colour unless ``fg`` is given)."""
+        self._g.plot(self.ox, self.oy, self.bw, self.bh,
+                     int(px), int(py), self._c(fg))
+        return self
+
+    def plot_fg(self, px: int, py: int, fg: int) -> "Pen":
+        """Hot-path plot: ``fg`` MUST already be a packed int (or -1). Skips
+        colour resolution — use inside tight per-pixel loops with a ``ramp``."""
+        self._g.plot(self.ox, self.oy, self.bw, self.bh, px, py, fg)
+        return self
+
+    def line(self, x0: int, y0: int, x1: int, y1: int, *, fg: Any = None) -> "Pen":
+        """Stroke a braille line between two pixels."""
+        self._g.line(self.ox, self.oy, self.bw, self.bh,
+                     int(x0), int(y0), int(x1), int(y1), self._c(fg))
+        return self
+
+    def curve(self, fn, *, fg: Any = None, thick: int = 1) -> "Pen":
+        """Plot ``y = fn(px)`` across the full pixel width, where ``fn`` returns
+        a value in ``[0, 1]`` (0 = top, 1 = bottom). ``thick`` widens the
+        stroke vertically by ±(thick-1) pixels. Sampled in Python, plotted in
+        one native call."""
+        ph1 = self.ph - 1
+        ys = []
+        ap = ys.append
+        for px in range(self.pw):
+            v = fn(px)
+            ap(int((v if v == v else 0.5) * ph1))
+        # baseline == any value, empty fill ramp, line_fg set -> stroke only.
+        self._g.fill_curve(self.ox, self.oy, self.bw, self.bh, ys, 0, -1,
+                           (), self._c(fg), int(thick))
+        return self
+
+    def fill_between(self, fn, baseline: float = 0.5, *, ramp_fg=None,
+                     fg: Any = None, line_fg: Any = None, thick: int = 1) -> "Pen":
+        """Flood the braille column between ``fn(px)`` and ``baseline`` (both in
+        ``[0, 1]``). Pass ``ramp_fg`` (a packed-int table from :func:`ramp`) to
+        shade by distance from the curve, or ``fg`` for a flat fill. Pass
+        ``line_fg`` to overdraw the curve itself. One native call."""
+        ph1 = self.ph - 1
+        ys = []
+        ap = ys.append
+        for px in range(self.pw):
+            v = fn(px)
+            ap(int((v if v == v else 0.5) * ph1))
+        self._g.fill_curve(self.ox, self.oy, self.bw, self.bh, ys,
+                           int(baseline * ph1), self._c(fg),
+                           list(ramp_fg) if ramp_fg else (),
+                           self._c(line_fg) if line_fg is not None else -1,
+                           int(thick))
+        return self
+
+    def fill_curve_raw(self, ys, baseline_py: int, *, ramp_fg=None,
+                       fg: Any = None, line_fg: Any = None,
+                       thick: int = 1) -> "Pen":
+        """Like :meth:`fill_between` but takes a pre-sampled list of pixel-y
+        values (one per pixel column) and an absolute ``baseline_py`` — for when
+        you already have the data points (e.g. a ring buffer of samples)."""
+        self._g.fill_curve(self.ox, self.oy, self.bw, self.bh, list(ys),
+                           int(baseline_py), self._c(fg),
+                           list(ramp_fg) if ramp_fg else (),
+                           self._c(line_fg) if line_fg is not None else -1,
+                           int(thick))
+        return self
+
+    def points(self, pts, *, fg: Any = None) -> "Pen":
+        """Plot a flat ``[px0, py0, px1, py1, ...]`` pixel list in one native
+        call — the batch form of :meth:`plot` for scatter/blip clouds."""
+        self._g.plot_seq(self.ox, self.oy, self.bw, self.bh, pts, self._c(fg))
+        return self
+
+    def path(self, pts, *, fg: Any = None) -> "Pen":
+        """Connect a flat ``[px0, py0, px1, py1, ...]`` vertex list with braille
+        lines (a polyline) in one native call."""
+        self._g.polyline(self.ox, self.oy, self.bw, self.bh, pts, self._c(fg))
+        return self
+
+    def ring(self, cx: int, cy: int, rx: float, ry: float, *,
+             fg: Any = None, steps: int = 0) -> "Pen":
+        """Plot an ellipse outline centred at pixel ``(cx, cy)`` — one native
+        call."""
+        self._g.ring(self.ox, self.oy, self.bw, self.bh,
+                     int(cx), int(cy), float(rx), float(ry), self._c(fg), int(steps))
+        return self
+
+    # back-compat alias
+    dot_ring = ring
+
+    def ray(self, cx: int, cy: int, angle: float, rx: float, ry: float, *,
+            fg: Any = None, near: int = 0, far: int = 0) -> "Pen":
+        """Plot a radial beam from centre ``(cx, cy)`` at ``angle`` (radians),
+        from segment ``near`` to ``far`` scaled by ``(rx, ry)`` — a radar sweep
+        line, in one native call. ``far`` defaults to ``max(rx, ry)``."""
+        if far <= 0:
+            far = int(max(rx, ry))
+        self._g.ray(self.ox, self.oy, self.bw, self.bh, int(cx), int(cy),
+                    float(angle), float(rx), float(ry), int(near), int(far),
+                    self._c(fg))
+        return self
+
+
+class Surface:
+    """A fluent braille/character drawing surface — the powerful way to build
+    custom panels (oscilloscopes, radars, fire, spectrum bars, mini-maps).
+
+    Unlike :class:`Canvas` (half-block, 2× vertical), a Surface is a grid of
+    real terminal cells: you can place any glyph + colour in a cell AND, via a
+    :class:`Pen`, accumulate braille sub-cell dots (2×4 per cell) on top. It
+    runs entirely in native C++ — set a few thousand cells per frame with no
+    Python per-pixel overhead — then ``.element()`` once.
+
+        s = Surface(w, h, bg="#05101a")
+        s.box(0, 0, w, h, fg="slate", title=" WAVE ")
+        s.pen(1, 1, w-2, h-2).curve(lambda px: 0.5 - 0.4*sin(px/8), fg="cyan")
+        col(s)                       # Surface coerces to its Element
+
+    All colours accept name / (r,g,b) / "#rrggbb" / Color and are resolved once.
+    Coordinates are 0-based cell positions; out-of-bounds writes are ignored.
+    """
+
+    __slots__ = ("_g",)
+
+    def __init__(self, width: int, height: int, *, bg: Any = None,
+                 fg: Any = None):
+        self._g = _W.Grid(int(width), int(height), _pk(bg), _pk(fg))
+
+    @property
+    def width(self) -> int:
+        return self._g.width
+
+    @property
+    def height(self) -> int:
+        return self._g.height
+
+    def clear(self) -> "Surface":
+        """Reset every cell to a blank space (keeps the bg/fg defaults)."""
+        self._g.clear()
+        return self
+
+    def fill_bg(self, color: Any) -> "Surface":
+        """Set the background colour painted behind every cell."""
+        self._g.fill_bg(_pk(color))
+        return self
+
+    def set(self, x: int, y: int, ch: str, *, fg: Any = None) -> "Surface":
+        """Place a single glyph at cell ``(x, y)``."""
+        self._g.set(int(x), int(y), ch, _pk(fg))
+        return self
+
+    def write(self, x: int, y: int, text: str, *, fg: Any = None) -> "Surface":
+        """Write a string left-to-right from cell ``(x, y)`` (one cell/char)."""
+        self._g.write(int(x), int(y), str(text), _pk(fg))
+        return self
+
+    def hline(self, x: int, y: int, n: int, *, ch: str = "─",
+              fg: Any = None) -> "Surface":
+        """Draw a horizontal run of ``n`` cells."""
+        self._g.hline(int(x), int(y), int(n), ch, _pk(fg))
+        return self
+
+    def vline(self, x: int, y: int, n: int, *, ch: str = "│",
+              fg: Any = None) -> "Surface":
+        """Draw a vertical run of ``n`` cells."""
+        self._g.vline(int(x), int(y), int(n), ch, _pk(fg))
+        return self
+
+    def rect(self, x: int, y: int, w: int, h: int, *, ch: str = " ",
+             fg: Any = None) -> "Surface":
+        """Flood a ``w×h`` cell rectangle with ``ch``."""
+        self._g.rect_fill(int(x), int(y), int(w), int(h), ch, _pk(fg))
+        return self
+
+    def box(self, x: int, y: int, w: int, h: int, *, fg: Any = None,
+            title: str = "") -> "Surface":
+        """Stroke a rounded box with an optional ``┤title├`` on the top edge."""
+        self._g.box(int(x), int(y), int(w), int(h), _pk(fg), str(title))
+        return self
+
+    def panel(self, x: int, y: int, w: int, h: int, *, fg: Any = None,
+              title: str = "") -> Pen:
+        """Stroke a box AND return a :class:`Pen` for its interior in one call —
+        the common "bordered chart" pattern::
+
+            surf.panel(0, 0, 40, 10, fg="slate", title=" CPU ").curve(fn, fg="lime")
+        """
+        self.box(x, y, w, h, fg=fg, title=title)
+        return Pen(self._g, int(x) + 1, int(y) + 1, int(w) - 2, int(h) - 2)
+
+    def pen(self, x: int, y: int, w: int, h: int) -> Pen:
+        """A braille :class:`Pen` over the ``w×h`` cell region at ``(x, y)`` —
+        a ``w*2 × h*4`` pixel sub-canvas for plotting curves, lines, rings."""
+        return Pen(self._g, int(x), int(y), int(w), int(h))
+
+    # raw packed-int fast paths (for hot per-cell loops with a `ramp`) ------
+    def set_fg(self, x: int, y: int, ch: str, fg: int) -> None:
+        """Place ``ch`` with an ALREADY-packed ``fg`` int (no resolution)."""
+        self._g.set(x, y, ch, fg)
+
+    def element(self) -> Element:
+        """Build the surface into an Element (call once per frame)."""
+        return self._g.element()
+
+
 def picker(rows: Sequence[Any] = (), *, title: str = "", accent: Any = None,
            selected: int | None = None, header: Sequence[Element] = (),
            footer: Sequence[Element] = (), items: Sequence[Element] = (),
@@ -906,6 +1206,7 @@ __all__ = [
     "file_ref", "inline_diff", "flame_chart", "waterfall", "token_stream",
     "thinking",
     "markdown", "image", "canvas", "Canvas", "picker",
+    "Surface", "Pen", "ramp", "rgb_lerp",
     "popup", "overlay", "user_message", "assistant_message", "system_banner",
     "phase_chip", "context_gauge", "context_window", "diff_view", "tool_call",
     "git_graph", "git_status", "shortcut_row", "plan_view",

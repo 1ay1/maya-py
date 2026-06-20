@@ -94,6 +94,8 @@
 #include <variant>
 #include <vector>
 #include <functional>
+#include <cmath>
+#include <algorithm>
 
 namespace py = pybind11;
 using namespace maya;
@@ -170,6 +172,313 @@ struct PyInput {
     }
 };
 
+// ── PyCanvas — a native char + per-cell-fg drawing grid ─────────────────────
+// The dashboard / doom / fps examples each hand-rolled a software renderer in
+// Python: a `Cells` grid, `braille_plot`, `braille_line`, `draw_box`, and a
+// `to_element()` that emitted one styled row per line. That is precisely what
+// maya's renderer already does in C++ — and doing it per-pixel in Python both
+// bloats the example and dominates the frame budget. PyCanvas hosts that grid
+// in C++: set a cell, accumulate braille dots, stroke a box, then build() once
+// into one TextElement-per-row (each cell its own StyledRun) — zero per-cell
+// boundary crossings, and faithful to maya's own PixelCanvas::build shape.
+struct PyCanvas {
+    int w_ = 0, h_ = 0;
+    int32_t default_fg_ = -1;          // packed 0xRRGGBB, -1 = inherit
+    int32_t bg_ = -1;                  // packed 0xRRGGBB applied to every cell
+    std::vector<char32_t> ch_;         // w_*h_ glyphs (default U' ')
+    std::vector<int32_t>  fg_;         // w_*h_ packed fg, -1 = default_fg_
+
+    static constexpr uint8_t kBrailleDot[8] =
+        {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80};
+
+    PyCanvas(int w, int h, int32_t bg, int32_t default_fg)
+        : w_(w < 0 ? 0 : w), h_(h < 0 ? 0 : h),
+          default_fg_(default_fg), bg_(bg),
+          ch_(static_cast<size_t>(w_) * h_, U' '),
+          fg_(static_cast<size_t>(w_) * h_, -1) {}
+
+    MAYA_ALWAYS_INLINE bool in_bounds(int x, int y) const noexcept {
+        return static_cast<unsigned>(x) < static_cast<unsigned>(w_)
+            && static_cast<unsigned>(y) < static_cast<unsigned>(h_);
+    }
+
+    void clear() {
+        std::fill(ch_.begin(), ch_.end(), U' ');
+        std::fill(fg_.begin(), fg_.end(), -1);
+    }
+
+    void fill_bg(int32_t bg) { bg_ = bg; }
+
+    MAYA_ALWAYS_INLINE void set_cp(int x, int y, char32_t c, int32_t fg) {
+        if (!in_bounds(x, y)) return;
+        size_t i = static_cast<size_t>(y) * w_ + x;
+        ch_[i] = c;
+        fg_[i] = fg;
+    }
+
+    static char32_t first_cp(const std::string& s) {
+        if (s.empty()) return U' ';
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());
+        unsigned char b = *p; char32_t cp; int len;
+        if (b < 0x80) { cp = b; len = 1; }
+        else if ((b >> 5) == 0x6) { cp = b & 0x1F; len = 2; }
+        else if ((b >> 4) == 0xE) { cp = b & 0x0F; len = 3; }
+        else if ((b >> 3) == 0x1E){ cp = b & 0x07; len = 4; }
+        else { return b; }
+        for (int k = 1; k < len && k < (int)s.size(); ++k)
+            cp = (cp << 6) | (p[k] & 0x3F);
+        return cp;
+    }
+
+    void set(int x, int y, const std::string& ch, int32_t fg) {
+        set_cp(x, y, first_cp(ch), fg);
+    }
+
+    char32_t get_char(int x, int y) const {
+        if (!in_bounds(x, y)) return U' ';
+        return ch_[static_cast<size_t>(y) * w_ + x];
+    }
+
+    // Write a UTF-8 string left-to-right from (x, y), one codepoint per cell.
+    void write(int x, int y, const std::string& text, int32_t fg) {
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(text.data());
+        const unsigned char* end = p + text.size();
+        int cx = x;
+        while (p < end) {
+            char32_t cp; int len;
+            unsigned char b = *p;
+            if (b < 0x80)        { cp = b; len = 1; }
+            else if ((b >> 5) == 0x6) { cp = b & 0x1F; len = 2; }
+            else if ((b >> 4) == 0xE) { cp = b & 0x0F; len = 3; }
+            else if ((b >> 3) == 0x1E){ cp = b & 0x07; len = 4; }
+            else { cp = b; len = 1; }
+            for (int k = 1; k < len && p + k < end; ++k)
+                cp = (cp << 6) | (p[k] & 0x3F);
+            set_cp(cx++, y, cp, fg);
+            p += len;
+        }
+    }
+
+    void hline(int x, int y, int n, const std::string& ch, int32_t fg) {
+        char32_t c = first_cp(ch);
+        for (int i = 0; i < n; ++i) set_cp(x + i, y, c, fg);
+    }
+    void vline(int x, int y, int n, const std::string& ch, int32_t fg) {
+        char32_t c = first_cp(ch);
+        for (int i = 0; i < n; ++i) set_cp(x, y + i, c, fg);
+    }
+
+    void rect_fill(int x, int y, int rw, int rh, const std::string& ch, int32_t fg) {
+        char32_t c = first_cp(ch);
+        for (int j = 0; j < rh; ++j)
+            for (int i = 0; i < rw; ++i)
+                set_cp(x + i, y + j, c, fg);
+    }
+
+    // A rounded box with an optional ┤title├ on the top edge.
+    void box(int x, int y, int bw, int bh, int32_t fg, const std::string& title) {
+        if (bw < 2 || bh < 2) return;
+        set_cp(x, y, U'\u256D', fg);
+        set_cp(x + bw - 1, y, U'\u256E', fg);
+        set_cp(x, y + bh - 1, U'\u2570', fg);
+        set_cp(x + bw - 1, y + bh - 1, U'\u256F', fg);
+        for (int i = 1; i < bw - 1; ++i) {
+            set_cp(x + i, y, U'\u2500', fg);
+            set_cp(x + i, y + bh - 1, U'\u2500', fg);
+        }
+        for (int j = 1; j < bh - 1; ++j) {
+            set_cp(x, y + j, U'\u2502', fg);
+            set_cp(x + bw - 1, y + j, U'\u2502', fg);
+        }
+        if (!title.empty()) {
+            int tx = x + 2;
+            set_cp(tx - 1, y, U'\u2524', fg);
+            write(tx, y, title, fg);
+            int n = 0;
+            for (unsigned char b : title)
+                if ((b & 0xC0) != 0x80) ++n;
+            set_cp(tx + n, y, U'\u251C', fg);
+        }
+    }
+
+    // Accumulate one braille dot at pixel (px, py) within a bw×bh cell region
+    // anchored at (ox, oy). Pixel space is bw*2 wide, bh*4 tall.
+    MAYA_ALWAYS_INLINE void braille_plot(int ox, int oy, int bw, int bh,
+                                         int px, int py, int32_t fg) {
+        int bx = px >> 1, by = py >> 2;
+        if (bx < 0 || bx >= bw || by < 0 || by >= bh) return;
+        int dcol = px & 1, drow = py & 3;
+        int dot_idx = (drow < 3) ? (drow + dcol * 3) : (6 + dcol);
+        int cx = ox + bx, cy = oy + by;
+        if (!in_bounds(cx, cy)) return;
+        size_t i = static_cast<size_t>(cy) * w_ + cx;
+        char32_t cur = ch_[i];
+        uint32_t dots = (cur >= 0x2800 && cur <= 0x28FF) ? (cur - 0x2800) : 0;
+        dots |= kBrailleDot[dot_idx];
+        ch_[i] = 0x2800 + dots;
+        fg_[i] = fg;
+    }
+
+    void braille_line(int ox, int oy, int bw, int bh,
+                      int x0, int y0, int x1, int y1, int32_t fg) {
+        int dx = std::abs(x1 - x0), dy = std::abs(y1 - y0);
+        int steps = std::max(dx, dy);
+        if (steps == 0) { braille_plot(ox, oy, bw, bh, x0, y0, fg); return; }
+        for (int i = 0; i <= steps; ++i) {
+            int px = x0 + (x1 - x0) * i / steps;
+            int py = y0 + (y1 - y0) * i / steps;
+            braille_plot(ox, oy, bw, bh, px, py, fg);
+        }
+    }
+
+    // ── Batch primitives — collapse a whole per-pixel loop into ONE crossing.
+    // These are the difference between "native canvas" and "native canvas that
+    // is actually fast": plotting a 2000-dot frame one Python call at a time is
+    // 2000 boundary crossings; these do it in a handful.
+
+    // Plot a flat [px0, py0, px1, py1, ...] pixel list, all in one colour.
+    void plot_seq(int ox, int oy, int bw, int bh,
+                  const std::vector<int>& pts, int32_t fg) {
+        size_t n = pts.size() & ~size_t{1};
+        for (size_t i = 0; i < n; i += 2)
+            braille_plot(ox, oy, bw, bh, pts[i], pts[i + 1], fg);
+    }
+
+    // Connect a flat [px0,py0, px1,py1, ...] vertex list with braille lines.
+    void polyline(int ox, int oy, int bw, int bh,
+                  const std::vector<int>& pts, int32_t fg) {
+        size_t n = pts.size() & ~size_t{1};
+        if (n < 2) return;
+        if (n == 2) { braille_plot(ox, oy, bw, bh, pts[0], pts[1], fg); return; }
+        for (size_t i = 2; i < n; i += 2)
+            braille_line(ox, oy, bw, bh,
+                         pts[i - 2], pts[i - 1], pts[i], pts[i + 1], fg);
+    }
+
+    // Per-column filled area chart from a sampled curve. `ys` holds one target
+    // pixel-y per pixel-column (0..pw-1); the column between ys[x] and
+    // `baseline_py` is flooded. If `ramp` is non-empty, each cell is shaded by
+    // its distance from the curve through the ramp; else `fg` is used flat.
+    // `line_fg` (>=0) overdraws the curve itself (optionally `thick` px wide).
+    void fill_curve(int ox, int oy, int bw, int bh,
+                    const std::vector<int>& ys, int baseline_py,
+                    int32_t fg, const std::vector<int32_t>& ramp,
+                    int32_t line_fg, int thick) {
+        int pw = bw * 2, ph = bh * 4;
+        int n = static_cast<int>(ys.size());
+        if (n > pw) n = pw;
+        int nshade = static_cast<int>(ramp.size());
+        // Stroke-only mode: no ramp AND no flat fill colour -> don't flood the
+        // column, just draw the curve (used by Pen.curve()).
+        const bool do_fill = (nshade > 0) || (fg >= 0);
+        for (int px = 0; px < n; ++px) {
+            int py = ys[px];
+            if (py < 0) py = 0; else if (py >= ph) py = ph - 1;
+            if (do_fill) {
+                int top = py < baseline_py ? py : baseline_py;
+                int bot = py < baseline_py ? baseline_py : py;
+                int span = bot - top; if (span < 1) span = 1;
+                for (int fy = top; fy <= bot; ++fy) {
+                    int32_t c;
+                    if (nshade) {
+                        int si = (std::abs(fy - py) * (nshade - 1)) / span;
+                        if (si >= nshade) si = nshade - 1;
+                        c = ramp[si];
+                    } else c = fg;
+                    braille_plot(ox, oy, bw, bh, px, fy, c);
+                }
+            }
+            if (line_fg >= 0) {
+                braille_plot(ox, oy, bw, bh, px, py, line_fg);
+                for (int k = 1; k < thick; ++k) {
+                    if (py - k >= 0)  braille_plot(ox, oy, bw, bh, px, py - k, line_fg);
+                    if (py + k < ph)  braille_plot(ox, oy, bw, bh, px, py + k, line_fg);
+                }
+            }
+        }
+    }
+
+    // An ellipse outline centred at pixel (cx, cy).
+    void ring(int ox, int oy, int bw, int bh,
+              int cx, int cy, double rx, double ry, int32_t fg, int steps) {
+        if (steps <= 0) steps = std::max(8, int((rx + ry) * 1.5));
+        for (int s = 0; s < steps; ++s) {
+            double a = 6.283185307179586 * s / steps;
+            braille_plot(ox, oy, bw, bh,
+                         int(cx + std::cos(a) * rx),
+                         int(cy + std::sin(a) * ry), fg);
+        }
+    }
+
+    // A radial sweep line from centre outward at angle `a`, `segs` segments
+    // long, scaled to (rx, ry). Used for radar beams.
+    void ray(int ox, int oy, int bw, int bh, int cx, int cy,
+             double a, double rx, double ry, int from_seg, int to_seg,
+             int32_t fg) {
+        double ca = std::cos(a), sa = std::sin(a);
+        int n = std::max(1, to_seg);
+        for (int d = from_seg; d < to_seg; ++d) {
+            double f = double(d) / n;
+            braille_plot(ox, oy, bw, bh,
+                         int(cx + ca * rx * f), int(cy + sa * ry * f), fg);
+        }
+    }
+
+    static void encode_utf8(std::string& out, char32_t cp) {
+        if (cp < 0x80) out.push_back(static_cast<char>(cp));
+        else if (cp < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+    }
+
+    // Build one Element: a vstack of rows, each a single TextElement whose
+    // per-cell glyphs carry their own StyledRun (fg + the canvas bg).
+    Element build() const {
+        if (w_ == 0 || h_ == 0) return dsl::nothing();
+        Color bg = (bg_ >= 0)
+            ? Color::rgb((bg_ >> 16) & 0xFF, (bg_ >> 8) & 0xFF, bg_ & 0xFF)
+            : Color{};
+        bool has_bg = bg_ >= 0;
+        std::vector<Element> rows;
+        rows.reserve(static_cast<size_t>(h_));
+        for (int y = 0; y < h_; ++y) {
+            std::string content;
+            content.reserve(static_cast<size_t>(w_) * 3);
+            std::vector<StyledRun> runs;
+            runs.reserve(static_cast<size_t>(w_));
+            const char32_t* cr = &ch_[static_cast<size_t>(y) * w_];
+            const int32_t*  fr = &fg_[static_cast<size_t>(y) * w_];
+            for (int x = 0; x < w_; ++x) {
+                size_t start = content.size();
+                encode_utf8(content, cr[x]);
+                int32_t f = fr[x] < 0 ? default_fg_ : fr[x];
+                Style s;
+                if (f >= 0)
+                    s = s.with_fg(Color::rgb((f >> 16) & 0xFF, (f >> 8) & 0xFF, f & 0xFF));
+                if (has_bg) s = s.with_bg(bg);
+                runs.push_back(StyledRun{start, content.size() - start, s});
+            }
+            rows.push_back(Element{TextElement{
+                .content = std::move(content),
+                .style = {},
+                .wrap = TextWrap::NoWrap,
+                .runs = std::move(runs),
+            }});
+        }
+        return dsl::v(std::move(rows)).build();
+    }
+};
+
 void init_widgets(py::module_& m) {
     auto w = m.def_submodule("_widgets", "maya widget renderers");
 
@@ -192,6 +501,68 @@ void init_widgets(py::module_& m) {
              py::arg("fn"), "Call fn(text) on every edit.")
         .def_property("value", &PyInput::value, &PyInput::set_value)
         .def_property("focused", &PyInput::focused, &PyInput::set_focused);
+
+    // ── Grid — a native braille/char drawing grid ──────────────────────────
+    // All colours are packed 0xRRGGBB ints (or -1 = inherit) so per-cell draws
+    // never touch the Color type or cross a boundary; the Python wrapper packs
+    // names/tuples/#hex once. build() emits one TextElement per row.
+    py::class_<PyCanvas>(w, "Grid")
+        .def(py::init<int, int, int32_t, int32_t>(),
+             py::arg("width"), py::arg("height"),
+             py::arg("bg") = -1, py::arg("default_fg") = -1)
+        .def_readonly("width", &PyCanvas::w_)
+        .def_readonly("height", &PyCanvas::h_)
+        .def("clear", &PyCanvas::clear)
+        .def("fill_bg", &PyCanvas::fill_bg, py::arg("bg"))
+        .def("set", &PyCanvas::set,
+             py::arg("x"), py::arg("y"), py::arg("ch"), py::arg("fg") = -1)
+        .def("get_char",
+             [](const PyCanvas& c, int x, int y) {
+                 std::string out; PyCanvas::encode_utf8(out, c.get_char(x, y));
+                 return out;
+             }, py::arg("x"), py::arg("y"))
+        .def("write", &PyCanvas::write,
+             py::arg("x"), py::arg("y"), py::arg("text"), py::arg("fg") = -1)
+        .def("hline", &PyCanvas::hline,
+             py::arg("x"), py::arg("y"), py::arg("n"),
+             py::arg("ch") = "\u2500", py::arg("fg") = -1)
+        .def("vline", &PyCanvas::vline,
+             py::arg("x"), py::arg("y"), py::arg("n"),
+             py::arg("ch") = "\u2502", py::arg("fg") = -1)
+        .def("rect_fill", &PyCanvas::rect_fill,
+             py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"),
+             py::arg("ch") = " ", py::arg("fg") = -1)
+        .def("box", &PyCanvas::box,
+             py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"),
+             py::arg("fg") = -1, py::arg("title") = "")
+        .def("plot", &PyCanvas::braille_plot,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("px"), py::arg("py"), py::arg("fg") = -1)
+        .def("line", &PyCanvas::braille_line,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("x0"), py::arg("y0"), py::arg("x1"), py::arg("y1"),
+             py::arg("fg") = -1)
+        .def("plot_seq", &PyCanvas::plot_seq,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("pts"), py::arg("fg") = -1)
+        .def("polyline", &PyCanvas::polyline,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("pts"), py::arg("fg") = -1)
+        .def("fill_curve", &PyCanvas::fill_curve,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("ys"), py::arg("baseline_py"), py::arg("fg") = -1,
+             py::arg("ramp") = std::vector<int32_t>{},
+             py::arg("line_fg") = -1, py::arg("thick") = 1)
+        .def("ring", &PyCanvas::ring,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("cx"), py::arg("cy"), py::arg("rx"), py::arg("ry"),
+             py::arg("fg") = -1, py::arg("steps") = 0)
+        .def("ray", &PyCanvas::ray,
+             py::arg("ox"), py::arg("oy"), py::arg("bw"), py::arg("bh"),
+             py::arg("cx"), py::arg("cy"), py::arg("a"), py::arg("rx"),
+             py::arg("ry"), py::arg("from_seg"), py::arg("to_seg"),
+             py::arg("fg") = -1)
+        .def("element", &PyCanvas::build, "Build the grid into an Element.");
 
     // ── enums ───────────────────────────────────────────────────────────
     py::enum_<GaugeStyle>(w, "GaugeStyle")
