@@ -20,12 +20,9 @@ per-pixel Python, no hand-rolled software renderer.
 from __future__ import annotations
 
 import math
-import os
 import random
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (App, box, col, component, Surface, ramp, rgb_lerp,  # noqa: E402
                      Theme, ThemeSet, clamp)

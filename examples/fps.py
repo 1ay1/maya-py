@@ -25,11 +25,8 @@ MAX_PW / MAX_PH to trade framerate for detail.
 from __future__ import annotations
 
 import math
-import os
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import App, T, col, row, component, halfblock, upscale, target_size  # noqa: E402
 

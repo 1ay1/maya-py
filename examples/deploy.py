@@ -22,14 +22,10 @@ pipeline-health bar round it out — all rendered with maya's native widgets.
 
 from __future__ import annotations
 
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (  # noqa: E402
-    App, T, col, row, card, spacer, grow, sparkline, clamp, randf, randi, spin, bar, keyhints,
+    App, T, col, row, card, spacer, grow, sparkline, clamp, randf, randi, spin, bar, statusbar,
 )
 
 
@@ -507,16 +503,14 @@ def build_status_bar():
     overall = (completed / total_stages) if total_stages > 0 else 0.0
     overall_pct = int(overall * 100)
 
-    return row(
+    return statusbar(
         T(f" ⏱ {mins:02d}:{secs:02d}").fg((100, 180, 255)),
         T("  active:").fg((140, 140, 160)),
         T(str(active)).fg((255, 200, 60) if active > 0 else (80, 80, 100)),
         T("  progress:").fg((140, 140, 160)),
         T(f"{overall_pct}%").bold.fg((0, 200, 255)),
-        spacer(),
-        keyhints(("␣", "deploy"), ("r", "rollback"), ("f", "force"),
-                 ("1-3", "env"), ("q", "quit ")),
-        gap=0, pad=(0, 1), bg=(30, 30, 42),
+        hints=[("␣", "deploy"), ("r", "rollback"), ("f", "force"),
+               ("1-3", "env"), ("q", "quit ")],
     )
 
 

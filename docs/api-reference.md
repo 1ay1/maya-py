@@ -269,6 +269,7 @@ redefine `clamp` or hand-roll a sparkline again. All top-level imports. See
 | `human` | `human(n, *, prec=1) -> str` | Compact magnitude format: `1234 → 1.2k`, `5.6M`. |
 | `percent` | `percent(value, *, prec=0, sign=False) -> str` | Format a 0..1 fraction as `62%`; `sign=True` prefixes `+` on deltas. |
 | `keyhints` | `keyhints(*pairs, key=(180,220,255), label=(120,120,140)) -> Element` | A row of `key:label` hint chips for a status-bar footer. Each `pair` is `(key, label)`; key bold, label dim. Drop after a `spacer()`. |
+| `statusbar` | `statusbar(*left, hints=None, bg=(30,30,42), pad=(0,1), key=…, label=…) -> Element` | A bottom status bar: `left` content, a `spacer()`, then a `keyhints` row. The `row(…, spacer(), keyhints(…), gap=0, pad=(0,1), bg=…)` skeleton, distilled. |
 
 ### Random & spinners
 

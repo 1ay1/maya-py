@@ -19,11 +19,8 @@ This app animates them all off a single time `t`.
 from __future__ import annotations
 
 import math
-import os
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, b, dim_text,

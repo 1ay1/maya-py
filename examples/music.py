@@ -16,16 +16,13 @@ through maya's native widgets.
 from __future__ import annotations
 
 import math
-import os
 import random
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (  # noqa: E402
     App, T, col, row, card, grow, spacer,
-    heatmap, sparkline, progress, badge, clamp, randf, bar, keyhints,
+    heatmap, sparkline, progress, badge, clamp, randf, bar, statusbar,
 )
 
 
@@ -291,7 +288,7 @@ def build_status_bar():
     accent = trk[T_HIGH]
     vol_pct = int(S.volume * 100)
     rep_str = ["off", "one", "all"][S.repeat_mode]
-    return row(
+    return statusbar(
         T(" VOL").fg((140, 140, 160)),
         T(" " + bar(S.volume, 10, fill="█", track="─")).fg(accent),
         T(f" {vol_pct}%").fg((140, 140, 160)),
@@ -300,10 +297,8 @@ def build_status_bar():
         T(rep_str).fg((0, 220, 120) if S.repeat_mode > 0 else (80, 80, 100)),
         T("  shuffle:").fg((140, 140, 160)),
         T("on" if S.shuffle_on else "off").fg((0, 220, 120) if S.shuffle_on else (80, 80, 100)),
-        spacer(),
-        keyhints(("spc", "play"), ("n", "next"), ("p", "prev"), ("s", "shuf"),
-                 ("r", "rep"), ("+/-", "vol"), ("q", "quit ")),
-        gap=0, pad=(0, 1), bg=(30, 30, 42),
+        hints=[("spc", "play"), ("n", "next"), ("p", "prev"), ("s", "shuf"),
+               ("r", "rep"), ("+/-", "vol"), ("q", "quit ")],
     )
 
 

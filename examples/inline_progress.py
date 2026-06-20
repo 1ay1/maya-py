@@ -11,11 +11,9 @@ This animates a 3-second progress bar, then prints a final summary card.
     PYTHONPATH=src python examples/inline_progress.py
 """
 
-import sys
-import os
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya
 from maya_py import col, row, card, b, dim_text, T, badge

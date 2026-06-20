@@ -14,14 +14,11 @@ unicode block/braille glyphs inside maya's native text/box layout.
 
 from __future__ import annotations
 
-import os
 import random
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
-from maya_py import App, T, col, row, card, spacer, clamp, randf, randi, spin, bar, keyhints  # noqa: E402
+from maya_py import App, T, col, row, card, spacer, clamp, randf, randi, spin, bar, statusbar  # noqa: E402
 
 
 def usage_color(v):
@@ -347,17 +344,15 @@ def build_status_bar():
         sc_str = f"{sc / 1e3:.1f}K"
     else:
         sc_str = str(sc)
-    return row(
+    return statusbar(
         T(f" ⏱ {mins:02d}:{secs:02d}").fg((100, 180, 255)),
         T("  entropy:").fg((140, 140, 160)),
         T(entropy_bar).fg((0, 255, 136)),
         T("  syscalls:").fg((140, 140, 160)),
         T(sc_str).fg((255, 200, 60)),
         T(f"  f:{s.frame_count}").fg((100, 100, 120)),
-        spacer(),
-        keyhints(("q", "quit"), ("p", "pause"), ("s", "sort"), ("l", "log"),
-                 ("1-3", "speed"), ("␣", "burst")),
-        gap=0, pad=(0, 1), bg=(30, 30, 42),
+        hints=[("q", "quit"), ("p", "pause"), ("s", "sort"), ("l", "log"),
+               ("1-3", "speed"), ("␣", "burst")],
     )
 
 

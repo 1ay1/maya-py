@@ -10,10 +10,8 @@ different bar styles with [ and ].
     PYTHONPATH=src python examples/scroll.py
 """
 
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya  # noqa: F401  (kept for ad-hoc maya.* if you extend this)
 from maya_py import (

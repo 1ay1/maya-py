@@ -12,13 +12,10 @@ truecolor at double vertical resolution.
     PYTHONPATH=src python examples/clock.py
 """
 
-import sys
-import os
 import math
 import time
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya
 from maya_py import App, T, b, col, row, card, dim_text, Canvas, badge

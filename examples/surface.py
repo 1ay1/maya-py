@@ -18,11 +18,8 @@ Everything chains and every colour accepts name / (r,g,b) / "#rrggbb".
 from __future__ import annotations
 
 import math
-import os
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import App, Surface, ramp, col, row, b, dim_text  # noqa: E402
 

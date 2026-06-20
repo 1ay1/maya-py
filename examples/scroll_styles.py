@@ -8,10 +8,8 @@ content. All tiles share one ScrollState so they move in lock-step.
     PYTHONPATH=src python examples/scroll_styles.py
 """
 
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya
 from maya_py import (App, col, row, card, b, T, dim_text,

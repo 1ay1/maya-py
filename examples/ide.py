@@ -16,10 +16,8 @@ Controls:
 Usage:  PYTHONPATH=src python examples/ide.py
 """
 
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (App, col, row, card, T, badge, sparkline, breadcrumb,
                      progress, grow, component, to_string)

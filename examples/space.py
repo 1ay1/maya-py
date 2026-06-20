@@ -19,16 +19,13 @@ and a physics simulation — all rendered with maya's native widgets.
 from __future__ import annotations
 
 import math
-import os
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (  # noqa: E402
     App, T, b, col, row, card, grow, spacer,
     gauge, sparkline, heatmap, line_chart, bar_chart, badge, callout,
-    clamp, randf, randi, spin, keyhints,
+    clamp, randf, randi, spin, statusbar,
 )
 
 
@@ -420,14 +417,12 @@ def build_status_bar():
     overall_sty = ((255, 60, 60) if errors
                    else (255, 200, 60) if warnings
                    else (0, 255, 136))
-    return row(
+    return statusbar(
         T(" STATUS: ").fg((140, 140, 160)),
         T(overall).fg(overall_sty).bold,
         T(f"  FUEL:{int(s.fuel * 100)}%").fg(status_color(s.fuel)),
-        spacer(),
-        keyhints(("␣", "burn"), ("a", "abort"), ("d", "diag"), ("1-3", "phase"),
-                 ("q", "quit ")),
-        gap=0, pad=(0, 1), bg=(30, 30, 42),
+        hints=[("␣", "burn"), ("a", "abort"), ("d", "diag"), ("1-3", "phase"),
+               ("q", "quit ")],
     )
 
 

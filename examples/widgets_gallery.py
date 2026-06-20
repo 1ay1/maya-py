@@ -3,10 +3,8 @@
     PYTHONPATH=src python examples/widgets_gallery.py
 """
 
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya
 from maya_py import (

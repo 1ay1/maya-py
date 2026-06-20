@@ -12,11 +12,7 @@ widgets. Just watch; press q/Esc to quit.
 
 from __future__ import annotations
 
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import (  # noqa: E402
     App, T, col, spacer,

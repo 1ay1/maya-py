@@ -1970,6 +1970,31 @@ def keyhints(*pairs, key: Any = (180, 220, 255), label: Any = (120, 120, 140)):
     return row(*chips, gap=0)
 
 
+def statusbar(*left, hints=None, bg: Any = (30, 30, 42),
+              pad: Any = (0, 1), key: Any = (180, 220, 255),
+              label: Any = (120, 120, 140)):
+    """A bottom status bar: your ``left`` content, a ``spacer()``, then a
+    :func:`keyhints` row — the ``row(…, spacer(), keyhints(…), gap=0,
+    pad=(0,1), bg=(30,30,42))`` skeleton every dashboard repeated.
+
+    ``left`` is any number of elements (the clock / metrics on the left).
+    ``hints`` is a list of ``(key, label)`` pairs rendered on the right (omit
+    for no hints). ``bg`` / ``pad`` style the bar; ``key`` / ``label`` recolour
+    the hint chips.
+
+        return statusbar(
+            T(f" ⏱ {clock}").fg("sky"),
+            T("  cpu:").dim, T(f"{pct}%").bold,
+            hints=[("q", "quit"), ("p", "pause")],
+        )
+    """
+    parts = list(left)
+    parts.append(spacer())
+    if hints:
+        parts.append(keyhints(*hints, key=key, label=label))
+    return row(*parts, gap=0, pad=pad, bg=bg)
+
+
 # ── Random + spinners — the tiny helpers every live demo hand-rolled ─────────
 import random as _random
 
@@ -2185,7 +2210,7 @@ __all__ = [
     # colour
     "hsv", "mix", "lighten", "darken", "alpha",
     # data → text
-    "spark", "bar", "fixed", "human", "percent", "keyhints",
+    "spark", "bar", "fixed", "human", "percent", "keyhints", "statusbar",
     # random + spinners
     "randf", "randi", "spin",
     # theme

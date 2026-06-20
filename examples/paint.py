@@ -13,10 +13,8 @@ whose painted rect is reported back each frame, so clicks hit-test against the
 REAL on-screen position — never a hardcoded offset.
 """
 
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 import maya_py as maya
 from maya_py import (

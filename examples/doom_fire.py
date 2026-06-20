@@ -12,12 +12,9 @@ like the C++ original.
     PYTHONPATH=src python examples/doom_fire.py
 """
 
-import os
 import random
-import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import _bootstrap  # noqa: F401,E402
 
 from maya_py import App, T, col, row, component, halfblock  # noqa: E402
 
