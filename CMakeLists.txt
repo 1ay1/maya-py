@@ -51,7 +51,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ── Compiler preflight ───────────────────────────────────────────────
 # maya compiles at C++26 but the features it actually uses (views::enumerate,
-# std::expected, std::format, deducing-this) all landed in GCC 14 / Clang 18.
+# std::expected, std::format, deducing-this) need GCC 14 / Clang 19. (Clang 18
+# has the language features but ships an incomplete libstdc++ <expected> and
+# fails to compile maya — Clang 19 is the real floor.)
 # If we got here we're COMPILING FROM SOURCE — no prebuilt wheel matched this
 # platform. On an old toolchain the compile fails deep inside maya with
 # inscrutable template errors, so fail FAST with an actionable message.
@@ -74,8 +76,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # it's because no Homebrew GCC was found — reject it here with the
         # actionable `brew install gcc` hint rather than crash mid-compile.
         set(_maya_ok FALSE)
-    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
-        # Plain upstream LLVM/Clang >= 18 is fine.
+    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19)
+        # Plain upstream LLVM/Clang >= 19 is fine. (18's libstdc++ <expected>
+        # is incomplete and fails deep in maya.)
         set(_maya_ok FALSE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -111,7 +114,7 @@ if(NOT _maya_ok)
         " maya-py: your C++ compiler is too old to BUILD from source.\n"
         "\n"
         "   found:    ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\n"
-        "   required: GCC >= ${_maya_min_gcc}, Clang >= 18, or\n"
+        "   required: GCC >= ${_maya_min_gcc}, Clang >= 19, or\n"
         "             MSVC >= 19.40 (VS 2022 17.10).  AppleClang is NOT\n"
         "             supported — on macOS build with Homebrew GCC.\n"
         "\n"
