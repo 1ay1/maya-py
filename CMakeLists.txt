@@ -176,11 +176,15 @@ else()
     # sigemptyset macro fix (`::sigemptyset` -> `sigemptyset`; the sig*set()
     # functions are macros on Darwin, so the `::` qualifier broke the GCC
     # build with "expected id-expression before '('" — this unblocks the
-    # Apple-Silicon wheels).
+    # Apple-Silicon wheels), and the compat-repaint unchanged-row fix (the
+    # Zed full-row repaint path was re-emitting UNCHANGED rows every frame,
+    # turning a one-cell change into a whole-frame repaint — 3137 B/frame vs
+    # 96 B/frame; it now skips rows the diff calls identical, screen-identical
+    # to the byte-optimal path).
     # Bump deliberately when pulling in new maya changes.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        a1ebb0fe12518e51553949ad7e1a9083c5a1c07f)
+        GIT_TAG        b26844f3f5e2c6155ead6db90b8139f812f4e06a)
     FetchContent_MakeAvailable(maya)
 endif()
 
