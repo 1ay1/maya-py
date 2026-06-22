@@ -75,6 +75,15 @@ must re-emit the whole frame every time.
 especially over SSH or any slow link — bytes-on-wire is the actual bottleneck,
 and this is a decisive, structural win that no pure-Python library matches.
 
+!!! note "Zed's terminal"
+    In Zed's integrated terminal (`TERM_PROGRAM=zed`) maya auto-enables a
+    *compatibility repaint*: it redraws each **changed** row in full (using only
+    `\r` + content) because Zed mis-tracks the mid-row cursor moves a minimal
+    sub-span update needs. Unchanged rows are still skipped, so it stays far
+    below a whole-frame re-emit — but a changed line costs a full row (~200 B in
+    the bench above) instead of a few cells. This is a correctness trade, not a
+    regression; other terminals get the byte-minimal path.
+
 ## `memo`
 
 The single biggest lever for live-app speed. `memo` caches a built sub-tree by

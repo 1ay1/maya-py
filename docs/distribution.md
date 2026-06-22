@@ -9,12 +9,13 @@ it's on PyPI, so `pip install maya-py` is all you need.)
 
 ## The constraint
 
-maya is **C++26** by default, but the language features it actually uses
-(`views::enumerate`, `std::expected`, `std::format`, deducing-this) are all
-**C++23** — available in **GCC 14** / Clang 18. maya-py pins both maya and the
-extension to `-std=c++23` so a modern-but-not-bleeding-edge compiler suffices.
-Still, that's newer than what old user machines have, so "compile on the
-user's old machine" isn't the plan.
+maya is **C++26** by default, and the library features it leans on
+(`std::expected`, `std::format`, `views::enumerate`, deducing-this) need a
+recent standard library: **GCC 14** or **Clang 19**. (Clang 18 nominally has
+the language features, but its bundled libstdc++ `<expected>` support is
+incomplete and fails to compile maya — Clang 19 is the real floor.) That's
+newer than what old user machines have, so "compile on the user's old machine"
+isn't the plan.
 
 The answer is to **not compile on the user's machine at all.** maya-py ships
 **prebuilt binary wheels**: a modern machine compiles everything once, into a
@@ -63,6 +64,13 @@ cibuildwheel) stamps the resulting `manylinux_2_28` platform tag.
 `pyproject.toml`'s `[tool.cibuildwheel]` section drives it; the GitHub Actions
 workflow `.github/workflows/wheels.yml` runs it on every `vX.Y.Z` tag.
 
+maya-py **tracks the latest maya** — `CMakeLists.txt` fetches `master` rather
+than a frozen commit, so each tagged wheel bundles whatever maya is current at
+build time. The guard against an upstream render change sneaking in is the
+golden snapshot (`tests/golden.txt`, checked by `scripts/check_golden.py` in
+CI); regenerate it with `--update` and commit the visual diff when maya changes
+output on purpose.
+
 The one wrinkle is the compiler: the `manylinux_2_28` image (AlmaLinux 8)
 ships **gcc-toolset-14**, which is exactly what maya-py needs (C++23). So
 `scripts/cibw_before_all.sh` simply enables that toolset inside the container
@@ -104,7 +112,7 @@ Users just `pip install maya-py`; `pip` picks the matching wheel automatically.
 If `pip` can't find a matching wheel (a Python/platform CI didn't cover), it
 builds the sdist. On an old compiler that would fail deep inside maya's
 templates, so `CMakeLists.txt` does a **preflight check**: if GCC < 14 (or
-Clang < 18), it aborts immediately with an actionable message pointing the
+Clang < 19), it aborts immediately with an actionable message pointing the
 user back to the prebuilt wheel.
 
 ## Platform status
@@ -122,5 +130,5 @@ user back to the prebuilt wheel.
 - Users: `pip install maya-py` — precompiled on Linux, Windows, and macOS
   (Apple Silicon), no compiler, works on old machines.
 - The `.so` is self-contained (static C++ runtime, old-glibc target).
-- Source builds need GCC 14+ / Clang 18+, and say so clearly if your compiler
+- Source builds need GCC 14+ / Clang 19+, and say so clearly if your compiler
   is too old.
