@@ -5,6 +5,10 @@ framework with flexbox layout, a SIMD cell-diff renderer, and an Elm-style
 runtime. `maya-py` gives you a **dead-simple** Python API for building styled
 terminal UIs and interactive apps.
 
+<p align="center">
+  <img src="demo/fps.gif" alt="3D FPS raycaster in a terminal — examples/fps.py" width="700">
+</p>
+
 ```python
 import maya_py as maya
 from maya_py import card, field, b, hr
@@ -19,6 +23,33 @@ maya.show(card(
 ```
 
 That's the whole program. Strings *are* UI — no manual element wrapping.
+
+## Gallery
+
+Every demo below is a Python program under [`examples/`](examples/) — run any of them with `python examples/<name>.py`.
+
+<table>
+<tr>
+<td align="center"><b>Dashboard</b><br><sub><code>examples/dashboard.py</code> — oscilloscope · radar · hex waterfall · spirograph</sub></td>
+<td align="center"><b>Stock Ticker</b><br><sub><code>examples/stocks.py</code> — live charts · sparklines · portfolio</sub></td>
+</tr>
+<tr>
+<td><img src="demo/dashboard.gif" width="400"></td>
+<td><img src="demo/stocks.gif" width="400"></td>
+</tr>
+<tr>
+<td align="center"><b>Doom Fire</b><br><sub><code>examples/doom_fire.py</code> — classic fire effect · half-block rendering</sub></td>
+<td align="center"><b>IDE</b><br><sub><code>examples/ide.py</code> — syntax highlighting · file tree · tabs</sub></td>
+</tr>
+<tr>
+<td><img src="demo/doom_fire.gif" width="400"></td>
+<td><img src="demo/ide.gif" width="400"></td>
+</tr>
+</table>
+
+Plus a 3D raycaster, raymarcher, fluid sim, mandelbrot zoom, matrix rain, particle systems, spectrum analyzer, breakout, snake, and more — all under [`examples/`](examples/).
+
+<sub>Captures are from the shared <a href="https://github.com/1ay1/maya">maya</a> engine; the <code>maya-py</code> examples drive the same renderer and produce identical frames.</sub>
 
 ## Documentation
 
