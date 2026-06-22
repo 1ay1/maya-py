@@ -156,35 +156,21 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../maya-src/CMakeLists.txt")
     message(STATUS "maya_py: using local maya at ../maya-src")
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../maya-src" maya_build)
 else()
-    # Pinned to a specific maya commit (not a moving `master`) so release
-    # wheels are reproducible. Includes: truecolor→256/16 color downgrade,
-    # blocking-writer fix for print() wide-frame truncation, Zed terminal
-    # full-row repaint, DEC-2026 sync close, the live()/animate() writer
-    # residue drain that bounds memory under tty backpressure, inline-mode
-    # mouse coordinate translation + out-of-frame suppression, the
-    # maya::set_mouse() runtime capture toggle, and terminal restoration on
-    # fatal signals/crashes (SIGHUP/TERM/QUIT/SEGV/...) + cooked-termios
-    # restore in the emergency path, and the safe_break_len() incomplete-CSI
-    # fix (a bare "\x1b[" at a buffer boundary is no longer treated as a
-    # complete sequence, so the non-blocking writer never splits a CSI across
-    # the wire), the engine's CI / sanitizer / libFuzzer harnesses, the
-    # terminal SIGINT-restore fix (the tty is now put back even when SIGINT
-    # reaches a maya app by a route other than a raw-mode keystroke, while the
-    # host's KeyboardInterrupt handler still fires via the chained re-raise),
-    # and the markdown emphasis O(n^2)->O(n) fix (pathological inputs like
-    # `*a*a*a...` no longer blow up the inline parser), and the macOS
-    # sigemptyset macro fix (`::sigemptyset` -> `sigemptyset`; the sig*set()
-    # functions are macros on Darwin, so the `::` qualifier broke the GCC
-    # build with "expected id-expression before '('" — this unblocks the
-    # Apple-Silicon wheels), and the compat-repaint unchanged-row fix (the
-    # Zed full-row repaint path was re-emitting UNCHANGED rows every frame,
-    # turning a one-cell change into a whole-frame repaint — 3137 B/frame vs
-    # 96 B/frame; it now skips rows the diff calls identical, screen-identical
-    # to the byte-optimal path).
-    # Bump deliberately when pulling in new maya changes.
+    # Track the LATEST maya (master HEAD) rather than a frozen commit: maya-py
+    # always builds against current upstream. A fresh checkout — every CI run
+    # and every cibuildwheel job — re-clones the tip of master, so wheels ship
+    # whatever maya is current at build time.
+    #
+    # Tradeoff: wheels are no longer bit-reproducible across time (a maya change
+    # lands in the next build automatically). The matching guard is the golden
+    # render snapshot (tests/golden.txt, scripts/check_golden.py) — if an
+    # upstream maya change alters output, CI's golden gate flags it; regenerate
+    # with `python scripts/check_golden.py --update` and commit the visual diff.
     FetchContent_Declare(maya
         GIT_REPOSITORY https://github.com/1ay1/maya.git
-        GIT_TAG        b26844f3f5e2c6155ead6db90b8139f812f4e06a)
+        GIT_TAG        master)
+    # Always re-fetch the branch tip instead of reusing a cached checkout.
+    set(FETCHCONTENT_UPDATES_DISCONNECTED_MAYA OFF)
     FetchContent_MakeAvailable(maya)
 endif()
 
