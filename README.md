@@ -535,6 +535,9 @@ each (CI-friendly, no TTY needed).
 - `counter_program.py` / `stopwatch_program.py` — the pure **MVU `Program`**
   (Elm Architecture): immutable model, pure `update`, `Cmd`/`Sub` effects, and
   a headless `--test` self-check.
+- `suspend.py` — **`Cmd.suspend`**: hand the real terminal to an interactive
+  child ($EDITOR / pager / shell), then restore the TUI and fold the child's
+  exit code back into the model.
 - `form.py` — the declarative trio (`For`, `bind=`, `@app.derive`) in one cart.
 - `scroll.py` / `scroll_clip.py` / `scroll_2d.py` / `scroll_slice.py` /
   `scroll_styles.py` — every scrolling pattern (clip, two-axis, million-row

@@ -229,6 +229,7 @@ where an effect produces a result, dispatches it back as a message. Return a
 | `Cmd.reset_inline()` | `reset_inline()` | hard inline reset — a wholesale content swap of the inline region |
 | `Cmd.commit_scrollback(rows)` | `commit_scrollback(rows: int)` | mark the top `rows` inline rows as permanent scrollback (they stop being repainted) |
 | `Cmd.commit_scrollback_overflow()` | `commit_scrollback_overflow()` | commit every row that has overflowed the inline viewport into scrollback |
+| `Cmd.suspend(fn)` | `suspend(fn: Callable[[], object])` | tear down the TUI, hand the real terminal to `fn()`, then restore and dispatch the message `fn()` returns |
 
 The effect-as-data idea in one line: **`update` decides *what* should happen and
 returns it; the runtime decides *when* and *how* to do it and turns any result
@@ -298,6 +299,35 @@ naturally). `Cmd.commit_scrollback_overflow()` does the same for whatever has
 already overflowed the viewport. `Cmd.force_redraw()` and `Cmd.reset_inline()`
 are escape hatches for repainting the live region — the soft and hard variants
 respectively.
+
+### `Cmd.suspend` — hand the terminal to an interactive child
+
+`Cmd.suspend(fn)` is the escape hatch for running an interactive child that
+owns the real terminal — a `sudo` password prompt, `$EDITOR`, a pager. maya
+tears the TUI down to a clean cooked (line-disciplined) tty, runs `fn()`
+**synchronously** on the UI thread (the user is interacting with the child, so
+there is nothing else to do), then restores raw mode + the TUI, re-anchors the
+renderer, and dispatches the message `fn()` returned so `update` can fold the
+child's result back into the model:
+
+```python
+import subprocess
+
+def update(self, m, msg):
+    if msg == "edit":
+        def run_editor():
+            rc = subprocess.call(["vim", m["path"]])   # child owns the tty here
+            return ("edited", rc)                       # folded back after restore
+        return m, Cmd.suspend(run_editor)
+    if isinstance(msg, tuple) and msg[0] == "edited":
+        return {**m, "exit_code": msg[1]}
+    return m
+```
+
+Because `fn()` runs synchronously and must return a message, it closes the loop
+the same way `Cmd.task`'s `dispatch` does — but on the foreground, with the TUI
+torn down for the duration. Return a message carrying whatever the child
+produced (exit code, captured output).
 
 ---
 

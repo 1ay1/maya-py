@@ -129,7 +129,22 @@ static void bind_cmd_sub(py::module_& m) {
         "wedge on a blocking syscall (slow mounts, hung subprocess).");
 
     cmd.def_static("commit_scrollback",
-        [](int rows) { return PCmd::commit_scrollback(rows); },
+        [](int rows) {
+            // maya deprecates the raw-int overload in favour of a
+            // ScrollbackLedger::harvest() token — but that ledger is a
+            // host-side (agentty) construct with no Python analogue, and the
+            // int overload stays valid + clamped to the provable overflow
+            // inside commit_inline_prefix. So this is the correct binding for
+            // a Python host; quiet the deprecation locally.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+            return PCmd::commit_scrollback(rows);
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
+        },
         py::arg("rows"),
         "Mark the top `rows` rows of the last inline frame as scrollback.");
 
@@ -142,6 +157,29 @@ static void bind_cmd_sub(py::module_& m) {
     cmd.def_static("reset_inline", &PCmd::reset_inline,
         "Hard inline reset (wipes viewport + saved-lines). For wholesale\n"
         "content swaps (thread switch / new thread).");
+
+    cmd.def_static("suspend",
+        [](py::function fn) {
+            // Suspend the TUI and hand the REAL terminal to fn() — the
+            // interactive-child escape hatch (sudo prompt, $EDITOR, pager).
+            // maya tears the TUI down to a clean cooked tty, runs fn()
+            // SYNCHRONOUSLY on the UI thread, restores raw mode + re-anchors,
+            // then dispatches the Msg fn() returned back into update(). The
+            // callable runs WITH the GIL held (it's on the UI thread and the
+            // caller expects to touch Python freely).
+            return PCmd{ typename PCmd::Suspend{
+                [fn]() -> Msg {
+                    py::gil_scoped_acquire gil;
+                    py::object r = fn();
+                    return r;   // fn() -> msg, folded back after restore
+                }
+            }};
+        },
+        py::arg("fn"),
+        "Suspend the TUI and hand the real terminal to fn() — for interactive\n"
+        "children (sudo prompt, $EDITOR, pager). Runs SYNCHRONOUSLY; fn()\n"
+        "must return a msg that is dispatched into update() after the TUI is\n"
+        "restored (typically carrying the child's exit code / output).");
 
     // ── Sub ─────────────────────────────────────────────────────────────
     py::class_<PSub> sub(m, "Sub",

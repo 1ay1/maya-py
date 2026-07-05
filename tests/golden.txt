@@ -2652,6 +2652,105 @@ Surface — native braille drawing, fluent DSL
 ╰────────────────────────────────────────────────────────╯
 q quit
 
+### suspend @ 40
+╭──────────────────────────────────────╮
+│                                      │
+│                                      │
+│  Cmd.suspend                         │
+│                                      │
+│  hand the terminal to an             │
+│  interactive child, then come back   │
+│                                      │
+│  last child:  —                      │
+│  total runs:  0                      │
+│                                      │
+│  e  editor      l  pager      s      │
+│  shell      q  quit                  │
+│                                      │
+│                                      │
+╰──────────────────────────────────────╯
+
+### suspend @ 60
+╭──────────────────────────────────────────────────────────╮
+│                                                          │
+│                                                          │
+│  Cmd.suspend                                             │
+│                                                          │
+│  hand the terminal to an interactive child, then come    │
+│  back                                                    │
+│                                                          │
+│  last child:  —                                          │
+│  total runs:  0                                          │
+│                                                          │
+│  e  editor      l  pager      s  shell      q  quit      │
+│                                                          │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
+
+### suspend @ 80
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│                                                                              │
+│  Cmd.suspend                                                                 │
+│                                                                              │
+│  hand the terminal to an interactive child, then come back                   │
+│                                                                              │
+│  last child:  —                                                              │
+│  total runs:  0                                                              │
+│                                                                              │
+│  e  editor      l  pager      s  shell      q  quit                          │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+### suspend @ 100
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                  │
+│                                                                                                  │
+│  Cmd.suspend                                                                                     │
+│                                                                                                  │
+│  hand the terminal to an interactive child, then come back                                       │
+│                                                                                                  │
+│  last child:  —                                                                                  │
+│  total runs:  0                                                                                  │
+│                                                                                                  │
+│  e  editor      l  pager      s  shell      q  quit                                              │
+│                                                                                                  │
+│                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+### suspend @ 110
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                            │
+│                                                                                                            │
+│  Cmd.suspend                                                                                               │
+│                                                                                                            │
+│  hand the terminal to an interactive child, then come back                                                 │
+│                                                                                                            │
+│  last child:  —                                                                                            │
+│  total runs:  0                                                                                            │
+│                                                                                                            │
+│  e  editor      l  pager      s  shell      q  quit                                                        │
+│                                                                                                            │
+│                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+### suspend @ 132
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                                  │
+│                                                                                                                                  │
+│  Cmd.suspend                                                                                                                     │
+│                                                                                                                                  │
+│  hand the terminal to an interactive child, then come back                                                                       │
+│                                                                                                                                  │
+│  last child:  —                                                                                                                  │
+│  total runs:  0                                                                                                                  │
+│                                                                                                                                  │
+│  e  editor      l  pager      s  shell      q  quit                                                                              │
+│                                                                                                                                  │
+│                                                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
 ### todo @ 40
 ╭ todo ────────────────────────────────╮
 │                                      │

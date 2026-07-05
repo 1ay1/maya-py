@@ -1035,12 +1035,25 @@ rate / total / peak / elapsed stats. `compact` collapses it to one line.
 ```python
 token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
                        history: Sequence[float] = (), color=None,
-                       live: bool = False) -> Element
+                       live: bool = False, adaptive: bool = False,
+                       max_spark_cells: int = 64) -> Element
 ```
 
-A fixed-width `⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234` streaming status slot. Every segment
-is a stable display width, so neighbouring chips don't shift as numbers tick.
+A `⚡ 23.4 t/s ▁▂▃▄▅▆▇█` streaming status slot. Every segment is a stable
+display width, so neighbouring chips don't shift as numbers tick.
 `live=False` dims it (frozen).
+
+`adaptive=True` makes the slot grow to fill the free space between the left
+group and the right chips (a `grow(1)` component): the sparkline sizes itself to
+the allocated width, clamped to `[8, max_spark_cells]` and right-pinned so the
+newest sample stays glued to the chips on its right. `adaptive=False` (default)
+is the fixed 16-cell chip.
+
+```python
+from maya_py import token_stream_sparkline, show
+hist = [3, 5, 8, 6, 9, 12, 10, 14, 11]
+show(token_stream_sparkline(rate=23.4, history=hist, live=True, adaptive=True))
+```
 
 ### `streaming_cursor`
 

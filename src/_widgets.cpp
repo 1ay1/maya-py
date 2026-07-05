@@ -1296,18 +1296,22 @@ void init_widgets(py::module_& m) {
     // A fixed-width "⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234" status-bar streaming slot.
     w.def("token_stream_sparkline",
           [](float rate, int total, std::vector<float> history,
-             std::optional<Color> color, bool live) {
+             std::optional<Color> color, bool live, bool adaptive,
+             int max_spark_cells) {
               TokenStreamSparkline::Config cfg{};
               cfg.rate = rate;
               cfg.total = total;
               cfg.history = std::move(history);
               if (color) cfg.color = *color;
               cfg.live = live;
+              cfg.adaptive = adaptive;
+              if (max_spark_cells > 0) cfg.max_spark_cells = max_spark_cells;
               return static_cast<Element>(TokenStreamSparkline{cfg});
           },
           py::arg("rate") = 0.0f, py::arg("total") = 0,
           py::arg("history") = std::vector<float>{},
-          py::arg("color") = std::nullopt, py::arg("live") = false);
+          py::arg("color") = std::nullopt, py::arg("live") = false,
+          py::arg("adaptive") = false, py::arg("max_spark_cells") = 64);
 
     // ── html(source, theme) ────────────────────────────────────────
     // Render a subset of HTML to an Element (same engine the markdown widget

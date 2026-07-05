@@ -121,7 +121,7 @@ See [Layout](layout.md#keyword-options).
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `run` | `run(event_fn, render_fn, *, title="", inline_mode=False, mouse=False, fps=0)` | Interactive loop. `event_fn(ev)->bool`. |
-| `Cmd` | class | MVU command (side effect) returned from `update`. Constructors: `none`, `quit`, `batch`, `after`, `task`, `set_title`, `write_clipboard`, … See [Program](program.md). |
+| `Cmd` | class | MVU command (side effect) returned from `update`. Constructors: `none`, `quit`, `batch`, `after`, `task`, `set_title`, `write_clipboard`, `suspend`, `commit_scrollback`, … See [Program](program.md). |
 | `Sub` | class | MVU subscription (input source). Constructors: `none`, `batch`, `on_key`, `on_mouse`, `every`, `on_animation_frame`, … See [Program](program.md). |
 
 ### Testing (headless harness)

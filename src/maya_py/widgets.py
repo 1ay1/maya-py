@@ -334,13 +334,21 @@ def streaming_cursor(label: str = "", *, style: Any = None, active: bool = True,
 
 def token_stream_sparkline(*, rate: float = 0.0, total: int = 0,
                            history: Sequence[float] = (), color: Any = None,
-                           live: bool = False) -> Element:
-    """A fixed-width ``⚡ 23.4 t/s ▁▂▃▄▅▆▇█ 1234`` streaming status slot. Every
-    segment is a stable display width so neighbouring chips don't shift as
-    numbers tick. ``live=False`` dims it (frozen)."""
+                           live: bool = False, adaptive: bool = False,
+                           max_spark_cells: int = 64) -> Element:
+    """A ``⚡ 23.4 t/s ▁▂▃▄▅▆▇█`` streaming status slot. Every segment is a
+    stable display width so neighbouring chips don't shift as numbers tick.
+    ``live=False`` dims it (frozen).
+
+    ``adaptive=True`` makes the slot grow to fill the free space between the
+    left group and the right chips (a ``grow(1)`` component): the sparkline
+    sizes itself to the allocated width, clamped to ``[8, max_spark_cells]``
+    and right-pinned so the newest sample stays glued to the chips on its
+    right. ``adaptive=False`` (default) is the fixed 16-cell chip."""
     return _W.token_stream_sparkline(float(rate), int(total),
                                      history,
-                                     _col(color), bool(live))
+                                     _col(color), bool(live),
+                                     bool(adaptive), int(max_spark_cells))
 
 
 def html(source: str, *, theme: str = "dark") -> Element:
