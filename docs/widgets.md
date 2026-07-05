@@ -45,7 +45,7 @@ maya C++ widget. Counted from `widgets.py`'s `__all__`:
 | text & labels | badge, divider, spinner, callout, status_banner, system_banner, breadcrumb, tabs, gradient, link, title_chip, model_badge, file_ref, markdown, html, phase_chip, phase_accent | 17 |
 | structure & nav | table, tree, list_view, menu, disclosure, key_help, calendar, timeline, picker, popup, overlay, modal, command_palette, log_viewer | 14 |
 | agent UI | thinking, todo_list, toast, inline_diff, tool_call, plan_view, context_window, context_gauge, diff_view, git_graph, git_status, user_message, assistant_message, shortcut_row, activity_bar, file_changes, api_usage, cost_tracker, checkpoint_divider, turn_divider, streaming_cursor, token_stream, token_stream_sparkline, search_result, changes_strip, welcome_screen | 26 |
-| graphics | image, canvas | 2 |
+| graphics | image, canvas, cell_grid | 3 |
 | scrolling | viewport, scrollbar | 2 |
 | color helpers | gradient *(listed under text)* | — |
 | **Total** | | **77** |
@@ -1243,6 +1243,33 @@ show(canvas([
     [red, None, None, None, blu],
     [None, None, "lime", None, None],
 ]))
+```
+
+### `cell_grid`
+
+```python
+cell_grid(grid, width: int, height: int, *, gap: int = 0) -> Element
+```
+
+A full-colour character grid built in **one** native call. `grid` is a list of
+rows; each cell is `None` / a 1-char `str` (that glyph, inherited colour),
+`(ch, fg)`, or `(ch, fg, bg)`, where `fg`/`bg` is a packed `0xRRGGBB` int, an
+`(r, g, b)` tuple, or `None` for unset. `width`/`height` fix the grid size
+(short rows are padded, extra cells clipped).
+
+Unlike `canvas` (which paints half-block *pixels*), `cell_grid` places a real
+character in every cell — it's the native replacement for the hand-rolled
+`col(*[row(*specs) for ...])` pattern, allocating one run-merged `TextElement`
+per row instead of one element per cell (pixel-identical output, far less
+Python dispatch). Reach for it when drawing dense text panels / ASCII art with
+per-cell colour.
+
+```python
+from maya_py import cell_grid, show
+show(cell_grid([
+    [("#", "red"), ("#", "orange"), ("#", "yellow")],
+    ["+",          ("@", (0, 200, 255), "#101018"), None],
+], width=3, height=2))
 ```
 
 ### The `Canvas` class — imperative drawing

@@ -452,9 +452,13 @@ maya hosts *real* interactive input widgets in Python — cursor movement, UTF-8
 editing, history, password masking — that you drop straight into a view.
 
 ```python
-text_input(placeholder="", *, password=False, multiline=False)
+text_input(placeholder="", *, password=False, multiline=False, value="", bind=None)
 textarea(placeholder="")     # == text_input(placeholder, multiline=True)
 ```
+
+`value` seeds the field's initial text. `bind=(obj, "attr")` two-way-binds the
+field to an attribute (edits write through to `obj.attr`, and the initial
+`obj.attr` seeds the field).
 
 Both return a widget object with this surface:
 

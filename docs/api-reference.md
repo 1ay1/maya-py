@@ -174,7 +174,7 @@ tuple / `Color` everywhere.
 `token_stream` `token_stream_sparkline` `search_result` `changes_strip`
 `welcome_screen`
 
-**Graphics:** `image` `canvas` `Canvas` (imperative drawing surface)
+**Graphics:** `image` `canvas` `cell_grid` `Canvas` (imperative drawing surface)
 
 **Widget enums:** `GaugeStyle` `ColumnAlign` `ButtonVariant` `TaskStatus`
 `ToastLevel` `TodoItemStatus` `TodoListStatus` `PopupStyle` `BannerLevel`
@@ -346,6 +346,7 @@ themes.next()                 # cycle (wraps)
 | `fmt_duration` | `fmt_duration(seconds, *, centis=False) -> str` | Format `M:SS` / `H:MM:SS` (`.CC` with `centis`). |
 | `halfblock` | `halfblock(grid, *, bg=(0,0,0)) -> Element` | Render a 2-D pixel grid as upper-half-block (`▀`) cells (2 px tall each). |
 | `PixelField` | `PixelField(bg=(0,0,0))` | Resize-managing pixel buffer: `.resize(w,h)`, `.clear()`, `.set(x,y,color)`, `.render()`. |
+| `HalfBlockField` | `HalfBlockField(bg=0)` | Native stateful half-block pixel surface (the hot particle path). C++ owns the flat buffer: `.resize(w,h)`, `.clear()`, `.fade(num,den)` (trail fade), `.splat(xs,ys,cols)` (blend a whole swarm in one call), `.set(x,y,col)`, `.element()`. No Python pixel loop. |
 | `pixel_canvas` | `pixel_canvas(draw, *, bg=(0,0,0), grow=1)` | Size-aware element handing `draw(field, w, h)` a sized `PixelField`. |
 | `target_size` | `target_size(w, h) -> (out_w, out_h)` | Clamp a component cell box to sane bounds, returning the half-block *pixel* size (`out_h = h*2`). Guards the fullscreen-layout sentinel. |
 | `upscale` | `upscale(small, out_w, out_h) -> grid` | Nearest-neighbour scale a small pixel grid up to `out_w × out_h` so a cheap buffer fills the whole field. Feed to `halfblock`. |

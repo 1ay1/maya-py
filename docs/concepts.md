@@ -155,7 +155,8 @@ arrive through `Sub`scriptions.
 
 - **`Cmd`** (effects to run): `none`, `quit`, `batch`, `after`, `task`,
   `isolated_task`, `set_title`, `write_clipboard`, `query_clipboard`,
-  `force_redraw`, `reset_inline`, `commit_scrollback`, `commit_scrollback_overflow`.
+  `force_redraw`, `reset_inline`, `commit_scrollback`,
+  `commit_scrollback_overflow`, `suspend`.
 - **`Sub`** (input sources): `none`, `batch`, `on_key`, `on_mouse`, `on_paste`,
   `on_resize`, `every` (timer), `on_animation_frame`.
 
