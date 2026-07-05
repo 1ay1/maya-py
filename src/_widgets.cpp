@@ -1504,12 +1504,60 @@ void init_widgets(py::module_& m) {
           py::arg("bars"), py::arg("max_value") = 0.0f,
           py::arg("default_color") = std::nullopt);
 
-    // ── gradient(text, start, end) ──────────────────────────────────────
+    // ── gradient(text, start, end, bold) | gradient(text, [stops], bold) ─
+    // Two-stop OR multi-stop linear colour gradient across the text's
+    // characters. Pass `start`+`end` for a 2-colour ramp, or a list of
+    // 2+ Colors as `stops` for an evenly-distributed multi-stop ramp.
     w.def("gradient",
-          [](const std::string& text, Color start, Color end) {
-              return gradient(text, start, end);
+          [](const std::string& text, std::optional<Color> start,
+             std::optional<Color> end, std::optional<std::vector<Color>> stops,
+             bool bold) -> Element {
+              // Multi-stop path. maya's native multi-stop overload takes a
+              // compile-time std::initializer_list, so a runtime-sized
+              // Python list can't reach it — replicate its exact per-char
+              // segment-picking algorithm here (identical painted cells).
+              if (stops && stops->size() >= 2) {
+                  const auto& colors = *stops;
+                  // Split text into UTF-8 character spans.
+                  std::vector<std::pair<std::size_t, std::size_t>> spans;
+                  std::size_t pos = 0;
+                  while (pos < text.size()) {
+                      std::size_t s0 = pos;
+                      (void)maya::decode_utf8(text, pos);
+                      spans.push_back({s0, pos - s0});
+                  }
+                  int n = static_cast<int>(spans.size());
+                  if (n <= 1) {
+                      Style st = Style{}.with_fg(colors.front());
+                      if (bold) st = st.with_bold();
+                      return Element{TextElement{.content = text, .style = st}};
+                  }
+                  int segments = static_cast<int>(colors.size()) - 1;
+                  std::vector<StyledRun> runs;
+                  runs.reserve(spans.size());
+                  for (int i = 0; i < n; ++i) {
+                      float t = static_cast<float>(i) / static_cast<float>(n - 1);
+                      float sf = t * static_cast<float>(segments);
+                      int seg = std::min(static_cast<int>(sf), segments - 1);
+                      float local = sf - static_cast<float>(seg);
+                      Style st = Style{}.with_fg(local < 0.5f ? colors[seg]
+                                                              : colors[seg + 1]);
+                      if (bold) st = st.with_bold();
+                      runs.push_back({spans[i].first, spans[i].second, st});
+                  }
+                  return Element{TextElement{
+                      .content = text,
+                      .style = Style{}.with_fg(colors.front()),
+                      .runs = std::move(runs),
+                  }};
+              }
+              Color a = start.value_or(Color::white());
+              Color b = end.value_or(a);
+              return gradient(text, a, b, bold);
           },
-          py::arg("text"), py::arg("start"), py::arg("end"));
+          py::arg("text"), py::arg("start") = std::nullopt,
+          py::arg("end") = std::nullopt, py::arg("stops") = std::nullopt,
+          py::arg("bold") = false);
 
     // ── heatmap(grid, low, high, x_labels, y_labels) ────────────────────
     w.def("heatmap",

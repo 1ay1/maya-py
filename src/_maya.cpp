@@ -246,6 +246,10 @@ PYBIND11_MODULE(_maya, m) {
     py::class_<Color>(m, "Color")
         .def_static("rgb", &color_rgb, py::arg("r"), py::arg("g"), py::arg("b"))
         .def_static("hex", &color_hex, py::arg("rgb"))
+        // hsl(h, s, l): h in degrees [0,360), s/l in [0,1]. The native
+        // constexpr HSL->RGB path — same math the C++ side uses, not a
+        // Python reimplementation.
+        .def_static("hsl", &Color::hsl, py::arg("h"), py::arg("s"), py::arg("l"))
         .def_static("indexed", [](int i) { return Color::indexed(static_cast<uint8_t>(i)); })
         .def_static("default_color", &Color::default_color)
         .def_static("black", &Color::black).def_static("red", &Color::red)
@@ -260,7 +264,29 @@ PYBIND11_MODULE(_maya, m) {
         .def_static("bright_blue", &Color::bright_blue)
         .def_static("bright_magenta", &Color::bright_magenta)
         .def_static("bright_cyan", &Color::bright_cyan)
-        .def_static("bright_white", &Color::bright_white);
+        .def_static("bright_white", &Color::bright_white)
+        // ── instance transforms (return a NEW Color) ────────────────────
+        // lighten/darken: blend toward white / black by `amount` in [0,1].
+        // Only affect RGB colours (named / indexed pass through unchanged),
+        // matching maya's Color::lighten / Color::darken exactly.
+        .def("lighten", &Color::lighten, py::arg("amount"))
+        .def("darken", &Color::darken, py::arg("amount"))
+        // degrade(level): downgrade to what a terminal of the given
+        // capability can display — 3=truecolor (unchanged), 2=256-color,
+        // 1=16-color. Maps RGB/indexed to the nearest representable colour.
+        .def("degrade", &Color::degrade, py::arg("level"))
+        // ── accessors ───────────────────────────────────────────────────
+        .def("r", &Color::r)
+        .def("g", &Color::g)
+        .def("b", &Color::b)
+        .def("index", &Color::index)
+        .def("fg_sgr", &Color::fg_sgr)
+        .def("bg_sgr", &Color::bg_sgr)
+        .def("__eq__", [](const Color& a, const Color& b) { return a == b; })
+        .def("__repr__", [](const Color& c) {
+            return "<maya.Color rgb(" + std::to_string(c.r()) + ", "
+                   + std::to_string(c.g()) + ", " + std::to_string(c.b()) + ")>";
+        });
 
     // ── Style ─────────────────────────────────────────────────────────────
     py::class_<Style>(m, "Style")

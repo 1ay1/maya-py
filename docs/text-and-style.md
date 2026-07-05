@@ -330,6 +330,8 @@ from maya_py import Color
 
 Color.rgb(255, 128, 0)   # rgb(r: int, g: int, b: int) -> Color
 Color.hex(0xFF8800)      # hex(rgb: int) -> Color  (packed 0xRRGGBB)
+Color.hsl(30, 1.0, 0.5)  # hsl(h: float, s: float, l: float) -> Color
+                         #   h in degrees [0,360), s/l in [0,1]
 Color.indexed(196)       # indexed(idx: int) -> Color  (256-color palette index)
 ```
 
@@ -339,6 +341,22 @@ It also exposes named constructors: `Color.black()`, `Color.white()`,
 `Color.bright_*()` variants (`bright_black`, `bright_red`, `bright_green`,
 `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`,
 `bright_white`), and `Color.default_color()` (the terminal's default).
+
+Every `Color` also carries instance methods (each returns a **new** `Color`,
+driven by maya's own constexpr colour math — not a Python reimplementation):
+
+```python
+c = Color.rgb(200, 40, 40)
+c.lighten(0.3)   # blend toward white by amount in [0,1]  (RGB colours only)
+c.darken(0.3)    # blend toward black by amount in [0,1]  (RGB colours only)
+c.degrade(2)     # downgrade for a terminal's capability:
+                 #   3=truecolor (unchanged), 2=256-color, 1=16-color
+```
+
+and read-only accessors: `c.r()`, `c.g()`, `c.b()` (RGB components),
+`c.index()` (the palette index for an indexed colour), and `c.fg_sgr()` /
+`c.bg_sgr()` (the raw ANSI SGR parameter string). `Color` supports `==` and a
+readable `repr`.
 
 ### 3.4 Top-level color/style helpers
 
@@ -454,17 +472,25 @@ Two helpers cover the two common gradient needs.
 
 ### 5.1 `gradient(text, start, end)` — a finished widget
 
-`gradient(text: str, start, end) -> Element` builds a text element where each
-character is interpolated from `start` to `end`. Both endpoints accept any color
-form from §3:
+`gradient(text: str, start=None, end=None, *, stops=None, bold=False) -> Element`
+builds a text element where each character is interpolated across a colour ramp.
+All colour arguments accept any form from §3:
 
 ```python
 from maya_py import gradient, show
 
+# two-stop
 show(gradient("maya makes terminals beautiful", "sky", "magenta"))
+
+# multi-stop — pass 2+ colours as `stops`, evenly distributed across the text
+show(gradient("R A I N B O W", stops=["red", "orange", "lime", "cyan", "violet"]))
+
+# bold every character
+show(gradient("HEADLINE", "#ff5f87", "#5fafff", bold=True))
 ```
 
-It returns a ready `Element`, so drop it straight into a layout.
+It returns a ready `Element`, so drop it straight into a layout. `stops` (when
+given) takes precedence over `start`/`end`.
 
 ### 5.2 `gradient_at(stops, t)` — interpolate one color
 

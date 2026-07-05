@@ -428,9 +428,20 @@ def bar_chart(bars: Sequence[Any], *, max_value: float = 0.0,
     return _W.bar_chart(out, float(max_value), _col(color))
 
 
-def gradient(text: str, start: Any, end: Any) -> Element:
-    """Text with a per-character color gradient from ``start`` to ``end``."""
-    return _W.gradient(text, _color(start), _color(end))
+def gradient(text: str, start: Any = None, end: Any = None, *,
+             stops: Sequence[Any] | None = None, bold: bool = False) -> Element:
+    """Text with a per-character color gradient.
+
+    Two-stop: ``gradient("Hi", "red", "blue")``. Multi-stop: pass ``stops`` as
+    a list of 2+ colours, evenly distributed across the text
+    (``gradient("Rainbow", stops=["red", "yellow", "lime", "blue"])``).
+    ``bold=True`` bolds every character. Colours accept any spec
+    (name / (r,g,b) / "#rrggbb" / Color).
+    """
+    if stops is not None:
+        cols = [_color(s) for s in stops]
+        return _W.gradient(text, stops=cols, bold=bool(bold))
+    return _W.gradient(text, _col(start), _col(end), bold=bool(bold))
 
 
 def heatmap(grid: Sequence[Sequence[float]], *, low: Any = None, high: Any = None,

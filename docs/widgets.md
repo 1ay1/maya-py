@@ -418,15 +418,20 @@ show(tabs(["Code", "Issues", "Pull Requests"], active=0))
 ### `gradient`
 
 ```python
-gradient(text: str, start, end) -> Element
+gradient(text: str, start=None, end=None, *, stops=None, bold=False) -> Element
 ```
 
-Text with a per-character colour gradient from `start` to `end`. Both endpoints
-are required colours.
+Text with a per-character colour gradient. Pass `start`+`end` for a two-stop
+ramp, or a list of 2+ colours as `stops` for an evenly-distributed multi-stop
+ramp (it takes precedence over `start`/`end`). `bold=True` bolds every
+character. All colour arguments accept any colour form (name / (r,g,b) /
+`"#rrggbb"` / `Color`).
 
 ```python
 from maya_py import gradient, show
 show(gradient("maya-py", "magenta", "cyan"))
+show(gradient("R A I N B O W", stops=["red", "orange", "lime", "cyan", "violet"]))
+show(gradient("HEADLINE", "#ff5f87", "#5fafff", bold=True))
 ```
 
 > Note ([concepts.md §7](concepts.md)): a static gradient is fine, but an

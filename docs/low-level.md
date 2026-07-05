@@ -124,6 +124,7 @@ Constructors (all classmethods):
 ```python
 maya.Color.rgb(255, 128, 0)     # truecolor
 maya.Color.hex(0xFF8800)        # from a hex int
+maya.Color.hsl(30, 1.0, 0.5)    # from H (deg) / S / L in [0,1]
 maya.Color.indexed(202)         # 256-color palette index
 maya.Color.default_color()      # terminal default
 ```
@@ -140,6 +141,18 @@ gray grey
 ```python
 maya.Color.cyan()
 maya.Color.bright_magenta()
+```
+
+Instance methods (return a new `Color`) and accessors:
+
+```python
+c = maya.Color.rgb(200, 40, 40)
+c.lighten(0.3)   # toward white (RGB colours only)
+c.darken(0.3)    # toward black (RGB colours only)
+c.degrade(2)     # cap to 3=truecolor / 2=256-color / 1=16-color
+c.r(); c.g(); c.b()          # components
+c.index()                    # palette index (indexed colours)
+c.fg_sgr(); c.bg_sgr()       # raw ANSI SGR parameter strings
 ```
 
 ### Helper functions
