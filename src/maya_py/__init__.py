@@ -68,6 +68,8 @@ from ._maya import (
     make_scroll,
     make_paste,
     make_resize,
+    advance_anim_clock_ms,
+    anim_now_ms,
     # mouse predicates
     mouse_clicked,
     mouse_released,
@@ -116,6 +118,7 @@ __all__ = [
     "print", "render_to_string", "live", "run", "quit",
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
     "make_key", "make_mouse", "make_scroll", "make_paste", "make_resize",
+    "advance_anim_clock_ms", "anim_now_ms",
     "mouse_clicked", "mouse_released", "mouse_moved", "scrolled_up",
     "scrolled_down", "mouse_pos", "mouse_button", "mouse_kind", "is_mouse",
     "event_char", "pasted", "resize_size", "string_width",
@@ -338,4 +341,4 @@ try:
     __version__ = _pkg_version("maya-py")
     del _pkg_version
 except Exception:  # PackageNotFoundError or metadata missing (source checkout)
-    __version__ = "0.2.11"
+    __version__ = "0.2.12"

@@ -292,6 +292,19 @@ class ProgramPilot:
             self.cmds.extend(cmds)
         return self
 
+    def tick(self, dt: float = 1.0 / 30) -> "ProgramPilot":
+        """Advance maya's native animation clock by ``dt`` seconds.
+
+        A Program's own timers (``Sub.every`` / ``on_animation_frame``) surface
+        as messages you dispatch with :meth:`send`; this instead steps the
+        clock that *native* time-driven widgets in the ``view`` read
+        (spinner, activity bar, streaming-markdown reveal, ``Motion`` /
+        ``pulse``), so a subsequent :meth:`view_string` shows the stepped
+        phase. Deterministic — no wall clock. Chainable.
+        """
+        _maya.advance_anim_clock_ms(int(dt * 1000.0))
+        return self
+
     # -- observing -----------------------------------------------------------
 
     @property

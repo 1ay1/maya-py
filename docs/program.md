@@ -290,6 +290,15 @@ terminals). `Cmd.query_clipboard()` asks for the current contents; because there
 is no synchronous return, the reply comes back as a **paste event** — declare a
 `Sub.on_paste(...)` to receive it.
 
+Both travel **in-band over the terminal escape channel**, so they need no remote
+clipboard tool over SSH. maya picks the read protocol from the host: OSC 52
+(text-only) by default, or kitty's **OSC 5522** multi-format read when a kitty
+host is detected. Only OSC 5522 can carry **image** bytes — so on kitty,
+`Cmd.query_clipboard()` can deliver a **pasted screenshot over SSH**, arriving
+as a paste event whose payload is the raw image bytes (not text). This is
+transparent to your code: the same `Sub.on_paste(fn)` receives it; sniff the
+payload if you need to tell an image from text.
+
 ### Inline & scrollback commands
 
 These matter when `inline=True`. `Cmd.commit_scrollback(rows)` freezes the top

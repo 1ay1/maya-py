@@ -14,6 +14,7 @@
 
 #include <maya/maya.hpp>
 #include <maya/platform/io.hpp>   // platform::io_write_all / stdout_handle (cross-platform)
+#include <maya/core/anim_clock.hpp>  // maya::testing::advance_anim_clock_ms (headless Pilot)
 
 #include "_pyevent.hpp"
 
@@ -1074,6 +1075,25 @@ PYBIND11_MODULE(_maya, m) {
               return PyEvent{Event{ResizeEvent{Columns{cols}, Rows{rows}}}};
           },
           py::arg("cols"), py::arg("rows"), "Build a synthetic resize Event.");
+
+    // advance_anim_clock_ms(ms) -> None
+    // Step maya's animation clock forward WITHOUT sleeping. Every time-driven
+    // native widget (ActivityIndicator, StreamingMarkdown reveal, Spinner,
+    // Motion/pulse) reads maya::anim_now_ms(), so advancing the skew moves
+    // them all deterministically for a headless Pilot render. Additive and
+    // monotone (no rewind) — the same contract maya's own tests use.
+    m.def("advance_anim_clock_ms",
+          [](std::int64_t ms) { maya::testing::advance_anim_clock_ms(ms); },
+          py::arg("ms"),
+          "Advance maya's animation clock by `ms` (test-only, no sleep).");
+
+    // anim_now_ms() -> int
+    // maya's animation clock in milliseconds: steady_clock + the test skew
+    // that advance_anim_clock_ms() moves. The SAME monotone clock every
+    // native time-driven widget reads — use it to keep a Python-side phase in
+    // lockstep with native widgets, or to assert the skew advanced.
+    m.def("anim_now_ms", []() { return maya::anim_now_ms(); },
+          "maya's monotone animation clock in ms (steady_clock + test skew).");
 
     m.def("key", [](const PyEvent& ev, const std::string& s) {
         if (s.size() == 1) return maya::key(ev.ev, s[0]);

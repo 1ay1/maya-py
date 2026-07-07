@@ -1642,8 +1642,16 @@ class Pilot:
         return self
 
     def tick(self, dt: float = 1.0 / 30) -> "Pilot":
-        """Advance frame handlers (``@app.on_frame``) by ``dt`` seconds,
-        deterministically — no wall-clock dependency."""
+        """Advance frame handlers (``@app.on_frame``) **and** maya's native
+        animation clock by ``dt`` seconds, deterministically — no wall clock.
+
+        Stepping the native clock is what makes native time-driven widgets
+        (spinner, activity bar, streaming-markdown reveal, any ``Motion`` /
+        ``pulse``) advance their phase under a headless render, so their
+        animation is assertable frame-by-frame instead of frozen at import
+        time.
+        """
+        _maya.advance_anim_clock_ms(int(dt * 1000.0))
         for fn in self.app._frames:
             fn(self.app._state, dt)
         return self

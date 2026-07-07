@@ -134,16 +134,18 @@ deterministic. See [apps.md](apps.md) (§ Testing apps headlessly) and the
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `App.test` | `app.test(*, width=80) -> Pilot` | A headless driver for an `App`. |
-| `Pilot` | class | App driver: `.press(*keys)`, `.type(text)`, `.click(col,row)`, `.scroll(dir)`, `.paste(text)`, `.resize(cols,rows)`, `.tick(dt)`, `.render() -> str`, `.running`, `.state`. Methods chain. |
+| `Pilot` | class | App driver: `.press(*keys)`, `.type(text)`, `.click(col,row)`, `.scroll(dir)`, `.paste(text)`, `.resize(cols,rows)`, `.tick(dt)` (steps `@on_frame` **and** the native animation clock), `.render() -> str`, `.running`, `.state`. Methods chain. |
 | `Program.test` | `prog.test(*, strict=True) -> ProgramPilot` | A headless driver for a `Program` (MVU). |
 | `program_test` | `program_test(init, update, view=None, *, strict=True) -> ProgramPilot` | Function-form twin of `Program.test`. |
-| `ProgramPilot` | class | Program driver: `.send(*msgs)` dispatches messages through `update`; `.model`, `.cmds`, `.last_cmd`, `.view()`, `.view_string(width=80)`. `strict=True` raises `ImpureUpdateError` if `update`/`view` mutate the model. |
+| `ProgramPilot` | class | Program driver: `.send(*msgs)` dispatches messages through `update`; `.tick(dt)` steps maya's native animation clock; `.model`, `.cmds`, `.last_cmd`, `.view()`, `.view_string(width=80)`. `strict=True` raises `ImpureUpdateError` if `update`/`view` mutate the model. |
 | `ImpureUpdateError` | exception | Raised in strict mode when `update`/`view` mutates the model in place. |
 | `make_key` | `make_key(key, ctrl=False, alt=False, shift=False, super=False) -> Event` | Synthesize a key event. |
 | `make_mouse` | `make_mouse(col, row, button, kind) -> Event` | Synthesize a mouse press/release/move. |
 | `make_scroll` | `make_scroll(direction, col, row) -> Event` | Synthesize a wheel scroll. |
 | `make_paste` | `make_paste(text) -> Event` | Synthesize a bracketed paste. |
 | `make_resize` | `make_resize(cols, rows) -> Event` | Synthesize a terminal resize. |
+| `advance_anim_clock_ms` | `advance_anim_clock_ms(ms) -> None` | Advance maya's animation clock by `ms` without sleeping (additive, monotone). Drives every native time-driven widget deterministically. |
+| `anim_now_ms` | `anim_now_ms() -> int` | maya's monotone animation clock in ms (`steady_clock` + the test skew). The clock every native widget reads. |
 
 ---
 

@@ -705,7 +705,7 @@ the pilot, so calls chain:
 | `scroll("up"\|"down", col, row)` | Wheel scroll |
 | `paste(text)` | Bracketed paste |
 | `resize(cols, rows)` | Terminal resize (also sets render width) |
-| `tick(dt=1/30)` | Advance `@app.on_frame` handlers by `dt` seconds, deterministically |
+| `tick(dt=1/30)` | Advance `@app.on_frame` handlers **and** maya's native animation clock by `dt` seconds, deterministically |
 | `send(ev)` | Feed a raw event from a `maya.make_*` factory |
 | `render(width=None)` | The current view as a string — the thing to assert on |
 | `.running` / `.state` | Quit flag / the app's state object |
@@ -714,6 +714,36 @@ Under the hood these use synthetic-event factories you can also call directly
 — `maya.make_key("a", ctrl=True)`, `make_mouse`, `make_scroll`, `make_paste`,
 `make_resize` — which produce the exact same `Event` the live loop delivers, so
 every `key()` / `mouse_*()` predicate treats them as real input.
+
+### Deterministic animation: the skewable clock
+
+Every time-driven **native** widget (the streaming-markdown reveal, the
+activity bar's tape, any `Motion` / `pulse`) reads one animation clock —
+`maya.anim_now_ms()`, a monotone `steady_clock` plus a test-only skew. Because
+`Pilot.tick(dt)` advances that skew (not just your `@app.on_frame` handlers),
+you can render a native widget's animation **frame by frame with zero wall
+time** and assert on the stepped result:
+
+```python
+from maya_py import anim_now_ms
+
+p = app.test()
+t0 = anim_now_ms()
+p.tick(0.5)                 # +500 ms of ANIMATION time, no sleep
+assert anim_now_ms() - t0 >= 500
+frame = p.render()          # native widgets show their 500-ms-later phase
+```
+
+The skew is **additive and monotone** — a negative `tick`/advance is a no-op,
+so latched "first time X happened" timestamps stay consistent. Advance it
+directly with `maya.advance_anim_clock_ms(ms)` when you're not going through a
+`Pilot`. `ProgramPilot` (from `Program.test()`) has the same `.tick(dt)`.
+
+!!! note "Color-only animation and `render()`"
+    `render()` returns **plain text** (no ANSI), so a widget that animates via
+    *colour* rather than glyphs (e.g. the activity bar's sweep) won't show a
+    difference in the rendered string even though its phase advanced. Assert on
+    `anim_now_ms()` or on glyph-changing widgets for those.
 
 ---
 

@@ -150,6 +150,55 @@ def test_pilot_frame_ticks_deterministic():
     assert abs(app.s.t - 2.0) < 1e-9
 
 
+def test_anim_clock_skew_is_monotone_additive():
+    # advance_anim_clock_ms bumps maya's animation clock without sleeping;
+    # it's additive and monotone (a negative advance is a no-op).
+    from maya_py import advance_anim_clock_ms, anim_now_ms
+    a = anim_now_ms()
+    advance_anim_clock_ms(5000)
+    b = anim_now_ms()
+    assert b - a >= 5000
+    advance_anim_clock_ms(-1000)   # no rewind
+    c = anim_now_ms()
+    assert c >= b
+
+
+def test_pilot_tick_advances_native_clock():
+    # Pilot.tick(dt) must step the NATIVE animation clock too (not just the
+    # Python @on_frame handlers), so native time-driven widgets render their
+    # stepped phase under a headless render.
+    from maya_py import anim_now_ms
+    app = App("anim2", t=0.0)
+
+    @app.view
+    def view(s):
+        return col("x")
+
+    p = app.test()
+    before = anim_now_ms()
+    p.tick(1.0)          # 1000 ms
+    assert anim_now_ms() - before >= 1000
+
+
+def test_program_pilot_tick_advances_native_clock():
+    from maya_py import Program, Cmd, anim_now_ms, col
+
+    class P(Program):
+        def init(self):
+            return {"n": 0}
+
+        def update(self, m, msg):
+            return m, Cmd.none()
+
+        def view(self, m):
+            return col("y")
+
+    p = P().test()
+    before = anim_now_ms()
+    p.tick(0.5)
+    assert anim_now_ms() - before >= 500
+
+
 def test_pilot_mouse_click_and_scroll():
     app = App("m", last=None, scrolls=0)
 
