@@ -462,7 +462,7 @@ _BORDERS = {
 }
 _ALIGN = {"start": _maya.Align.Start, "center": _maya.Align.Center,
           "end": _maya.Align.End, "stretch": _maya.Align.Stretch,
-          "baseline": _maya.Align.Baseline}
+          "baseline": _maya.Align.Baseline, "auto": _maya.Align.Auto}
 _JUSTIFY = {"start": _maya.Justify.Start, "center": _maya.Justify.Center,
             "end": _maya.Justify.End, "between": _maya.Justify.SpaceBetween,
             "around": _maya.Justify.SpaceAround, "evenly": _maya.Justify.SpaceEvenly}

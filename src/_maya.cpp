@@ -145,6 +145,7 @@ PYBIND11_MODULE(_maya, m) {
         .value("ColumnReverse", FlexDirection::ColumnReverse);
 
     py::enum_<Align>(m, "Align")
+        .value("Auto", Align::Auto)
         .value("Start", Align::Start)
         .value("Center", Align::Center)
         .value("End", Align::End)
