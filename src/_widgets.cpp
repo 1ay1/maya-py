@@ -1806,9 +1806,14 @@ void init_widgets(py::module_& m) {
               if (visible_count > 0) cfg.visible_count = visible_count;
               if (!indicator.empty()) cfg.indicator = indicator;
               if (!inactive_prefix.empty()) cfg.inactive_prefix = inactive_prefix;
-              List l{std::move(lis), cfg};
-              if (cursor > 0) const_cast<Signal<int>&>(l.cursor()).set(cursor);
-              return static_cast<Element>(l);
+              // maya's List::build() returns an adapt() element that captures
+              // `this`, so the List must outlive the Element it produces (see
+              // the menu() binding below). Heap-own it and keep it alive for the
+              // Element's whole lifetime via a wrapping component().
+              auto l = std::make_shared<List>(std::move(lis), cfg);
+              if (cursor > 0) const_cast<Signal<int>&>(l->cursor()).set(cursor);
+              return static_cast<Element>(
+                  maya::detail::component([l](int, int) { return l->build(); }));
           },
           py::arg("items"), py::arg("cursor") = 0,
           py::arg("filterable") = false, py::arg("visible_count") = 0,
@@ -1837,9 +1842,16 @@ void init_widgets(py::module_& m) {
                   }
                   mis.push_back(std::move(mi));
               }
-              Menu mn{std::move(mis)};
-              if (cursor > 0) const_cast<Signal<int>&>(mn.cursor()).set(cursor);
-              return static_cast<Element>(mn);
+              // maya's Menu::build() returns an adapt() element that captures
+              // `this`, so the Menu must outlive the Element it produces. For a
+              // static render the widget is throwaway — heap-own it in a
+              // shared_ptr and wrap its build() in a component that keeps the
+              // shared_ptr (hence the Menu, hence the captured `this`) alive for
+              // the Element's whole lifetime.
+              auto mn = std::make_shared<Menu>(std::move(mis));
+              if (cursor > 0) const_cast<Signal<int>&>(mn->cursor()).set(cursor);
+              return static_cast<Element>(
+                  maya::detail::component([mn](int, int) { return mn->build(); }));
           },
           py::arg("items"), py::arg("cursor") = 0);
 
