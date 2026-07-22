@@ -81,9 +81,11 @@ enum or a string:
 | `"center"` | `Center` | center across the axis |
 | `"end"` | `End` | pin to the cross-axis end |
 | `"baseline"` | `Baseline` | align text baselines |
+| `"auto"` | `Auto` | `align_self` only: inherit the container's `align` |
 
 A single child can override its container with `align_self="center"` (same value
-set).
+set). The default `align_self` is `"auto"`, which defers to the container's
+`align` — set an explicit value only on the child you want to break ranks.
 
 ### `grow` / `shrink` / `basis` — the per-child main-axis levers
 

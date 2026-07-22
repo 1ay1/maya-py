@@ -9,3 +9,4 @@ _deps/
 maya-src/
 .venv/
 venv/
+.agentty_rag_cache.bin
