@@ -1079,10 +1079,15 @@ void init_widgets(py::module_& m) {
                   }
                   cs.push_back(std::move(c));
               }
-              CommandPalette p{std::move(cs)};
-              p.show();
-              if (cursor > 0) const_cast<Signal<int>&>(p.cursor()).set(cursor);
-              return static_cast<Element>(p);
+              // maya's CommandPalette::build() returns an adapt() element that
+              // captures `this`, so the widget must outlive the Element it
+              // produces (see list_view/menu/search_result). Heap-own it and
+              // keep it alive via a wrapping component().
+              auto p = std::make_shared<CommandPalette>(std::move(cs));
+              p->show();
+              if (cursor > 0) const_cast<Signal<int>&>(p->cursor()).set(cursor);
+              return static_cast<Element>(
+                  maya::detail::component([p](int, int) { return p->build(); }));
           },
           py::arg("commands"), py::arg("cursor") = 0);
 
@@ -1386,7 +1391,13 @@ void init_widgets(py::module_& m) {
                   }
                   sr.add_group(std::move(grp));
               }
-              return static_cast<Element>(sr);
+              // maya's SearchResult::build() returns an adapt() element that
+              // captures `this`, so the widget must outlive the Element it
+              // produces (see the list_view/menu bindings). Heap-own it and keep
+              // it alive for the Element's lifetime via a wrapping component().
+              auto srp = std::make_shared<SearchResult>(std::move(sr));
+              return static_cast<Element>(
+                  maya::detail::component([srp](int, int) { return srp->build(); }));
           },
           py::arg("groups"), py::arg("kind") = py::none(),
           py::arg("pattern") = "", py::arg("status") = py::none(),
