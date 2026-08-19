@@ -473,77 +473,53 @@ _OVERFLOW = {"visible": _maya.Overflow.Visible, "hidden": _maya.Overflow.Hidden,
 
 
 def _stack(children, direction, g, gr):
-    # Fused fast path: build the flat [s,fg,bg,a,...] list in ONE pass and
-    # cross once via styled_text_row — no per-cell Element, no per-cell
-    # boundary crossing. A child qualifies for the fast path when it is:
-    #   • a tuple/list spec  (text, fg[, bg[, attrs]])   ← zero allocations
-    #   • a fresh T with plain-int fg/bg                 ← throwaway T
-    #   • a bare str                                     ← unstyled cell
-    # The moment ANY child is a built Element / nested box / component, we
-    # fall back to the general per-child path (box_simple) — those can't be
-    # flattened into a text row.
-    #
-    # Pre-check: a row/col of already-built Elements (the common
-    # row(card, card, …) / col(box, box, …) shape) can't be flattened at all,
-    # so the flatten loop below would scan, break on child 0, and discard its
-    # `flat` list. Detect that here and go straight to box_simple — skipping
-    # the throwaway list + the loop setup.
-    if children:
-        t0 = type(children[0])
-        if t0 is Element:
-            return _maya.box_simple(_children(children), direction, g, gr)
-    flat = []
-    ext = flat.extend
-    n = 0
-    for x in children:
-        tx = type(x)
-        if (tx is tuple or tx is list) and x and type(x[0]) is str:
-            ln = len(x)
-            fg = _resolve_col(x[1]) if ln > 1 else -1
-            bg = _resolve_col(x[2]) if ln > 2 else -1
-            at = x[3] if ln > 3 else 0
-            ext((x[0], fg, bg, at))
-        elif tx is T:
-            fg = x._fg
-            bg = x._bg
-            if type(fg) is not int or type(bg) is not int:
-                break          # Color-object T → slow path
-            ext((x._s, fg, bg, x._attrs))
-        elif tx is str:
-            ext((x, -1, -1, 0))
-        else:
-            break              # Element / box / component → slow path
-        n += 1
-    else:
-        # Loop completed without `break` → every child was flattenable.
-        if n:
-            return _maya.styled_text_row(flat, n, direction, g, gr)
+    # ONE-CALL native path: stack_specs flattens tuple specs, bare strs,
+    # plain-int Ts AND built Elements entirely in C++ — palette lookups,
+    # T-slot reads and box construction included. The interpreted per-cell
+    # loop this replaced was ~80% of a full frame (see examples/bench.py).
+    e = _maya.stack_specs(children, direction, g, gr)
+    if e is not None:
+        return e
+    return _stack_slow(children, direction, g, gr)
+
+
+def _stack_slow(children, direction, g, gr):
+    # Fallback for children the native flattener can't take (a T carrying a
+    # Color object, a lazy component, an exotic type). Caches Ts as before.
     return _maya.box_simple(_children(children), direction, g, gr)
 
 
 def col(*children, **opts) -> Element:
     """Vertical stack. Children may be strings, T's, or Elements."""
+    # Hot path fully inlined: ONE native call (stack_specs) flattens tuple
+    # specs / strs / plain-int Ts / built Elements — palette lookups and box
+    # construction included. None → a child needs Python semantics → _stack's
+    # fallback. Same body as row(); the extra function frame was measurable.
     if not opts:
-        return _stack(children, 1, -1, -1.0)
+        e = _maya.stack_specs(children, 1, -1, -1.0)
+        return e if e is not None else _stack_slow(children, 1, -1, -1.0)
     if opts.keys() <= _SIMPLE_OPTS:
         gap = opts.get("gap", -1)
         grow = opts.get("grow", -1.0)
         g = gap if gap is not None else -1
         gr = float(grow) if grow is not None else -1.0
-        return _stack(children, 1, g, gr)
+        e = _maya.stack_specs(children, 1, g, gr)
+        return e if e is not None else _stack_slow(children, 1, g, gr)
     return _box(children, direction=_maya.FlexDirection.Column, **opts)
 
 
 def row(*children, **opts) -> Element:
     """Horizontal stack."""
     if not opts:
-        return _stack(children, 0, -1, -1.0)
+        e = _maya.stack_specs(children, 0, -1, -1.0)
+        return e if e is not None else _stack_slow(children, 0, -1, -1.0)
     if opts.keys() <= _SIMPLE_OPTS:
         gap = opts.get("gap", -1)
         grow = opts.get("grow", -1.0)
         g = gap if gap is not None else -1
         gr = float(grow) if grow is not None else -1.0
-        return _stack(children, 0, g, gr)
+        e = _maya.stack_specs(children, 0, g, gr)
+        return e if e is not None else _stack_slow(children, 0, g, gr)
     return _box(children, direction=_maya.FlexDirection.Row, **opts)
 
 
@@ -566,6 +542,13 @@ def _resolve_col(c) -> int:
             _TUPLE_CACHE[c] = packed
         return packed
     return _rgb_int(c)
+
+
+# Register the palette, the T class, and the slow-path colour resolver with
+# the native spec-flattening engine (stack_specs / rows_specs) ONCE at import.
+# From here on row()/col()/rows() flatten cells entirely in C++; Python only
+# runs again for colours/types the native side doesn't recognise.
+_maya._register_specs(_PALETTE, T, _resolve_col)
 
 
 def trow(*specs, gap=-1, grow=-1.0) -> Element:
@@ -770,36 +753,7 @@ def _arity2(fn) -> bool:
     return len(required) >= 2
 
 
-# ── rows() — a whole list of text rows in ONE C++ crossing ───────────────────
-def _flatten_into(ext, cells) -> int:
-    """Append a row of cells to the shared flat ``[s,fg,bg,a, …]`` list via
-    ``ext`` (a bound ``list.extend``), returning the cell count — or -1 if any
-    cell isn't a flattenable text cell (str / tuple-spec / plain-int T). The
-    caller bails to the per-element path on -1.
-    """
-    n = 0
-    for x in cells:
-        tx = type(x)
-        if (tx is tuple or tx is list) and x and type(x[0]) is str:
-            ln = len(x)
-            fg = _resolve_col(x[1]) if ln > 1 else -1
-            bg = _resolve_col(x[2]) if ln > 2 else -1
-            at = x[3] if ln > 3 else 0
-            ext((x[0], fg, bg, at))
-        elif tx is T:
-            fg = x._fg
-            bg = x._bg
-            if type(fg) is not int or type(bg) is not int:
-                return -1
-            ext((x._s, fg, bg, x._attrs))
-        elif tx is str:
-            ext((x, -1, -1, 0))
-        else:
-            return -1
-        n += 1
-    return n
-
-
+# ── rows() — a whole list of text rows in ONE C++ crossing ──────────────────
 def rows(row_specs, *, gap: int = 0, inner_gap: int = -1,
          transpose: bool = False) -> Element:
     """Build a whole list of text rows in a SINGLE C++ crossing — the fastest
@@ -820,33 +774,23 @@ def rows(row_specs, *, gap: int = 0, inner_gap: int = -1,
     If any cell isn't flattenable (a nested box / Element), the whole call
     falls back to ``col(*[row(*r) for r in row_specs])`` — same result, slower.
     """
-    flat = []
-    ext = flat.extend
-    row_lens = []
-    ap = row_lens.append
-    inner_dir = 1 if transpose else 0
-    all_single = True
-    for r in row_specs:
-        cells = r if type(r) is list else list(r)
-        k = _flatten_into(ext, cells)
-        if k < 0:
-            # A non-text cell slipped in — rebuild the lot the general way.
-            built = [_stack(rs if type(rs) is tuple else tuple(rs),
-                            inner_dir, inner_gap, -1.0)
-                     for rs in row_specs]
-            return _maya.box_simple(built, 1 if not transpose else 0,
-                                    gap, -1.0)
-        if k != 1:
-            all_single = False
-        ap(k)
-    if not row_lens:
+    # Materialise generators once so the fallback can re-iterate safely.
+    if type(row_specs) is not list and type(row_specs) is not tuple:
+        row_specs = list(row_specs)
+    if not row_specs:
         return _maya.nothing()
-    # Every row is a single cell → this is just a flat stack of text lines.
-    # styled_text_row fuses them into ONE box (no per-row wrapper), which is
-    # both faster AND the structure col(*[…]) produces — so stay byte-identical.
-    if all_single and not transpose:
-        return _maya.styled_text_row(flat, len(row_lens), 1, gap, -1.0)
-    return _maya.styled_grid(flat, row_lens, inner_dir, gap, inner_gap)
+    # ONE-CALL native path: every row AND the outer box built in C++ —
+    # zero per-row Python frames, palette resolution included.
+    e = _maya.rows_specs(row_specs, gap, inner_gap, transpose)
+    if e is not None:
+        return e
+    # Fallback: a non-text cell slipped in — rebuild the general way.
+    inner_dir = 1 if transpose else 0
+    built = [_stack(rs if type(rs) is tuple else tuple(rs),
+                    inner_dir, inner_gap, -1.0)
+             for rs in row_specs]
+    return _maya.box_simple(built, 1 if not transpose else 0,
+                            gap, -1.0)
 
 
 # ── dimension sugar ─────────────────────────────────────────────────────────

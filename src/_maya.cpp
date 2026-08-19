@@ -102,6 +102,163 @@ static inline TextElement make_styled_text(std::string content, long fg, long bg
     return TextElement{.content = std::move(content), .style = s, .wrap = wrap};
 }
 
+// ── Native spec-flattening engine ──────────────────────────────────
+// The Python boundary tax lives in easy.py's per-cell flatten loop: for a
+// row of N cells the interpreter runs ~8 ops per cell (type checks, palette
+// dict.get, list.extend) before the ONE fused crossing. Profiling shows that
+// loop is ~80% of a full frame. These statics let row()/col()/rows() hand
+// the RAW children straight to C++ — the palette lookup, T-slot reads, and
+// tuple-spec parsing all happen here, so the Python side is a single call.
+//
+// Registered once at maya_py.easy import time via _register_specs():
+//   g_palette     — name -> packed 0xRRGGBB (easy._PALETTE mirrored; #hex
+//                   literals are parsed AND memoised natively)
+//   g_t_type      — the easy.T class, so cells that are throwaway T objects
+//                   with plain-int fg/bg flatten without a Python frame
+//   g_resolve_col — easy._resolve_col, the SLOW-path escape hatch: any
+//                   colour C++ doesn't recognise defers to Python so error
+//                   messages and exotic types keep byte-identical semantics
+static std::unordered_map<std::string, long> g_palette;
+static PyObject* g_t_type      = nullptr;
+static PyObject* g_resolve_col = nullptr;
+static PyObject* s_at_s = nullptr, *s_at_fg = nullptr, *s_at_bg = nullptr,
+                *s_at_attrs = nullptr;
+
+// Resolve a colour handle to packed 0xRRGGBB / -1 unset. Mirrors
+// easy._resolve_col's fast paths; defers to the registered Python
+// resolver for anything else (Color objects, int subclasses, errors).
+static long resolve_col_native(PyObject* o) {
+    if (o == Py_None) return -1;
+    if (PyLong_CheckExact(o)) return PyLong_AsLong(o);
+    if (PyUnicode_CheckExact(o)) {
+        Py_ssize_t sl = 0;
+        const char* sd = PyUnicode_AsUTF8AndSize(o, &sl);
+        if (sd != nullptr) {
+            std::string key(sd, static_cast<std::size_t>(sl));
+            auto it = g_palette.find(key);
+            if (it != g_palette.end()) return it->second;
+            // strip + lower once, then retry (matches _rgb_int)
+            std::size_t b = key.find_first_not_of(" \t");
+            std::size_t e = key.find_last_not_of(" \t");
+            std::string v;
+            if (b != std::string::npos) {
+                v.reserve(e - b + 1);
+                for (std::size_t i = b; i <= e; ++i)
+                    v.push_back(static_cast<char>(
+                        std::tolower(static_cast<unsigned char>(key[i]))));
+            }
+            it = g_palette.find(v);
+            if (it != g_palette.end()) return it->second;
+            if (!v.empty() && v[0] == '#') {
+                std::string h = v.substr(1);
+                if (h.size() == 3)
+                    h = {h[0], h[0], h[1], h[1], h[2], h[2]};
+                if (h.size() == 6 &&
+                    h.find_first_not_of("0123456789abcdef") == std::string::npos) {
+                    long packed = std::strtol(h.c_str(), nullptr, 16) & 0xFFFFFF;
+                    g_palette.emplace(key, packed);  // memoise the literal
+                    return packed;
+                }
+            }
+            // Unknown name — fall through to Python for the nice ValueError.
+        }
+    } else if (PyTuple_CheckExact(o) && PyTuple_GET_SIZE(o) >= 3) {
+        long r = PyLong_AsLong(PyTuple_GET_ITEM(o, 0));
+        long g = PyLong_AsLong(PyTuple_GET_ITEM(o, 1));
+        long b = PyLong_AsLong(PyTuple_GET_ITEM(o, 2));
+        if (!PyErr_Occurred()) return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
+        PyErr_Clear();
+    } else if (PyList_CheckExact(o) && PyList_GET_SIZE(o) >= 3) {
+        long r = PyLong_AsLong(PyList_GET_ITEM(o, 0));
+        long g = PyLong_AsLong(PyList_GET_ITEM(o, 1));
+        long b = PyLong_AsLong(PyList_GET_ITEM(o, 2));
+        if (!PyErr_Occurred()) return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
+        PyErr_Clear();
+    }
+    if (g_resolve_col == nullptr)
+        throw py::value_error("maya_py: colour resolver not registered");
+    PyObject* r = PyObject_CallOneArg(g_resolve_col, o);
+    if (r == nullptr) throw py::error_already_set();
+    long lv = PyLong_AsLong(r);
+    Py_DECREF(r);
+    if (lv == -1 && PyErr_Occurred()) throw py::error_already_set();
+    return lv;
+}
+
+// Flatten ONE row/col child into `kids`. Returns true on success; false
+// means "not flattenable here" and the caller must fall back to the
+// general Python path (exotic objects, T with Color fg, etc.). Mirrors
+// easy._flatten_into + easy._children's Element passthrough.
+static bool append_spec_cell(PyObject* x, std::vector<Element>& kids) {
+    const bool is_tup = PyTuple_CheckExact(x);
+    if (is_tup || PyList_CheckExact(x)) {
+        const Py_ssize_t ln = is_tup ? PyTuple_GET_SIZE(x) : PyList_GET_SIZE(x);
+        auto item = [&](Py_ssize_t i) {
+            return is_tup ? PyTuple_GET_ITEM(x, i) : PyList_GET_ITEM(x, i);
+        };
+        if (ln == 0 || !PyUnicode_CheckExact(item(0))) return false;
+        Py_ssize_t sl = 0;
+        const char* sd = PyUnicode_AsUTF8AndSize(item(0), &sl);
+        long fg = ln > 1 ? resolve_col_native(item(1)) : -1;
+        long bg = ln > 2 ? resolve_col_native(item(2)) : -1;
+        int  at = 0;
+        if (ln > 3) {
+            PyObject* ao = item(3);
+            if (!PyLong_Check(ao)) return false;
+            at = static_cast<int>(PyLong_AsLong(ao));
+        }
+        kids.push_back(Element{make_styled_text(
+            std::string(sd, static_cast<std::size_t>(sl)), fg, bg, at)});
+        return true;
+    }
+    if (PyUnicode_CheckExact(x)) {
+        Py_ssize_t sl = 0;
+        const char* sd = PyUnicode_AsUTF8AndSize(x, &sl);
+        kids.push_back(Element{make_styled_text(
+            std::string(sd, static_cast<std::size_t>(sl)), -1, -1, 0)});
+        return true;
+    }
+    if (g_t_type != nullptr &&
+        Py_TYPE(x) == reinterpret_cast<PyTypeObject*>(g_t_type)) {
+        // A T object: flatten from its __slots__ when fg/bg are plain ints
+        // (the throwaway-T case). Non-int fg/bg (a Color object) bails to
+        // the Python path, exactly like _flatten_into.
+        PyObject* fgo = PyObject_GetAttr(x, s_at_fg);
+        if (fgo == nullptr) { PyErr_Clear(); return false; }
+        if (!PyLong_CheckExact(fgo)) { Py_DECREF(fgo); return false; }
+        long fg = PyLong_AsLong(fgo);
+        Py_DECREF(fgo);
+        PyObject* bgo = PyObject_GetAttr(x, s_at_bg);
+        if (bgo == nullptr) { PyErr_Clear(); return false; }
+        if (!PyLong_CheckExact(bgo)) { Py_DECREF(bgo); return false; }
+        long bg = PyLong_AsLong(bgo);
+        Py_DECREF(bgo);
+        PyObject* so = PyObject_GetAttr(x, s_at_s);
+        if (so == nullptr || !PyUnicode_CheckExact(so)) {
+            PyErr_Clear(); Py_XDECREF(so); return false;
+        }
+        Py_ssize_t sl = 0;
+        const char* sd = PyUnicode_AsUTF8AndSize(so, &sl);
+        std::string s(sd, static_cast<std::size_t>(sl));
+        Py_DECREF(so);
+        PyObject* ao = PyObject_GetAttr(x, s_at_attrs);
+        int at = 0;
+        if (ao != nullptr && PyLong_CheckExact(ao))
+            at = static_cast<int>(PyLong_AsLong(ao));
+        else PyErr_Clear();
+        Py_XDECREF(ao);
+        kids.push_back(Element{make_styled_text(std::move(s), fg, bg, at)});
+        return true;
+    }
+    // Already-built Element: pass through (row(card, card) stays native).
+    py::handle h{x};
+    if (py::isinstance<Element>(h)) {
+        kids.push_back(h.cast<Element>());
+        return true;
+    }
+    return false;
+}
+
 static std::vector<Element> coerce_children(const py::args& args) {
     std::vector<Element> out;
     out.reserve(args.size());
@@ -353,6 +510,118 @@ PYBIND11_MODULE(_maya, m) {
     // n*4 values interleaved [s0,fg0,bg0,a0, s1,fg1,...] — no per-cell tuple
     // objects to allocate/unpack. fg/bg packed 0xRRGGBB or <0 unset.
     // Replaces N styled_text() + 1 box_simple() with a single call.
+    // ── Native spec flattening: the ONE-CALL row/col/rows ──────────────
+    // _register_specs(palette, t_type, resolve_col): called once at
+    // maya_py.easy import. Copies the palette into a C++ map and pins the
+    // T class + slow-path colour resolver so stack_specs/rows_specs can
+    // flatten cells without executing ANY per-cell Python.
+    m.def("_register_specs",
+          [](const py::dict& palette, py::object t_type, py::object resolve_col) {
+              g_palette.clear();
+              for (auto item : palette)
+                  g_palette.emplace(item.first.cast<std::string>(),
+                                    item.second.cast<long>());
+              // Leak-by-design: module-lifetime pins (freed at interpreter exit).
+              Py_XDECREF(g_t_type);
+              Py_XDECREF(g_resolve_col);
+              g_t_type      = t_type.inc_ref().ptr();
+              g_resolve_col = resolve_col.inc_ref().ptr();
+              if (s_at_s == nullptr) {
+                  s_at_s     = PyUnicode_InternFromString("_s");
+                  s_at_fg    = PyUnicode_InternFromString("_fg");
+                  s_at_bg    = PyUnicode_InternFromString("_bg");
+                  s_at_attrs = PyUnicode_InternFromString("_attrs");
+              }
+          },
+          py::arg("palette"), py::arg("t_type"), py::arg("resolve_col"));
+
+    // stack_specs(children, direction, gap, grow) -> Element | None
+    // The whole _stack fast path in ONE crossing: children is the raw
+    // row()/col() *args tuple — tuple specs, strs, plain-int Ts, and
+    // built Elements all flatten natively. Returns None when any child
+    // needs the Python fallback (caller keeps its old path).
+    m.def("stack_specs",
+          [](const py::tuple& children, int direction, int gap, float grow)
+              -> py::object {
+              const Py_ssize_t n = PyTuple_GET_SIZE(children.ptr());
+              std::vector<Element> kids;
+              kids.reserve(static_cast<std::size_t>(n));
+              for (Py_ssize_t i = 0; i < n; ++i) {
+                  if (!append_spec_cell(PyTuple_GET_ITEM(children.ptr(), i), kids))
+                      return py::none();
+              }
+              auto b = maya::box();
+              b.direction(direction == 0 ? FlexDirection::Row
+                                         : FlexDirection::Column);
+              if (gap >= 0)  b.gap(gap);
+              if (grow >= 0) b.grow(grow);
+              return py::cast(b(kids));
+          },
+          py::arg("children"), py::arg("direction"),
+          py::arg("gap") = -1, py::arg("grow") = -1.0f);
+
+    // rows_specs(row_specs, gap, inner_gap, transpose) -> Element | None
+    // The whole rows() body in ONE crossing: iterate the row iterable,
+    // flatten every cell, build every inner box AND the outer box natively.
+    // Single-cell rows collapse to the bare cell (matches rows()).
+    m.def("rows_specs",
+          [](py::iterable row_specs, int gap, int inner_gap, bool transpose)
+              -> py::object {
+              std::vector<Element> built;
+              const int inner_dir = transpose ? 1 : 0;
+              for (py::handle r : row_specs) {
+                  PyObject* ro = r.ptr();
+                  std::vector<Element> kids;
+                  // A row is usually a tuple/list of cells; but a BARE str /
+                  // tuple-spec row is also legal in rows() via _flatten_into
+                  // semantics (it iterates cells). Match: sequences of cells.
+                  const bool rt = PyTuple_CheckExact(ro);
+                  if (rt || PyList_CheckExact(ro)) {
+                      const Py_ssize_t k = rt ? PyTuple_GET_SIZE(ro)
+                                              : PyList_GET_SIZE(ro);
+                      // A (text, color) tuple-SPEC row (first item is a str)
+                      // is one cell, not a container — mirror _flatten_into,
+                      // which treats it cell-wise via the outer loop.
+                      kids.reserve(static_cast<std::size_t>(k));
+                      bool ok = true;
+                      for (Py_ssize_t i = 0; i < k; ++i) {
+                          PyObject* cell = rt ? PyTuple_GET_ITEM(ro, i)
+                                              : PyList_GET_ITEM(ro, i);
+                          if (!append_spec_cell(cell, kids)) { ok = false; break; }
+                      }
+                      if (!ok) return py::none();
+                  } else {
+                      // generator row: materialise through Python iteration
+                      py::list seq;
+                      try { seq = py::list(py::reinterpret_borrow<py::object>(r)); }
+                      catch (...) { return py::none(); }
+                      const Py_ssize_t k = static_cast<Py_ssize_t>(seq.size());
+                      kids.reserve(static_cast<std::size_t>(k));
+                      bool ok = true;
+                      for (Py_ssize_t i = 0; i < k; ++i) {
+                          if (!append_spec_cell(seq[i].ptr(), kids)) { ok = false; break; }
+                      }
+                      if (!ok) return py::none();
+                  }
+                  if (kids.size() == 1) {
+                      built.push_back(std::move(kids.front()));
+                  } else {
+                      auto ib = maya::box();
+                      ib.direction(inner_dir == 0 ? FlexDirection::Row
+                                                  : FlexDirection::Column);
+                      if (inner_gap >= 0) ib.gap(inner_gap);
+                      built.push_back(ib(kids));
+                  }
+              }
+              auto ob = maya::box();
+              ob.direction(transpose ? FlexDirection::Row
+                                     : FlexDirection::Column);
+              if (gap > 0) ob.gap(gap);
+              return py::cast(ob(built));
+          },
+          py::arg("row_specs"), py::arg("gap") = 0,
+          py::arg("inner_gap") = -1, py::arg("transpose") = false);
+
     m.def("styled_text_row",
           [](const py::list& flat, int n, int direction, int gap, float grow) {
               std::vector<Element> kids;
