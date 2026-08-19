@@ -145,16 +145,31 @@ def spinner(*, style: Any = None) -> Element:
 
 def table(columns: Sequence[Any], rows: Sequence[Sequence[Any]], *,
           stripe: bool = True, bordered: bool = False, title: str = "",
-          cell_padding: int = 1) -> Element:
+          cell_padding: int = 1, selected: int = -1, sort_col: int = -1,
+          sort_desc: bool = True, visible_rows: int = 0, window_top: int = -1,
+          show_scrollbar: bool = True, selected_bg: Any = None,
+          box_bg: Any = None, border_color: Any = None) -> Element:
     """A data table.
 
-    ``columns`` is a list of header strings, or ``(header, width, align)``
-    tuples where align is ``"left"``/``"center"``/``"right"``. ``rows`` is a
-    list of row-lists; cells are stringified in C++ (str/int/float fast paths).
+    ``columns`` is a list of header strings, ``(header, width, align)``
+    tuples where align is ``"left"``/``"center"``/``"right"``, or dicts
+    ``{header, width, align, keep, weight, min_width, max_width}`` for
+    responsive columns (``weight > 0`` grows/shrinks with the slot; lower
+    ``keep`` sheds first when the table is too narrow). ``rows`` is a list of
+    row-lists; cells are stringified in C++ (str/int/float fast paths).
+
+    Interactive extras (all render-only — you own the state):
+
+    - ``selected >= 0`` — draw the selection cursor (▎ bar + bold) on that
+      row; ``selected_bg`` fills a band behind it.
+    - ``sort_col``/``sort_desc`` — draw the ▾/▴ sort indicator in a header.
+    - ``visible_rows > 0`` — fix the body height and window around the
+      cursor with a scrollbar; ``window_top`` pins the window explicitly
+      (-1 = follow the cursor). ``show_scrollbar=False`` hides the gutter.
     """
     cols = []
     for c in columns:
-        if isinstance(c, str):
+        if isinstance(c, (str, dict)):
             cols.append(c)
         else:
             header = c[0]
@@ -165,7 +180,10 @@ def table(columns: Sequence[Any], rows: Sequence[Sequence[Any]], *,
             cols.append((header, width, align))
     # Cells are stringified natively — hand the raw rows straight through,
     # skipping the per-cell str() + throwaway inner-list comprehension.
-    return _W.table(cols, rows, stripe, bordered, title, cell_padding)
+    return _W.table(cols, rows, stripe, bordered, title, cell_padding,
+                    selected, sort_col, sort_desc, visible_rows, window_top,
+                    show_scrollbar, _col(selected_bg), _col(box_bg),
+                    _col(border_color))
 
 
 def callout(title: str, body: str = "", *, kind: str = "info") -> Element:

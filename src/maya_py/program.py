@@ -118,6 +118,7 @@ def run_program(
     title: str = "",
     inline: bool = False,
     mouse: bool = False,
+    hover_motion: bool = False,
     fps: int = 0,
 ) -> None:
     """Run a Program with maya's full MVU loop.
@@ -133,7 +134,7 @@ def run_program(
     """
     _maya.run_program(
         init, update, view, subscribe,
-        title, inline, mouse, fps,
+        title, inline, mouse, fps, hover_motion,
     )
 
 
@@ -157,6 +158,7 @@ class Program:
     title: str = ""
     inline: bool = False
     mouse: bool = False
+    hover_motion: bool = False
     fps: int = 0
 
     # -- hooks (override) ----------------------------------------------------
@@ -185,6 +187,7 @@ class Program:
         title: Optional[str] = None,
         inline: Optional[bool] = None,
         mouse: Optional[bool] = None,
+        hover_motion: Optional[bool] = None,
         fps: Optional[int] = None,
     ) -> None:
         """Start the runtime. Keyword args override the class attributes."""
@@ -196,6 +199,8 @@ class Program:
             title=self.title if title is None else title,
             inline=self.inline if inline is None else inline,
             mouse=self.mouse if mouse is None else mouse,
+            hover_motion=(self.hover_motion if hover_motion is None
+                          else hover_motion),
             fps=self.fps if fps is None else fps,
         )
 

@@ -70,6 +70,8 @@ from ._maya import (
     make_resize,
     advance_anim_clock_ms,
     anim_now_ms,
+    freeze_anim_clock,
+    unfreeze_anim_clock,
     # mouse predicates
     mouse_clicked,
     mouse_released,
@@ -90,6 +92,13 @@ from ._maya import (
 # ── MVU runtime (the full Program model, same as C++ run<P>) ────────────
 from .program import (
     Cmd, Sub, Program, run_program, ProgramPilot, program_test, ImpureUpdateError,
+)
+
+# ── Responsive layout toolkit + hit registry (maya element/grid + core/hit) ─
+from .layout import (
+    grid, sidebar, place, pick, clamp_width, fit_row, fit_col, adapt, fill,
+    measure, rainbow, gradient_rule,
+    hit_id, hit_kind, hit_index, hit_test, hit_rect,
 )
 
 # ── Border style shortcuts (BorderStyle.* without the prefix) ───────────
@@ -119,6 +128,7 @@ __all__ = [
     "key", "key_special", "ctrl", "alt", "any_key", "resized",
     "make_key", "make_mouse", "make_scroll", "make_paste", "make_resize",
     "advance_anim_clock_ms", "anim_now_ms",
+    "freeze_anim_clock", "unfreeze_anim_clock",
     "mouse_clicked", "mouse_released", "mouse_moved", "scrolled_up",
     "scrolled_down", "mouse_pos", "mouse_button", "mouse_kind", "is_mouse",
     "event_char", "pasted", "resize_size", "string_width",
@@ -131,6 +141,10 @@ __all__ = [
     # MVU runtime
     "Cmd", "Sub", "Program", "run_program", "ProgramPilot", "program_test",
     "ImpureUpdateError",
+    # responsive layout toolkit + hit registry
+    "grid", "sidebar", "place", "pick", "clamp_width", "fit_row", "fit_col",
+    "adapt", "fill", "measure", "rainbow", "gradient_rule",
+    "hit_id", "hit_kind", "hit_index", "hit_test", "hit_rect",
 ]
 
 
@@ -341,4 +355,4 @@ try:
     __version__ = _pkg_version("maya-py")
     del _pkg_version
 except Exception:  # PackageNotFoundError or metadata missing (source checkout)
-    __version__ = "0.2.13"
+    __version__ = "0.3.0"

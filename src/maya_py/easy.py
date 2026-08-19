@@ -1072,12 +1072,16 @@ class App:
     """
 
     def __init__(self, title: str = "", *, inline: bool = True,
-                 mouse: bool = False, fps: int = 0, quit_on_ctrl_c: bool = True,
+                 mouse: bool = False, hover_motion: bool = False,
+                 fps: int = 0, quit_on_ctrl_c: bool = True,
                  quit_keys: tuple[str, ...] = (), model: Any = None,
                  keys: "dict[str, Callable] | None" = None, **state):
         self.title = title
         self.inline = inline
         self.mouse = mouse
+        # Also report bare (no-button) mouse motion (mode 1003) for hover
+        # highlights. Off by default: 1003 floods move events.
+        self.hover_motion = hover_motion
         self.fps = fps
         self.quit_on_ctrl_c = quit_on_ctrl_c
         self.quit_keys = tuple(quit_keys)
@@ -1534,7 +1538,8 @@ class App:
         try:
             _maya.run(self._event, self._render,
                       title=self.title, inline_mode=self.inline,
-                      mouse=self.mouse, fps=self.fps)
+                      mouse=self.mouse, fps=self.fps,
+                      hover_motion=self.hover_motion)
         finally:
             self._in_run = False
 
