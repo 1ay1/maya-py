@@ -59,8 +59,9 @@ A full reference manual lives in [`docs/`](https://1ay1.github.io/maya-py/):
 - [How It Works (Concepts)](https://1ay1.github.io/maya-py/concepts/) — the mental model: render pipeline, runtimes, performance, pitfalls.
 - [Text & Style](https://1ay1.github.io/maya-py/text-and-style/) — `T`, markup helpers, colors.
 - [Layout](https://1ay1.github.io/maya-py/layout/) — `col`, `row`, `card`, `field`, `hr`, options.
+- [Responsive & Mouse](https://1ay1.github.io/maya-py/responsive/) — `grid`/`sidebar`/`fit_row`/`pick` reshaping layouts + the paint-time mouse hit registry.
 - [Apps](https://1ay1.github.io/maya-py/apps/) — the `App` class, key bindings, state, the view.
-- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 77 native renderers: charts, controls, agent UI, scrolling.
+- [Widgets](https://1ay1.github.io/maya-py/widgets/) — 80+ native renderers: charts, controls, agent UI, scrolling.
 - [Rendering](https://1ay1.github.io/maya-py/rendering/) — `show`, `to_string`, `animate`, `run`.
 - [Performance](https://1ay1.github.io/maya-py/performance/) — `memo`, the boundary tax, benchmarks.
 - [API Reference](https://1ay1.github.io/maya-py/api-reference/) — every public symbol.

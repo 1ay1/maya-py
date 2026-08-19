@@ -33,7 +33,7 @@ Check it imported:
 
 ```python
 import maya_py
-print(maya_py.__version__)   # 0.3.0
+print(maya_py.__version__)   # 0.3.1
 ```
 
 You write maya UIs with one import line. Everything in this tutorial comes

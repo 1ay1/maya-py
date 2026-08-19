@@ -33,9 +33,9 @@ and [examples/dashboard.py](https://github.com/1ay1/maya-py/blob/master/examples
 
 ---
 
-## The count: 77 native renderers
+## The count: 80+ native renderers
 
-The catalog covers **77 native renderers**, every one a thin wrapper over a
+The catalog covers **80-plus native renderers**, every one a thin wrapper over a
 maya C++ widget. Counted from `widgets.py`'s `__all__`:
 
 | Category | Renderers | n |

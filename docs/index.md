@@ -18,16 +18,18 @@ freely.
 ## Table of contents
 
 1. [Getting Started](getting-started.md) — install, your first UI, your first app.
-2. [Text & Style](text-and-style.md) — `T`, markup helpers, colors.
-3. [Layout](layout.md) — `col`, `row`, `card`, `field`, `hr`, `spacer`, and all box options.
-4. [Apps](apps.md) — the `App` class, key bindings, state, the view function.
-5. [The Program model (MVU)](program.md) — pure `init`/`update`/`view`/`subscribe`, `Cmd` effects, `Sub` sources — the same model as C++ `run<P>`.
-6. [Widgets](widgets.md) — 77 native renderers: charts, controls, tables, agent UI, scrolling.
-7. [Rendering](rendering.md) — `show`, `to_string`, `animate`, `live`, `run`.
-8. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
-9. [API Reference](api-reference.md) — every public symbol, one table.
-10. [Low-Level API](low-level.md) — primitives, enums, the native binding.
-11. [Distribution & Standalone Wheels](distribution.md) — how it installs without a compiler.
+2. [How It Works (Concepts)](concepts.md) — the mental model the whole manual rests on.
+3. [Text & Style](text-and-style.md) — `T`, markup helpers, colors.
+4. [Layout](layout.md) — `col`, `row`, `card`, `field`, `hr`, `spacer`, and all box options.
+5. [Responsive & Mouse](responsive.md) — `grid`/`sidebar`/`fit_row`/`pick` layouts that re-solve on resize, plus the paint-time mouse hit registry.
+6. [Apps](apps.md) — the `App` class, key bindings, state, the view function.
+7. [The Program model (MVU)](program.md) — pure `init`/`update`/`view`/`subscribe`, `Cmd` effects, `Sub` sources — the same model as C++ `run<P>`.
+8. [Widgets](widgets.md) — 80+ native renderers: charts, controls, tables, agent UI, scrolling.
+9. [Rendering](rendering.md) — `show`, `to_string`, `animate`, `live`, `run`.
+10. [Performance](performance.md) — `memo`, the boundary tax, benchmarks, fast patterns.
+11. [API Reference](api-reference.md) — every public symbol, one table.
+12. [Low-Level API](low-level.md) — primitives, enums, the native binding.
+13. [Distribution & Standalone Wheels](distribution.md) — how it installs without a compiler.
 
 ## A complete example
 
@@ -82,4 +84,4 @@ app.run()
 
 ## Versions
 
-This manual documents maya-py **0.3.0**. The API is young and may change.
+This manual documents maya-py **0.3.1**. The API is young and may change.

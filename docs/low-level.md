@@ -163,7 +163,7 @@ maya.hex(0xFF8800)       # -> Color
 ```
 
 The easy API's `color(...)` is more flexible (accepts names, hex strings,
-tuples) — see [Text & Style](text-and-style.md#colors).
+tuples) — see [Text & Style](text-and-style.md#3-the-color-system).
 
 ## Events
 

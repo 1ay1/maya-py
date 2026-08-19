@@ -53,7 +53,7 @@ def test_quit_emits_cmd():
 
 No event loop is started, no alt screen is entered, nothing is drawn. You assert
 on the returned model — and, when there is an effect, on the returned `Cmd`. See
-[§7](#7-testing-update-without-a-terminal) for the full pattern. This testability
+[§7](#8-testing-update-without-a-terminal) for the full pattern. This testability
 is the single biggest reason to reach for `Program` over [`App`](apps.md): your
 core logic is verifiable in milliseconds, with no terminal and no flakiness.
 
@@ -157,7 +157,7 @@ run_program(
 - `fps>0` drives continuous rendering at that frame rate; `fps=0` (default) means
   "redraw only when the model changes." Set `fps>0` only for continuous motion —
   but note that timer-driven motion is usually better expressed with `Sub.every`
-  or `Sub.on_animation_frame` (see [§6](#6-sub--input-sources-as-data)).
+  or `Sub.on_animation_frame` (see [§6](#6-sub-input-sources-as-data)).
 
 `run_program` blocks until `Cmd.quit()` is returned or the user hits Ctrl-C.
 

@@ -529,93 +529,35 @@ ends.
 
 ---
 
-## 7. The responsive toolkit — layouts that re-solve on resize
+## 7. Beyond one layout: responsive & interactive
 
-Everything above describes *one* layout. The responsive toolkit (new in
-0.3.0, mirroring maya's `element/grid.hpp` + `builder.hpp`) builds layouts
-that **reshape themselves** from the width the terminal actually provides —
-re-solved live on every resize, no breakpoints to memorize.
-
-### `grid(cells, min)` — the one-number dashboard grid
+Everything above describes *one* layout — a fixed arrangement. maya also ships
+a **responsive toolkit** that reshapes the UI from the width the terminal
+actually provides, re-solved live on every resize (no breakpoints to
+memorize), plus a **paint-time mouse hit registry** for clickable chrome:
 
 ```python
-from maya_py import grid, show
+from maya_py import grid, sidebar, fit_row, pick, show
 
-show(grid([cpu_card, mem_card, net_card, disk_card], 26))
+show(grid([cpu, mem, net, disk], 26))     # as many cells/row as fit; wraps; stacks
+show(sidebar(stats, main_table, 42))      # rail + main; stacks when narrow
+show(fit_row(logo, (host, 5), (kern, 1))) # sheds low-keep items when tight
+show(pick(rich_line, medium_line, icon))  # first alternative that fits
 ```
 
-“Each cell wants about 26 columns” is the entire API. maya fits as many
-cells per row as the real slot width allows, wraps the rest into new rows,
-and stacks everything in one column on a narrow terminal. Options:
-`max_cols=` caps cells per row, `gap_x=`/`gap_y=` space them,
-`grow_rows=True` shares surplus height.
+These — plus `place`, `clamp_width`, `adapt`, `fill`, `measure`, the pretty-text
+helpers (`rainbow`, `gradient_rule`), and mouse hit-testing (`hit_id` /
+`hit_test`) — get a full worked tutorial of their own:
 
-### `sidebar(rail, main, width)` — rail + content
-
-```python
-show(sidebar(stats_panel, main_table, 42))
-```
-
-A fixed-width rail next to a main pane that takes the rest — and the pair
-stacks vertically (reading order preserved) the moment the terminal is too
-narrow for both. `right=True` puts the rail on the right; `stack_below=`
-overrides the auto stacking threshold.
-
-### `fit_row` / `fit_col` — shed detail, never shear
-
-```python
-from maya_py import fit_row
-
-header = fit_row(
-    logo,                 # essential — never dropped
-    (hostname_chip, 5),   # (element, keep): lower keep drops first
-    (kernel_chip, 4),
-    (uptime_chip, 2),
-    (proc_counts, 1),     # first to go
-    gap=1,
-)
-```
-
-Items are dropped lowest-`keep` first (ties drop the rightmost) until what
-remains fits — the declarative kill for the “responsive header” bug class.
-`fit_col` is the vertical counterpart for slots that are too *short*.
-
-### `pick(rich, medium, tiny)` — semantic zoom
-
-```python
-show(pick(full_status_line, medium_status_line, just_the_icon))
-```
-
-The first alternative that fits the width renders; the **last** is the
-fallback (used even when it does not fit — something must render).
-
-### `place`, `clamp_width`
-
-```python
-place(dialog)                      # dead center of the slot
-place(toast, "right", "top")       # corner-anchored
-clamp_width(article, 100)          # never wider than 100 cells, centered
-```
-
-### `adapt(fn)` / `fill(fn)` — custom width/slot-aware components
-
-```python
-from maya_py import adapt, fill
-
-adapt(lambda w: compact_view if w < 60 else full_view)
-fill(lambda w, h: area_chart(data, w, h))   # fills the leftover slot
-```
-
-`adapt` receives the actual slot **width** at layout time — it is the
-primitive `grid`/`sidebar`/`pick` are built on. `fill` receives the slot
-**size** flex allocated and sizes to the SLOT (it sets `grow=1`), so a chart
-takes the space left after fixed content instead of collapsing to its own
-height. `measure(el)` returns any element's natural `(width, height)`.
+> **→ [Responsive Layout & Mouse Interaction](responsive.md)** — build a
+> reshaping, clickable dashboard step by step.
 
 ---
 
 ## 8. Where to go next
 
+- **[Responsive & Mouse](responsive.md)** — layouts that re-solve on resize and
+  the mouse hit registry (the next step after these fundamentals).
 - **[Text & Style](text-and-style.md)** — `T`, markup helpers, colors, tuple
   cells (the leaves you put *inside* these containers).
 - **[Widgets](widgets.md)** — the native renderers (`table`, `gauge`, `divider`,

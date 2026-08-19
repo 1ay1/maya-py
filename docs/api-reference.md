@@ -65,12 +65,12 @@ from maya_py import T, card, col, row, App, memo   # etc.
 
 **Shared `opts`** for `col`/`row`/`card`: `gap`, `pad`, `border`,
 `border_color`, `title`, `bg`, `align`, `justify`, `width`, `height`, `grow`.
-See [Layout](layout.md#keyword-options).
+See [Layout](layout.md#3-the-shared-options).
 
 ### Responsive toolkit
 
 Width-aware building blocks that re-solve themselves live on every resize.
-See [Layout §7](layout.md#7-the-responsive-toolkit--layouts-that-re-solve-on-resize).
+See [Responsive & Mouse](responsive.md).
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
@@ -456,8 +456,8 @@ See [Performance](performance.md).
 | Symbol | Description |
 |--------|-------------|
 | `Element` | An opaque element tree node. Returned by builders; consumed by renderers. |
-| `Style` | Text style descriptor (see [styling](#text--styling)). |
-| `Color` | A color value (see [styling](#text--styling)). |
+| `Style` | Text style descriptor (see [styling](#text-styling)). |
+| `Color` | A color value (see [styling](#text-styling)). |
 | `Event` | An input event (see [events](#events-low)). |
 | `Dimension` | A size value (`auto` / fixed / percent). Build percents with `pct(…)`; pass to `width`/`height`. |
 | `BorderSides` | Which border sides to draw. Build with `sides(…)` or use `BorderSides.all` / `.none` / `.horizontal` / `.vertical` / `.top` / `.right` / `.bottom` / `.left`. |

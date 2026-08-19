@@ -4,7 +4,7 @@
 
 This page explains how maya-py is packaged so it installs on machines with a
 **very old C++ compiler — or none at all.** It's aimed at maintainers and the
-curious. (Users: see the [install instructions](getting-started.md#install) —
+curious. (Users: see the [install instructions](getting-started.md#1-install) —
 it's on PyPI, so `pip install maya-py` is all you need.)
 
 ## The constraint

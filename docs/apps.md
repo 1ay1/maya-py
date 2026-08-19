@@ -12,7 +12,7 @@ or explicitly-managed effects.
 Before reading on, internalise the mental model in
 [concepts.md §4](concepts.md#4-two-runtimes-app-and-program) (the two runtimes),
 [§5](concepts.md#5-the-frame-lifecycle) (the frame lifecycle) and
-[§6](concepts.md#6-the-event--input-model) (the event & input model). This page
+[§6](concepts.md#6-the-event-input-model) (the event & input model). This page
 is the depth-first tour of everything those sections summarise.
 
 ---
@@ -442,7 +442,7 @@ explains why, e.g., a focused text field "eats" your `j`/`k` bindings:
 7. The **first matching `@app.on(...)`** binding (then routing stops).
 
 [Scroll states](#9-automatic-scrolling) get their refusal *inside* the run loop
-before your handlers — see [concepts.md §6](concepts.md#6-the-event--input-model).
+before your handlers — see [concepts.md §6](concepts.md#6-the-event-input-model).
 
 ---
 
@@ -532,7 +532,7 @@ app.stop()            # request exit (call from any handler)
 ## 9. Automatic scrolling
 
 This is a maya superpower (full detail in
-[concepts.md §6](concepts.md#6-the-event--input-model) and
+[concepts.md §6](concepts.md#6-the-event-input-model) and
 [widgets.md](widgets.md)): a `scroll_state()` placed inside a `viewport(...)`
 and/or `scrollbar(...)` **auto-dispatches** — the run loop forwards arrows,
 PgUp/PgDn, Home/End and (with `mouse=True`) the wheel and scrollbar drag to
