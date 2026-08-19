@@ -139,6 +139,7 @@ run_program(
     title: str = "",
     inline: bool = False,
     mouse: bool = False,
+    hover_motion: bool = False,
     fps: int = 0,
 ) -> None
 ```
@@ -154,6 +155,9 @@ run_program(
   screen), like a rich prompt; `inline=False` (the default here) takes the full
   screen. See [concepts §5](concepts.md) on inline vs. alternate screen.
 - `mouse=True` enables mouse event reporting (so `Sub.on_mouse` fires).
+- `hover_motion=True` additionally reports bare (no-button) mouse motion
+  (terminal mode 1003) so hover highlights work — off by default because 1003
+  floods move events. See [Responsive & Mouse §9](responsive.md#9-mouse-interaction-the-hit-registry).
 - `fps>0` drives continuous rendering at that frame rate; `fps=0` (default) means
   "redraw only when the model changes." Set `fps>0` only for continuous motion —
   but note that timer-driven motion is usually better expressed with `Sub.every`
@@ -168,6 +172,7 @@ class Program:
     title: str = ""
     inline: bool = False
     mouse: bool = False
+    hover_motion: bool = False
     fps: int = 0
 
     def init(self) -> Any: ...                     # model | (model, Cmd)
@@ -175,12 +180,13 @@ class Program:
     def view(self, model) -> Any: ...               # -> Element  (must override)
     def subscribe(self, model) -> Any: ...          # -> Sub  (default Sub.none())
 
-    def run(self, *, title=None, inline=None, mouse=None, fps=None) -> None: ...
+    def run(self, *, title=None, inline=None, mouse=None,
+            hover_motion=None, fps=None) -> None: ...
 ```
 
-The class attributes (`title`, `inline`, `mouse`, `fps`) supply defaults;
-keyword args to `.run()` override them per launch. Internally `.run()` just
-forwards your bound hooks to `run_program`.
+The class attributes (`title`, `inline`, `mouse`, `hover_motion`, `fps`) supply
+defaults; keyword args to `.run()` override them per launch. Internally `.run()`
+just forwards your bound hooks to `run_program`.
 
 ---
 

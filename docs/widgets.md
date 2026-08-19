@@ -91,7 +91,8 @@ internalising before the reference:
 
 ```python
 sparkline(data: Sequence[float], *, label: str = "", color=None,
-          show_min_max: bool = False, show_last: bool = False) -> Element
+          show_min_max: bool = False, show_last: bool = False,
+          range_min: float | None = None, range_max: float | None = None) -> Element
 ```
 
 An inline mini bar chart from a sequence of numbers.
@@ -103,7 +104,11 @@ show(sparkline([3, 1, 4, 1, 5, 9, 2, 6, 5, 3], label="req/s",
 ```
 
 Notable: `show_min_max` appends the range; `show_last` appends the most recent
-value. Both are off by default for a clean one-line glyph.
+value. Both are off by default for a clean one-line glyph. By default the chart
+auto-scales to the data's own min/max — pass `range_min`/`range_max` to pin the
+scale to a **fixed** range (e.g. `range_min=0, range_max=100` for a percentage),
+so the bars stay comparable frame-to-frame instead of re-normalizing each time
+the data shifts.
 
 ### `gauge`
 
@@ -1349,6 +1354,32 @@ and [examples/canvas.py](https://github.com/1ay1/maya-py/blob/master/examples/ca
 For a *size-aware* drawing that fills its box every frame, prefer the
 `pixel_canvas` / `halfblock` helpers (they get the live measure pass — see the
 note in [concepts.md §8](concepts.md)).
+
+### Colour utilities *(helpers, not renderers)*
+
+Two small helpers for hand-drawn panels — they return colour data, not
+Elements, so you feed the result into `fg=` / `bg=` when plotting.
+
+```python
+ramp(stops: Sequence, n: int) -> list[int]
+rgb_lerp(a, b, t: float) -> tuple[int, int, int]
+```
+
+`ramp` builds an `n`-entry colour lookup table interpolated across `stops`
+(each a name / `"#rrggbb"` / `(r,g,b)` / `Color`), returning packed ints ready
+to pass as a colour. It kills the per-shade
+`[pack(lerp(a,b,i/7)) for i in ...]` boilerplate every heat-mapped panel grows:
+
+```python
+from maya_py import ramp, Canvas
+
+heat = ramp(["#001a4d", "cyan", "white"], 16)   # 16-shade table
+c = Canvas(60, 30)
+c.set_pixel(x, y, heat[level])                # level in 0..15
+```
+
+`rgb_lerp(a, b, t)` blends two colours in RGB and returns the `(r, g, b)`
+tuple at `t ∈ [0, 1]` — the one-off version of a `ramp` stop.
 
 ---
 
