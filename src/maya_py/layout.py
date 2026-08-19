@@ -21,7 +21,8 @@ live on every terminal resize. The whole dashboard idiom is three shapes::
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from . import _maya
 from ._maya import Element
