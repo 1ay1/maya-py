@@ -749,7 +749,15 @@ PYBIND11_MODULE(_maya, m) {
               if (opts.contains("max_height")) b.max_height(coerce_dim(opts["max_height"]));
 
               auto kids = coerce_children(children);
-              return b(kids);
+              Element built = b(kids);
+              // hit=<id>: tag the box as a paint-time mouse hit target
+              // (see hit_test()/hit_rect() below). The runtime BoxBuilder
+              // has no hit() method, so set the field on the built Box.
+              if (opts.contains("hit")) {
+                  if (auto* bx = maya::as_box(built))
+                      bx->hit_id = opts["hit"].cast<std::uint64_t>();
+              }
+              return built;
           });
 
     // Convenience: vstack / hstack — thin wrappers that fix direction then
@@ -780,6 +788,234 @@ PYBIND11_MODULE(_maya, m) {
 
     // nothing() -> Element  (zero-row transparent fragment)
     m.def("nothing", [] { return maya::detail::nothing(); });
+
+    // ── Responsive layout toolkit (maya/element/grid.hpp + builder.hpp) ──
+    // These are maya's width-aware building blocks: they re-solve themselves
+    // from the width the layout actually hands them, live on every resize.
+
+    // grid(cells, min=24, max_cols=0, gap_x=1, gap_y=0, grow_rows=False)
+    // Auto-flow grid: as many `min`-wide cells per row as fit, wrap the
+    // rest, one column when narrow. "Each cell wants about `min` columns"
+    // is the entire API.
+    m.def("grid",
+          [](py::sequence cells, int min, int max_cols, int gap_x, int gap_y,
+             bool grow_rows) -> Element {
+              std::vector<Element> kids;
+              kids.reserve(py::len(cells));
+              for (const auto& c : cells) kids.push_back(coerce_child(c));
+              maya::GridOpts opts{.min = min, .max_cols = max_cols,
+                                  .gap_x = gap_x, .gap_y = gap_y,
+                                  .grow_rows = grow_rows};
+              return static_cast<Element>(maya::grid(std::move(kids), opts));
+          },
+          py::arg("cells"), py::arg("min") = 24, py::arg("max_cols") = 0,
+          py::arg("gap_x") = 1, py::arg("gap_y") = 0,
+          py::arg("grow_rows") = false);
+
+    // sidebar(rail, main, width=32, stack_below=0, gap=1, right=False)
+    // Fixed-width rail beside a main pane that takes the rest; stacks
+    // vertically (reading order preserved) when the slot is too narrow.
+    m.def("sidebar",
+          [](const py::handle& rail, const py::handle& main, int width,
+             int stack_below, int gap, bool right) -> Element {
+              maya::SidebarOpts opts{.width = width, .stack_below = stack_below,
+                                     .gap = gap, .right = right};
+              return static_cast<Element>(
+                  maya::sidebar(coerce_child(rail), coerce_child(main), opts));
+          },
+          py::arg("rail"), py::arg("main"), py::arg("width") = 32,
+          py::arg("stack_below") = 0, py::arg("gap") = 1,
+          py::arg("right") = false);
+
+    // place(child, h="center", v="middle") — position one child inside the
+    // slot flex gives the wrapper (h: left|center|right, v: top|middle|bottom).
+    m.def("place",
+          [](const py::handle& child, const std::string& h_s,
+             const std::string& v_s) -> Element {
+              maya::HAlign h = h_s == "left"  ? maya::HAlign::Left
+                             : h_s == "right" ? maya::HAlign::Right
+                                              : maya::HAlign::Center;
+              maya::VAlign v = v_s == "top"    ? maya::VAlign::Top
+                             : v_s == "bottom" ? maya::VAlign::Bottom
+                                               : maya::VAlign::Middle;
+              return maya::detail::place(coerce_child(child), h, v);
+          },
+          py::arg("child"), py::arg("h") = "center", py::arg("v") = "middle");
+
+    // pick(alternatives) — render the FIRST alternative that fits the width;
+    // the LAST is the fallback (used even when it does not fit).
+    m.def("pick",
+          [](py::sequence alternatives) -> Element {
+              std::vector<Element> alts;
+              alts.reserve(py::len(alternatives));
+              for (const auto& a : alternatives) alts.push_back(coerce_child(a));
+              return static_cast<Element>(maya::detail::pick(std::move(alts)));
+          },
+          py::arg("alternatives"));
+
+    // clamp_width(el, max_width, align="center") — cap content width on huge
+    // terminals and align the clamped column (libadwaita's AdwClamp).
+    // (Named clamp_width: `clamp` is maya's name but collides with the
+    // numeric clamp() helper in maya_py.easy.)
+    m.def("clamp_width",
+          [](const py::handle& el, int max_width, const std::string& align_s)
+              -> Element {
+              maya::HAlign a = align_s == "left"  ? maya::HAlign::Left
+                             : align_s == "right" ? maya::HAlign::Right
+                                                  : maya::HAlign::Center;
+              return static_cast<Element>(
+                  maya::detail::clamp(coerce_child(el), max_width, a));
+          },
+          py::arg("el"), py::arg("max_width"), py::arg("align") = "center");
+
+    // fit_row(items, gap=0) / fit_col(items, gap=0)
+    // A row/column that DROPS optional items when the slot is too small.
+    // items: Element | str | (Element, keep) — lower `keep` drops first;
+    // items without a rank never drop.
+    {
+        auto parse_fit = [](py::sequence items) {
+            std::vector<maya::FitItem> out;
+            out.reserve(py::len(items));
+            for (const auto& it : items) {
+                if (py::isinstance<py::tuple>(it) || py::isinstance<py::list>(it)) {
+                    auto t = it.cast<py::sequence>();
+                    int keep = t.size() > 1 ? t[1].cast<int>() : maya::kKeepAlways;
+                    out.push_back({coerce_child(t[0]), keep});
+                } else {
+                    out.push_back({coerce_child(it), maya::kKeepAlways});
+                }
+            }
+            return out;
+        };
+        m.def("fit_row",
+              [parse_fit](py::sequence items, int gap) -> Element {
+                  return static_cast<Element>(
+                      maya::detail::fit_row(parse_fit(items), gap));
+              },
+              py::arg("items"), py::arg("gap") = 0);
+        m.def("fit_col",
+              [parse_fit](py::sequence items, int gap) -> Element {
+                  return static_cast<Element>(
+                      maya::detail::fit_col(parse_fit(items), gap));
+              },
+              py::arg("items"), py::arg("gap") = 0);
+    }
+
+    // adapt(render_fn) — width-aware component: render_fn(width) -> Element.
+    // fill(render_fn, min_w=0, min_h=1) — slot-filling component:
+    // render_fn(w, h) -> Element; sizes to the SLOT (grow(1) + tiny basis)
+    // instead of its content, so charts can fill leftover space.
+    // GIL safety: same shared_ptr scheme as component() above.
+    {
+        auto wrap_fn = [](py::function f) {
+            return std::shared_ptr<py::function>(
+                new py::function(std::move(f)),
+                [](py::function* p) {
+                    py::gil_scoped_acquire gil;
+                    delete p;
+                });
+        };
+        auto to_element = [](py::object r) -> Element {
+            if (py::isinstance<py::str>(r))
+                return Element{TextElement{.content = r.cast<std::string>()}};
+            if (!py::isinstance<Element>(r))
+                throw py::type_error(
+                    "render_fn must return a maya Element or str, got "
+                    + std::string(py::str(r.get_type().attr("__name__"))));
+            return r.cast<Element>();
+        };
+        m.def("adapt",
+              [wrap_fn, to_element](py::function render_fn) -> Element {
+                  auto fn = wrap_fn(std::move(render_fn));
+                  return static_cast<Element>(maya::detail::adapt(
+                      [fn, to_element](int w) -> Element {
+                          py::gil_scoped_acquire gil;
+                          return to_element((*fn)(w));
+                      }));
+              },
+              py::arg("render_fn"));
+        m.def("fill",
+              [wrap_fn, to_element](py::function render_fn, int min_w, int min_h)
+                  -> Element {
+                  auto fn = wrap_fn(std::move(render_fn));
+                  return static_cast<Element>(maya::detail::fill(
+                      [fn, to_element](int w, int h) -> Element {
+                          py::gil_scoped_acquire gil;
+                          return to_element((*fn)(w, h));
+                      },
+                      min_w, min_h));
+              },
+              py::arg("render_fn"), py::arg("min_w") = 0, py::arg("min_h") = 1);
+    }
+
+    // measure_element(el, max_width=1<<14) -> (width, height)
+    // The Element tree's natural size under a width cap — the primitive the
+    // whole responsive toolkit is built on.
+    m.def("measure_element",
+          [](const Element& e, int max_width) {
+              maya::Size s = maya::measure_element(e, max_width);
+              return py::make_tuple(s.width.value, s.height.value);
+          },
+          py::arg("element"), py::arg("max_width") = (1 << 14));
+
+    // ── Pretty text: rainbow() + gradient_rule() ─────────────────────────
+    // (Two-/multi-stop gradient text is bound in _widgets.gradient.)
+
+    // rainbow(text, saturation=0.85, lightness=0.62, bold=False)
+    m.def("rainbow",
+          [](std::string text, float saturation, float lightness, bool bold)
+              -> Element {
+              Style base{};
+              if (bold) base = base.with_bold();
+              return maya::rainbow(std::move(text), base, saturation, lightness);
+          },
+          py::arg("text"), py::arg("saturation") = 0.85f,
+          py::arg("lightness") = 0.62f, py::arg("bold") = false);
+
+    // gradient_rule(stops, glyph="─") — a full-width divider colored from
+    // the first stop to the last, tiled with `glyph`, responsive to width.
+    m.def("gradient_rule",
+          [](std::vector<Color> stops, const std::string& glyph) -> Element {
+              maya::Gradient g{std::move(stops)};
+              char32_t cp = U'\u2500';  // ─
+              if (!glyph.empty()) {
+                  std::size_t pos = 0;
+                  cp = maya::decode_utf8(glyph, pos);
+              }
+              return static_cast<Element>(maya::detail::gradient_rule(g, cp));
+          },
+          py::arg("stops"), py::arg("glyph") = "\u2500");
+
+    // ── Hit registry (maya/core/hit.hpp) ─────────────────────────────────
+    // Paint-time mouse hit-testing: tag a box with hit=<id> (box() kwarg),
+    // the painter records its ABSOLUTE painted rect every frame, and
+    // hit_test(x, y) resolves a mouse event to the topmost id — correct by
+    // construction, no hand-mirrored layout math.
+    m.def("hit_id",
+          [](std::uint32_t kind, std::uint32_t index) {
+              return maya::hit_id(kind, index);
+          },
+          py::arg("kind"), py::arg("index") = 0,
+          "Pack a (kind, index) pair into a 64-bit HitId.");
+    m.def("hit_kind", [](std::uint64_t id) { return maya::hit_kind(id); },
+          py::arg("id"));
+    m.def("hit_index", [](std::uint64_t id) { return maya::hit_index(id); },
+          py::arg("id"));
+    m.def("hit_test",
+          [](int x, int y) -> py::object {
+              if (auto id = maya::hit_test(x, y)) return py::cast(*id);
+              return py::none();
+          },
+          py::arg("x"), py::arg("y"),
+          "Topmost hit-target id at cell (x, y) this frame, or None.");
+    m.def("hit_rect",
+          [](std::uint64_t id) -> py::object {
+              if (auto r = maya::hit_rect(id))
+                  return py::make_tuple(r->x, r->y, r->w, r->h);
+              return py::none();
+          },
+          py::arg("id"),
+          "Painted (x, y, w, h) of the first region under `id`, or None.");
 
     // component(render_fn) -> Element
     // Lazy element: render_fn(width, height) -> Element, called once the
@@ -1088,6 +1324,18 @@ PYBIND11_MODULE(_maya, m) {
           py::arg("ms"),
           "Advance maya's animation clock by `ms` (test-only, no sleep).");
 
+    // freeze_anim_clock(at_ms=0) / unfreeze_anim_clock()
+    // Pin the animation clock to an absolute value so a headless render is
+    // fully deterministic (advance_anim_clock_ms is additive; freeze is
+    // absolute). unfreeze restores the live steady_clock base.
+    m.def("freeze_anim_clock",
+          [](std::int64_t at_ms) { maya::testing::freeze_anim_clock(at_ms); },
+          py::arg("at_ms") = 0,
+          "Pin maya's animation clock at `at_ms` (test-only, deterministic).");
+    m.def("unfreeze_anim_clock",
+          []() { maya::testing::unfreeze_anim_clock(); },
+          "Restore the live animation clock after freeze_anim_clock().");
+
     // anim_now_ms() -> int
     // maya's animation clock in milliseconds: steady_clock + the test skew
     // that advance_anim_clock_ms() moves. The SAME monotone clock every
@@ -1193,10 +1441,12 @@ PYBIND11_MODULE(_maya, m) {
     // render_fn: () -> Element
     m.def("run",
           [](py::function event_fn, py::function render_fn,
-             const std::string& title, bool inline_mode, bool mouse, int fps) {
+             const std::string& title, bool inline_mode, bool mouse, int fps,
+             bool hover_motion) {
               RunConfig cfg{};
               cfg.title = title;
               cfg.mouse = mouse;
+              cfg.hover_motion = hover_motion;
               cfg.fps = fps;
               cfg.mode = inline_mode ? Mode::Inline : Mode::Fullscreen;
 
@@ -1216,7 +1466,7 @@ PYBIND11_MODULE(_maya, m) {
                           // ::write(1, ...), which doesn't exist on Windows.
                           (void)maya::platform::io_write_all(
                               maya::platform::stdout_handle(),
-                              "\x1b[?1007l\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+                              "\x1b[?1007l\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l");
                       }
                   }
               } mouse_guard{mouse};
@@ -1246,7 +1496,8 @@ PYBIND11_MODULE(_maya, m) {
           },
           py::arg("event_fn"), py::arg("render_fn"),
           py::arg("title") = "", py::arg("inline_mode") = false,
-          py::arg("mouse") = false, py::arg("fps") = 0);
+          py::arg("mouse") = false, py::arg("fps") = 0,
+          py::arg("hover_motion") = false);
 
     // Widget renderers (registered last so the core types they reference in
     // default args — Style, Color, BorderStyle — already exist).

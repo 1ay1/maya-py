@@ -882,20 +882,48 @@ void init_widgets(py::module_& m) {
           },
           py::arg("style") = std::nullopt);
 
-    // ── table(columns, rows, **opts) ────────────────────────────────────
-    // columns: list of str (header) OR (header, width, align) tuples.
+    // ── table(columns, rows, **opts) ──────────────────────────────────
+    // columns: list of str (header) OR (header, width, align) tuples OR dicts
+    // {header, width, align, keep, weight, min_width, max_width}.
     // rows: list of row-sequences whose cells are str / int / float / any
     // object. Cells are stringified HERE in C++ (str passthrough, int/float
     // fast paths, str(obj) fallback) so the Python wrapper hands raw cells
     // straight through — no per-cell str() frame, no throwaway inner lists.
+    //
+    // New (maya table overhaul): selection cursor (selected >= 0 renders the
+    // ▎ cursor bar + selected style), sort indicator (sort_col/sort_desc
+    // draw ▾/▴ in that header), height windowing (visible_rows fixes the
+    // body height, the window follows the cursor, a scrollbar appears),
+    // and responsive weighted columns (weight/min_width/max_width/keep).
     w.def("table",
           [](const py::list& columns, const py::list& rows,
-             bool stripe, bool bordered, const std::string& title, int cell_padding) {
+             bool stripe, bool bordered, const std::string& title, int cell_padding,
+             int selected, int sort_col, bool sort_desc, int visible_rows,
+             int window_top, bool show_scrollbar, std::optional<Color> selected_bg,
+             std::optional<Color> box_bg, std::optional<Color> border_color) {
               std::vector<ColumnDef> cols;
               for (const auto& col : columns) {
                   ColumnDef cd{};
                   if (py::isinstance<py::str>(col)) {
                       cd.header = col.cast<std::string>();
+                  } else if (py::isinstance<py::dict>(col)) {
+                      auto d = col.cast<py::dict>();
+                      if (d.contains("header"))    cd.header = d["header"].cast<std::string>();
+                      if (d.contains("width"))     cd.width = d["width"].cast<int>();
+                      if (d.contains("align")) {
+                          if (py::isinstance<py::str>(d["align"])) {
+                              std::string a = d["align"].cast<std::string>();
+                              cd.align = a == "right"  ? ColumnAlign::Right
+                                       : a == "center" ? ColumnAlign::Center
+                                                       : ColumnAlign::Left;
+                          } else {
+                              cd.align = d["align"].cast<ColumnAlign>();
+                          }
+                      }
+                      if (d.contains("keep"))      cd.keep = d["keep"].cast<int>();
+                      if (d.contains("weight"))    cd.weight = d["weight"].cast<float>();
+                      if (d.contains("min_width")) cd.min_width = d["min_width"].cast<int>();
+                      if (d.contains("max_width")) cd.max_width = d["max_width"].cast<int>();
                   } else {
                       auto t = col.cast<py::sequence>();
                       cd.header = t[0].cast<std::string>();
@@ -934,13 +962,31 @@ void init_widgets(py::module_& m) {
               cfg.show_border = bordered;
               cfg.title = title;
               cfg.cell_padding = cell_padding;
+              cfg.sort_col = sort_col;
+              cfg.sort_desc = sort_desc;
+              cfg.visible_rows = visible_rows;
+              cfg.window_top = window_top;
+              cfg.show_scrollbar = show_scrollbar;
+              if (selected >= 0) {
+                  cfg.selectable = true;
+                  if (selected_bg) cfg.selected_bg = *selected_bg;
+              }
+              if (box_bg) cfg.box_bg = *box_bg;
+              if (border_color) cfg.border_color = *border_color;
               Table tbl{std::move(cols), cfg};
               tbl.set_rows(std::move(srows));
+              if (selected >= 0) tbl.set_selected(selected);
               return static_cast<Element>(tbl);
           },
           py::arg("columns"), py::arg("rows"),
           py::arg("stripe") = true, py::arg("bordered") = false,
-          py::arg("title") = "", py::arg("cell_padding") = 1);
+          py::arg("title") = "", py::arg("cell_padding") = 1,
+          py::arg("selected") = -1, py::arg("sort_col") = -1,
+          py::arg("sort_desc") = true, py::arg("visible_rows") = 0,
+          py::arg("window_top") = -1, py::arg("show_scrollbar") = true,
+          py::arg("selected_bg") = std::nullopt,
+          py::arg("box_bg") = std::nullopt,
+          py::arg("border_color") = std::nullopt);
 
     // ── callout(title, body, kind) ──────────────────────────────────────
     w.def("callout",

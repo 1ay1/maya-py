@@ -264,10 +264,12 @@ static void run_program(py::object init_fn,
                         const std::string& title,
                         bool inline_mode,
                         bool mouse,
-                        int fps) {
+                        int fps,
+                        bool hover_motion) {
     RunConfig cfg{};
     cfg.title = title;
     cfg.mouse = mouse;
+    cfg.hover_motion = hover_motion;
     cfg.fps   = fps;
     cfg.mode  = inline_mode ? Mode::Inline : Mode::Fullscreen;
 
@@ -290,7 +292,7 @@ static void run_program(py::object init_fn,
                 // Cross-platform terminal write (POSIX fd / Win32 HANDLE).
                 (void)maya::platform::io_write_all(
                     maya::platform::stdout_handle(),
-                    "\x1b[?1007l\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+                    "\x1b[?1007l\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l");
             }
         }
     } mouse_guard{mouse};
@@ -512,6 +514,7 @@ void init_program(py::module_& m) {
           py::arg("subscribe") = py::none(),
           py::arg("title") = "", py::arg("inline_mode") = false,
           py::arg("mouse") = false, py::arg("fps") = 0,
+          py::arg("hover_motion") = false,
           "Run a maya Program: pure init/update/view/subscribe over Model+Msg.\n"
           "  init()              -> model | (model, Cmd)\n"
           "  update(model, msg)  -> model | (model, Cmd)\n"
