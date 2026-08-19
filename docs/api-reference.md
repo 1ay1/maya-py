@@ -67,6 +67,40 @@ from maya_py import T, card, col, row, App, memo   # etc.
 `border_color`, `title`, `bg`, `align`, `justify`, `width`, `height`, `grow`.
 See [Layout](layout.md#keyword-options).
 
+### Responsive toolkit
+
+Width-aware building blocks that re-solve themselves live on every resize.
+See [Layout §7](layout.md#7-the-responsive-toolkit--layouts-that-re-solve-on-resize).
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `grid` | `grid(cells, min=24, *, max_cols=0, gap_x=1, gap_y=0, grow_rows=False) -> Element` | Auto-flow grid: as many `min`-wide cells per row as fit; wraps; stacks to one column when narrow. |
+| `sidebar` | `sidebar(rail, main, width=32, *, stack_below=0, gap=1, right=False) -> Element` | Fixed-width rail + main pane; stacks vertically when too narrow. |
+| `fit_row` | `fit_row(*items, gap=0) -> Element` | Row that DROPS optional items — `(el, keep)` tuples shed lowest-`keep` first. |
+| `fit_col` | `fit_col(*items, gap=0) -> Element` | Vertical counterpart: drops items when the slot is too short. |
+| `pick` | `pick(*alternatives) -> Element` | First alternative that fits the width; the last is the fallback. |
+| `place` | `place(child, h="center", v="middle") -> Element` | Position a child in its slot (`left/center/right` × `top/middle/bottom`). |
+| `clamp_width` | `clamp_width(el, max_width, align="center") -> Element` | Cap content width on ultrawide terminals; center (or corner-align) it. |
+| `adapt` | `adapt(render_fn) -> Element` | Width-aware component: `render_fn(w)` runs with the real slot width. |
+| `fill` | `fill(render_fn, *, min_w=0, min_h=1) -> Element` | Slot-filling component: `render_fn(w, h)` sizes to the SLOT (sets `grow=1`). |
+| `measure` | `measure(el, max_width=16384) -> (w, h)` | An element tree's natural size under a width cap. |
+| `rainbow` | `rainbow(text, *, saturation=0.85, lightness=0.62, bold=False) -> Element` | Full-spectrum hue-sweep text. |
+| `gradient_rule` | `gradient_rule(*stops, glyph="─") -> Element` | Full-width gradient divider; spans whatever width it is given. |
+
+### Hit registry (mouse)
+
+Paint-time hit-testing: tag a box with `hit=hit_id(kind, i)` (a `box()`/
+`vstack()`/`hstack()` kwarg) and the renderer records its painted rect each
+frame — no hand-mirrored layout math.
+
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
+| `hit_id` | `hit_id(kind, index=0) -> int` | Pack a `(kind, index)` pair into a 64-bit hit-target id. |
+| `hit_kind` | `hit_kind(id) -> int` | The kind half of a packed id. |
+| `hit_index` | `hit_index(id) -> int` | The index half of a packed id. |
+| `hit_test` | `hit_test(x, y) -> int \| None` | Topmost hit-target id painted at cell `(x, y)` this frame. |
+| `hit_rect` | `hit_rect(id) -> (x, y, w, h) \| None` | Painted rect of the first region under `id` (anchor popups to targets). |
+
 ### Low
 
 | Symbol | Signature | Description |
@@ -88,7 +122,7 @@ See [Layout](layout.md#keyword-options).
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
-| `App` | `App(title="", *, inline=True, mouse=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), model=None, keys=None, **state)` | Interactive app. `model=` uses your object as state; `keys={k: fn}` binds keys declaratively; `**state`/`quit_keys` as before. |
+| `App` | `App(title="", *, inline=True, mouse=False, hover_motion=False, fps=0, quit_on_ctrl_c=True, quit_keys=(), model=None, keys=None, **state)` | Interactive app. `model=` uses your object as state; `keys={k: fn}` binds keys declaratively; `hover_motion=True` also reports bare (no-button) mouse motion for hover highlights; `**state`/`quit_keys` as before. |
 | `App.inline` | `App.inline(title="", **kw) -> App` | Inline app (draws in place, keeps scrollback). Reads as intent; same as `inline=True`. |
 | `App.fullscreen` | `App.fullscreen(title="", **kw) -> App` | Fullscreen app (alt screen, owns every cell, restores on exit). Same as `inline=False`. Pair with `fullscreen_pixels`. |
 | `App.state` | `app.state(**kw) -> state` | Seed state; returns the state bag. |
@@ -145,6 +179,8 @@ deterministic. See [apps.md](apps.md) (§ Testing apps headlessly) and the
 | `make_paste` | `make_paste(text) -> Event` | Synthesize a bracketed paste. |
 | `make_resize` | `make_resize(cols, rows) -> Event` | Synthesize a terminal resize. |
 | `advance_anim_clock_ms` | `advance_anim_clock_ms(ms) -> None` | Advance maya's animation clock by `ms` without sleeping (additive, monotone). Drives every native time-driven widget deterministically. |
+| `freeze_anim_clock` | `freeze_anim_clock(at_ms=0) -> None` | Pin the animation clock at an ABSOLUTE value — fully deterministic headless renders. |
+| `unfreeze_anim_clock` | `unfreeze_anim_clock() -> None` | Restore the live clock after `freeze_anim_clock`. |
 | `anim_now_ms` | `anim_now_ms() -> int` | maya's monotone animation clock in ms (`steady_clock` + the test skew). The clock every native widget reads. |
 
 ---

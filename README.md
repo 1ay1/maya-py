@@ -138,6 +138,39 @@ def bar(w, h):
 col("Loading", component(bar, height=1))
 ```
 
+### Responsive layout: one number, re-solved on every resize
+
+maya's responsive toolkit reshapes the UI from the width the terminal
+actually provides — no breakpoints, no width math:
+
+```python
+from maya_py import grid, sidebar, fit_row, pick, clamp_width, show
+
+# "Each cell wants ~26 columns": fits as many per row as the terminal
+# allows, wraps the rest, stacks to one column when narrow.
+show(grid([cpu_card, mem_card, net_card, disk_card], 26))
+
+# Fixed-width rail + main pane; stacks vertically when too narrow.
+show(sidebar(stats_panel, main_table, 42))
+
+# A header that SHEDS detail as the terminal narrows — (el, keep) drops
+# lowest-keep first; untagged items never drop.
+show(fit_row(logo, (hostname, 5), (kernel, 4), (uptime, 2), gap=1))
+
+# Semantic zoom: first alternative that fits wins; last is the fallback.
+show(pick(rich_status, medium_status, icon_only))
+
+# Cap prose width on an ultrawide and center it.
+show(clamp_width(article, 100))
+```
+
+Plus `place()` (center a dialog / corner a toast), `fit_col()`, `adapt()` /
+`fill()` (custom width- and slot-aware components), `measure()`, `rainbow()`
+and `gradient_rule()` for pretty headings, and a paint-time mouse **hit
+registry** (`hit=hit_id(kind, i)` on any box + `hit_test(x, y)`) so clicks
+resolve against where the renderer *actually painted* — no hand-mirrored
+layout math.
+
 ### Widgets: maya's native renderers
 
 maya ships a library of ready-made widgets — they render through the **same C++

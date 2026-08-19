@@ -559,13 +559,21 @@ show(activity_indicator("3.4s", color="cyan"))
 
 ```python
 table(columns: Sequence[Any], rows: Sequence[Sequence[Any]], *, stripe: bool = True,
-      bordered: bool = False, title: str = "", cell_padding: int = 1) -> Element
+      bordered: bool = False, title: str = "", cell_padding: int = 1,
+      selected: int = -1, sort_col: int = -1, sort_desc: bool = True,
+      visible_rows: int = 0, window_top: int = -1, show_scrollbar: bool = True,
+      selected_bg=None, box_bg=None, border_color=None) -> Element
 ```
 
-A data table. `columns` is a list of header strings, or `(header, width, align)`
+A data table. `columns` is a list of header strings, `(header, width, align)`
 tuples where `align` is `"left"` / `"center"` / `"right"` (or a `ColumnAlign`
-member; `width=0` auto-sizes). `rows` is a list of row-lists; cells are
-stringified for you.
+member; `width=0` auto-sizes), or dicts
+`{header, width, align, keep, weight, min_width, max_width}` for responsive
+columns — `weight > 0` makes a column flexible (it grows past natural and
+shrinks toward `min_width` when tight, truncating cells with `…`), and when
+the table is too narrow WHOLE columns shed lowest-`keep` first instead of
+shearing mid-cell. `rows` is a list of row-lists; cells are stringified for
+you.
 
 ```python
 from maya_py import table, show
@@ -576,7 +584,29 @@ show(table(
 ))
 ```
 
-Notable: `stripe` zebra-stripes rows; `bordered` draws box borders;
+Interactive extras (all render-only — you own the state, feed it back each
+frame):
+
+- `selected=i` draws the selection cursor (▎ edge bar + bold) on row `i`;
+  `selected_bg` fills a colour band behind it.
+- `sort_col=c` + `sort_desc` render the `▾`/`▴` indicator in that header —
+  you sort the rows (the table *shows* the sort, htop-style).
+- `visible_rows=n` fixes the body height and windows around the cursor with
+  a scrollbar; `window_top` pins the first visible row explicitly
+  (`-1` = follow the cursor); `show_scrollbar=False` hides the gutter.
+
+```python
+# htop-style process pane: cursor + sort + a 10-row window
+show(table(
+    [{"header": "PID", "align": "right"},
+     {"header": "NAME", "weight": 1.0, "min_width": 6},
+     {"header": "CPU", "align": "right"}],
+    procs, selected=cur, sort_col=2, visible_rows=10,
+))
+```
+
+Notable: `stripe` zebra-stripes rows; `bordered` draws box borders (`box_bg`
+fills behind the whole bordered box, `border_color` tints the frame);
 `cell_padding` is the horizontal padding inside each cell. For per-frame hot
 tables, pass tuple cells into layout instead (see [concepts.md §7](concepts.md)).
 
