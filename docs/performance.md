@@ -3,45 +3,63 @@
 [← Manual index](index.md)
 
 This page is honest about where maya-py is fast, where it isn't, and how to
-get the most out of it. The benchmarks come from `examples/bench.py` and
-`examples/bench_live.py`; run them on your own machine for local numbers.
+get the most out of it. The benchmarks come from `examples/bench.py`,
+`examples/bench_live.py`, and `examples/bench_vs_rich.py`; run them on your
+own machine for local numbers.
 
 ## The mental model
 
 maya-py has two costs per frame:
 
 1. **Build** — constructing the element tree in Python and crossing the
-   pybind11 boundary into C++. This is pure Python interpreter work plus a
-   fixed per-call cost (~300 ns/crossing). **You cannot make this run at C++
-   speed** — every `card(...)` is a Python function call.
+   pybind11 boundary into C++. Since 0.3.1 the hot containers
+   (`row`/`col`/`rows`) flatten their children **entirely in C++**: the
+   palette lookup, tuple-spec parsing, `T`-slot reads and box construction
+   all happen native-side, one crossing per container — zero per-cell
+   Python. What's left is the container call itself.
 2. **Render** — maya's native layout (Yoga flexbox), cell diff (SIMD), and
    serialization. This is fast C++ and roughly flat in tree size.
 
 The trick to speed is **doing less Build work**, because Render is already
-cheap and Build is where the time goes.
+cheap and Build is where the remaining time goes.
+
+## Benchmark 0: vs Rich (the real-world comparison)
+
+Rich is the de-facto standard for styled terminal output in Python (and the
+render engine under Textual). `examples/bench_vs_rich.py` renders identical
+content through each library's idiomatic API:
+
+| workload | maya-py | Rich | speedup |
+|----------|---------|------|---------|
+| dashboard, 30 rows | ~82 µs | ~7.3 ms | **~89×** |
+| log flood, 200 lines | ~343 µs | ~12.8 ms | **~37×** |
+| data table, 100×6 | ~196 µs | ~25.7 ms | **~132×** |
+
+**Geometric mean: ~76×.** Rich pays interpreted Python for every segment,
+style resolution, and ANSI write; maya-py pays one native call per container
+and C++ for everything after.
 
 ## Benchmark 1: render to a string
 
-A 30-row dashboard, rendered to a string repeatedly:
+A 30-row dashboard, rendered to a string repeatedly, against a bespoke
+hand-tuned pure-Python ANSI concatenator (faster than any real library —
+the honest lower bound for interpreted rendering):
 
 | path | per render |
 |------|-----------|
-| maya-py (build + render) | ~145 µs |
-| tuned pure-Python equivalent | ~70 µs |
+| maya-py, friendly `T(...)` API | ~130 µs |
+| maya-py, `rows()` idiom | ~83 µs |
+| bespoke pure-Python lower bound | ~70 µs |
 
-Breakdown of maya-py's ~145 µs:
+Breakdown of the `rows()` path's ~83 µs:
 
-- ~100 µs **Build** (Python + pybind11)
-- ~24 µs **Render** (native)
+- ~39 µs **Build** (one native call for the whole table)
+- ~26 µs **Render** (native layout + paint)
+- the rest: the card/fields around the table
 
-So **~80% of the time is the Python boundary, not maya** — the native
-render itself is only ~24 µs. For pure one-shot string output a well-written
-pure-Python renderer (e.g. Rich) can still edge maya-py out (~2×), because it
-skips the marshalling — but the gap is much smaller than it used to be.
-
-**Takeaway:** if all you do is render static output *once*, a bespoke
-pure-Python renderer is marginally faster. Its strength is elsewhere — see the
-live-app path below, where maya-py now wins outright.
+**Takeaway:** even for one-shot static output maya-py is now within ~20% of
+a renderer that does *no layout at all*, and dramatically ahead of any real
+library. The old "Rich is faster for one-shot output" caveat is gone.
 
 ### The live-app path (tree cached, re-render only)
 
@@ -51,10 +69,10 @@ maya's native render:
 
 | path | per frame |
 |------|-----------|
-| maya-py (cached tree, re-render) | ~24 µs |
+| maya-py (cached tree, re-render) | ~26 µs |
 | pure-Python (must rebuild every frame) | ~70 µs |
 
-**maya-py is ~2.9× faster here** — and unlike the pure-Python concatenator it
+**maya-py is ~2.7× faster here** — and unlike the pure-Python concatenator it
 still does real flexbox layout, wrapping, responsive sizing, and a partial-frame
 diff.
 

@@ -4,6 +4,34 @@ All notable changes to maya-py are recorded here. Versions follow
 [semantic versioning](https://semver.org/) (though the API is young and the
 minor series may still shift).
 
+## 0.3.1
+
+The performance release: element **build now flattens entirely in C++**.
+
+### Changed
+
+- **Native spec-flattening engine.** `row()`/`col()`/`rows()` hand their raw
+  children straight to new native entry points (`stack_specs`/`rows_specs`):
+  palette-name resolution (`"sky"` → packed RGB, `#hex` parsed and memoised
+  natively), tuple-spec parsing, `T`-slot reads, and box construction all
+  happen in one C++ call per container — **zero per-cell Python**. The
+  palette, the `T` class, and the slow-path colour resolver are registered
+  once at import (`_register_specs`); anything the native side doesn't
+  recognise (a `T` carrying a `Color` object, exotic types) falls back to
+  the old Python path with identical semantics. Output is byte-identical
+  (golden verified).
+- Benchmarks (30-row dashboard, `examples/bench.py`): the `rows()` idiom
+  build dropped ~99 µs → ~39 µs; full build+render ~147 µs → ~83 µs —
+  within ~20% of a bespoke pure-Python ANSI concatenator that does no
+  layout at all, and **~76× faster than Rich** (geometric mean over
+  dashboard / log-flood / table workloads, `examples/bench_vs_rich.py`).
+
+### Added
+
+- `examples/bench_vs_rich.py` — honest head-to-head against Rich on three
+  identical workloads (dashboard, 200-line log flood, 100×6 table).
+- `examples/bench.py` now reports the `rows()` idiom variant.
+
 ## 0.3.0
 
 Synced with the latest **maya** master (123 upstream commits) and bound the

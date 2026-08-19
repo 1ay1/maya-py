@@ -733,22 +733,39 @@ class instead.
 
 ## Performance
 
-Honest numbers from `examples/bench.py` and `examples/bench_live.py`
-(30-row dashboard, this machine — yours will differ):
+Honest numbers from `examples/bench.py`, `examples/bench_live.py`, and
+`examples/bench_vs_rich.py` (30-row dashboard, this machine — yours will
+differ):
 
-**Rendering to a string (one-shot output).** Here a tuned pure-Python
-renderer still edges ahead — building the element tree in Python and crossing
-pybind11 costs more than maya's native render saves:
+**Head-to-head vs Rich** (the de-facto Python styled-output library — both
+sides render identical content to a string, Rich via its idiomatic
+`Table`/`Text.assemble`/`Panel` API with a pre-built Console):
+
+| workload | maya-py | Rich | speedup |
+|----------|---------|------|---------|
+| dashboard, 30 rows | ~82 µs | ~7.3 ms | **~89×** |
+| log flood, 200 lines | ~343 µs | ~12.8 ms | **~37×** |
+| data table, 100×6 | ~196 µs | ~25.7 ms | **~132×** |
+
+**Geometric mean: ~76× faster than Rich** — while doing real flexbox
+layout, wrapping, and a diffable frame Rich doesn't attempt.
+
+**Rendering to a string (one-shot output)** vs a hand-tuned pure-Python
+ANSI string-concatenator (much faster than any real library — the honest
+lower bound):
 
 | path | per render |
 |------|-----------|
-| maya-py (build + render) | ~145 µs |
-| pure-Python equivalent | ~70 µs |
+| maya-py, friendly `T(...)` API | ~130 µs |
+| maya-py, `rows()` idiom | ~83 µs |
+| bespoke pure-Python lower bound | ~70 µs |
 
-~80% of maya-py's time is the Python tree construction + boundary crossing,
-not maya — the native render itself is only ~24 µs. So **if you only render
-static output once, a pure-Python lib like Rich is still a touch faster** (now
-~2×, down from ~5×).
+The element build now flattens **entirely in C++** — `row()`/`col()`/`rows()`
+hand their raw children to a native spec engine that does the palette
+lookups, tuple parsing and box construction in one crossing per container
+(zero per-cell Python). That closed the build cost from ~99 µs to ~39 µs for
+the `rows()` idiom; the bespoke concatenator is within ~20% and does no
+layout at all.
 
 **Live redraw to a terminal (what maya is built for).** When you redraw a
 frame and only part changed, maya's SIMD cell-diff emits *only the changed
@@ -772,10 +789,9 @@ Three levers close most of the Python-side gap:
    built (4.8× faster than the naive one-call-per-`.bold` approach).
 
 2. **Pass styled cells as tuples to skip the `T` objects.** `row`/`col`
-   accept `(text, fg[, bg[, attrs]])` tuple specs directly — in a hot redraw
-   path (tables, lists, dashboards) the throwaway `T` per cell is the
-   dominant build cost, and the tuple form flattens the whole row in one
-   boundary crossing. Byte-identical output, same API:
+   accept `(text, fg[, bg[, attrs]])` tuple specs directly — the native
+   spec engine flattens the whole container in one boundary crossing.
+   Byte-identical output, same API:
 
    ```python
    from maya_py import row, T, c, DIM
@@ -806,13 +822,12 @@ Three levers close most of the Python-side gap:
        return col(header(s.title, len(s.items)), body(s))
    ```
 
-**Bottom line:** building a UI in Python always costs Python calls, but the
-thing that actually matters in a terminal — the per-frame redraw — is now
-*faster than a hand-tuned pure-Python renderer*: maya's native layout + paint
-renders the cached tree in ~25µs vs ~70µs for the bespoke string-builder in
-`examples/bench.py`, while still doing real flexbox, wrapping, and a
-partial-frame diff. `memo` + tuple-cell `row`/`col` let the steady-state frame
-skip Python almost entirely.
+**Bottom line:** the per-frame redraw — the thing that actually matters in a
+terminal — renders the cached tree in ~26 µs vs ~70 µs for the bespoke
+string-builder in `examples/bench.py`, while still doing real flexbox,
+wrapping, and a partial-frame diff; and against a real library (Rich) the
+full build+render pipeline is ~76× faster. `memo` + tuple-cell `row`/`col` +
+`rows()` let the steady-state frame skip Python almost entirely.
 
 ## License
 

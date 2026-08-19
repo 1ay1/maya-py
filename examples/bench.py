@@ -24,7 +24,7 @@ import time
 import statistics
 
 import maya_py as maya
-from maya_py import col, row, card, field, b, c, hr, T, DIM
+from maya_py import col, row, rows, card, field, b, c, hr, T, DIM
 
 
 # ── workload parameters ──────────────────────────────────────────────────────
@@ -108,6 +108,30 @@ def maya_build_fast(data):
         field("Healthy", f"{sum(1 for d in data if d['status'][0]=='OK')}/{len(data)}"),
         hr(40),
         col(*table_rows, gap=0),
+        title="dashboard",
+    )
+
+
+def maya_build_rows(data):
+    """The fastest idiom: the whole N-row table is ONE ``rows()`` call — every
+    inner row AND the outer column are built natively, so the table costs one
+    boundary crossing and zero per-row Python frames. Note: rows() uses gap=2
+    via inner_gap; visual output matches maya_build's table body."""
+    table = rows(
+        ([(d["name"], "sky"),
+          (d["status"][0], d["status"][1]),
+          (d["latency"], None, None, DIM),
+          (d["rps"], "gold")]
+         for d in data),
+        inner_gap=2,
+    )
+    return card(
+        b("Service Dashboard").fg("sky"),
+        hr(40),
+        field("Region", "us-east-1", value_color="green"),
+        field("Healthy", f"{sum(1 for d in data if d['status'][0]=='OK')}/{len(data)}"),
+        hr(40),
+        table,
         title="dashboard",
     )
 
@@ -228,9 +252,12 @@ def main():
     maya_full = time_it(lambda: maya_render(maya_build(data), width), iters)
     pyui_full = time_it(lambda: pyui_render(data, width), iters)
 
-    # ── maya-py split: build vs render ──────────────────────────────────────
+    # ── maya-py split: build vs render ──────────────────────────────────
     maya_build_only = time_it(lambda: maya_build(data), iters)
     maya_build_fast_only = time_it(lambda: maya_build_fast(data), iters)
+    maya_build_rows_only = time_it(lambda: maya_build_rows(data), iters)
+    maya_full_rows = time_it(
+        lambda: maya_render(maya_build_rows(data), width), iters)
     maya_render_only = time_it(lambda: maya_render(tree, width), iters)
 
     # The fast builder must be byte-identical to the friendly one.
@@ -249,9 +276,19 @@ def main():
     print(f"    build  row(T(...))  styled  {fmt_us(maya_build_only)}")
     print(f"    build  row((text,color))    {fmt_us(maya_build_fast_only)}"
           f"  (tuple cells, zero T, same output)")
+    print(f"    build  rows(generator)      {fmt_us(maya_build_rows_only)}"
+          f"  (whole table in ONE crossing)")
     print(f"    render (native layout+diff) {fmt_us(maya_render_only)}")
     pct = maya_build_only / (maya_build_only + maya_render_only) * 100
     print(f"    →  Python boundary is {pct:.0f}% of maya-py's time\n")
+
+    print("  FULL with the rows() idiom (build+render, table fused):")
+    print(f"    maya-py        {fmt_us(maya_full_rows)}")
+    print(f"    pure-python    {fmt_us(pyui_full)}")
+    sp2 = pyui_full / maya_full_rows
+    verdict2 = f"maya-py {sp2:.2f}× faster" if sp2 >= 1 else \
+               f"pure-python {1/sp2:.2f}× faster"
+    print(f"    →  {verdict2}  (while doing real flexbox + diff)\n")
 
     # ── the realistic live-app path: tree is cached, only render runs ──────
     # In a real interactive app the element tree only changes when state

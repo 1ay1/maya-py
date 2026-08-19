@@ -355,4 +355,4 @@ try:
     __version__ = _pkg_version("maya-py")
     del _pkg_version
 except Exception:  # PackageNotFoundError or metadata missing (source checkout)
-    __version__ = "0.3.0"
+    __version__ = "0.3.1"
